@@ -9,6 +9,8 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
 
@@ -65,6 +67,10 @@ func main() {
 			os.Exit(1)
 		}
 	}()
+
+	// Serve a client.
+	go func() { log.Fatal(http.ListenAndServe(":8081", http.FileServer(http.Dir("./")))) }()
+	fmt.Println("Client at: http://localhost:8081/")
 
 	// Wait for interrupt signal
 	c := make(chan os.Signal)

@@ -42,6 +42,12 @@ func (w *work) processQueue() {
 // processRequest is executed by the worker to process an incoming request.
 func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *Handlers, params map[string]string) {
 	var r Request
+	if hs == nil {
+		r.s = s
+		r.msg = m
+		r.reply(responseNotFound)
+		return
+	}
 	err := json.Unmarshal(m.Data, &r)
 	r.s = s
 	r.msg = m

@@ -245,8 +245,13 @@ func (w *CallResponse) MethodNotFound() {
 }
 
 // InvalidParams sends a system.invalidParams response for the call request.
+// An empty message will be replaced will default to "Invalid parameters".
 func (w *CallResponse) InvalidParams(message string) {
-	(*Request)(w).reply(responseInvalidParams)
+	if message == "" {
+		(*Request)(w).reply(responseInvalidParams)
+	} else {
+		(*Request)(w).error(&Error{Code: CodeInvalidParams, Message: message})
+	}
 }
 
 // Error sends a custom error response for the call request.
@@ -271,8 +276,13 @@ func (w *AuthResponse) MethodNotFound() {
 }
 
 // InvalidParams sends a system.invalidParams response for the auth request.
+// An empty message will be replaced will default to "Invalid parameters".
 func (w *AuthResponse) InvalidParams(message string) {
-	(*Request)(w).reply(responseInvalidParams)
+	if message == "" {
+		(*Request)(w).reply(responseInvalidParams)
+	} else {
+		(*Request)(w).error(&Error{Code: CodeInvalidParams, Message: message})
+	}
 }
 
 // Error sends a custom error response for the auth request.
