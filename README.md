@@ -7,24 +7,25 @@ A [Go](http://golang.org) package implementing the RES-Service protocol for [Res
 ## Installation
 
 ```bash
-# Service
 go get github.com/jirenius/go-res
 ```
 
-## Hello world example
+## Example
 
 Install and run [NATS server](https://nats.io/download/nats-io/gnatsd/) and [Resgate](https://github.com/jirenius/resgate):
 
-```
+```bash
 go get github.com/nats-io/gnatsd
 gnatsd
 ```
-
-```
+```bash
 go get github.com/jirenius/resgate
 resgate
 ```
-**Service** 
+
+Check the [example folder](example) for full examples, or try out the simple *Hello World* example below.
+
+**Service**  
 ```go
 package main
 
