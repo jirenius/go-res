@@ -120,9 +120,7 @@ func main() {
 func handleBookModels(s *res.Service) {
 	s.Handle(
 		"book.$id",
-		res.Access(func(r *res.Request, w *res.AccessResponse) {
-			w.OK(true, "*") // No access restrictions
-		}),
+		res.Access(res.AccessGranted),
 		res.Get(func(r *res.Request, w *res.GetResponse) {
 			book := getBook(r.ResourceName)
 			if book == nil {
@@ -198,9 +196,7 @@ func handleBookModels(s *res.Service) {
 func handleBooksCollection(s *res.Service) {
 	s.Handle(
 		"books",
-		res.Access(func(r *res.Request, w *res.AccessResponse) {
-			w.OK(true, "*") // No access restrictions
-		}),
+		res.Access(res.AccessGranted),
 		res.Get(func(r *res.Request, w *res.GetResponse) {
 			w.Collection(books)
 		}),

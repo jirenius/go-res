@@ -51,9 +51,7 @@ func main() {
 
 	// Add handlers for "exampleService.myModel" resource
 	s.Handle("myModel",
-		res.Access(func(r *res.Request, w *res.AccessResponse) {
-			w.OK(true, "*")
-		}),
+		res.Access(res.AccessGranted),
 		res.Get(func(r *res.Request, w *res.GetResponse) {
 			w.Model(myModel)
 		}),

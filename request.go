@@ -89,6 +89,20 @@ var (
 	responseMethodNotFound  = []byte(`{"error":{"code":"system.methodNotFound","message":"Method not found"}}`)
 	responseInvalidParams   = []byte(`{"error":{"code":"system.invalidParams","message":"Invalid parameters"}}`)
 	responseMissingResponse = []byte(`{"error":{"code":"system.internalError","message":"Internal error: missing response"}}`)
+	responseAccessGranted   = []byte(`{"result":{"get":true,"call":"*"}}`)
+)
+
+// Predefined handlers
+var (
+	// Access handler that provides full get and call access.
+	AccessGranted AccessHandler = func(r *Request, w *AccessResponse) {
+		(*Request)(w).reply(responseAccessGranted)
+	}
+
+	// Access handler that sends a system.accessDenied error response.
+	AccessDenied AccessHandler = func(r *Request, w *AccessResponse) {
+		(*Request)(w).reply(responseAccessDenied)
+	}
 )
 
 // success sends a successful response as a reply.
