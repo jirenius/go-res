@@ -235,11 +235,11 @@ func handleBooksCollection(s *res.Service) {
 			}
 			r.UnmarshalParams(&p)
 
-			rid := fmt.Sprintf("bookService.book.%d", p.ID)
-			if deleteBook(rid) {
+			rname := fmt.Sprintf("bookService.book.%d", p.ID)
+			if deleteBook(rname) {
 				// Find the book in books collection, and remove it
 				for i, rid := range books {
-					if rid == res.Ref(rid) {
+					if rid == res.Ref(rname) {
 						// Remove it from slice
 						books = append(books[:i], books[i+1:]...)
 						// Send remove event
