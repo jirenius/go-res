@@ -43,3 +43,10 @@ res-collection
 ```
 
 Go to http://localhost:8082/
+
+## Contributing
+
+The go-res package is still under development, and commits may still contain breaking changes. It should only be used for educational purpose. Any feedback on the package API or its implementation is highly appreciated!
+
+If you find any issues, feel free to [report them](https://github.com/jirenius/go-res/issues/new) as an Issue.
+
