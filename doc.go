@@ -9,7 +9,7 @@ requests, and to send events.
 Concurrency
 
 Requests are handled concurrently for multiple resources, but the package
-guarantees that for only one goroutine is executing handlers for any unique
+guarantees that only one goroutine is executing handlers for any unique
 resource at any one time. This allows handlers to modify models without
 additional synchronization such as mutexes.
 
@@ -59,6 +59,7 @@ Add handlers for method calls:
 Send event:
 
 	s.Handle("myModel",
+		...
 		res.Call("set", func(r *res.Request, w *res.CallResponse) {
 			var p struct {
 				Message *string `json:"message,omitempty"`

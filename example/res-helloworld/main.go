@@ -13,10 +13,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/jirenius/go-res"
 )
 
+// Model example
 type Model struct {
 	Message string `json:"message"`
 }
@@ -67,7 +69,11 @@ func main() {
 	}()
 
 	// Serve a client.
-	go func() { log.Fatal(http.ListenAndServe(":8081", http.FileServer(http.Dir("./")))) }()
+	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		panic(err)
+	}
+	go func() { log.Fatal(http.ListenAndServe(":8081", http.FileServer(http.Dir(path)))) }()
 	fmt.Println("Client at: http://localhost:8081/")
 
 	// Wait for interrupt signal
