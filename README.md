@@ -23,14 +23,19 @@ go get github.com/jirenius/resgate
 resgate
 ```
 
+Clone go-res repository:
+```bash
+git clone https://github.com/jirenius/go-res
+```
+
 All examples below contains both a service and a stand-alone client.  
 Run the client in multiple browser tabs to observe real-time updates.
 
 ### Hello world example
 
 ```bash
-go get github.com/jirenius/go-res/example/res-helloworld
-res-helloworld
+cd go-res/example/res-helloworld
+go run main.go
 ```
 
 Go to http://localhost:8081/
@@ -38,8 +43,8 @@ Go to http://localhost:8081/
 ### Book collection example
 
 ```bash
-go get github.com/jirenius/go-res/example/res-collection
-res-collection
+cd go-res/example/res-collection
+go run main.go
 ```
 
 Go to http://localhost:8082/
