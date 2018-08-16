@@ -2,6 +2,8 @@ package res
 
 import (
 	"encoding/json"
+	"strconv"
+	"time"
 
 	nats "github.com/nats-io/go-nats"
 )
@@ -104,6 +106,19 @@ var (
 		(*Request)(w).reply(responseAccessDenied)
 	}
 )
+
+// Timeout attempts to set the timeout duration of the request.
+// The call has no effect if the requester has already timed out the request.
+func (r *Request) Timeout(d time.Duration) {
+	if d < 0 {
+		panic("res: negative timeout duration")
+	}
+	out := []byte(`timeout:"` + strconv.FormatInt(d.Nanoseconds()/1000000, 10) + `"`)
+	if debug {
+		r.s.Logf("<-- %s: %s", r.msg.Subject, out)
+	}
+	r.send(r.msg.Reply, out)
+}
 
 // success sends a successful response as a reply.
 func (r *Request) success(result interface{}) {
