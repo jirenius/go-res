@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 
 	"github.com/jirenius/go-res"
 )
@@ -69,11 +68,7 @@ func main() {
 	}()
 
 	// Serve a client.
-	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
-	if err != nil {
-		panic(err)
-	}
-	go func() { log.Fatal(http.ListenAndServe(":8081", http.FileServer(http.Dir(path)))) }()
+	go func() { log.Fatal(http.ListenAndServe(":8081", http.FileServer(http.Dir("./")))) }()
 	fmt.Println("Client at: http://localhost:8081/")
 
 	// Wait for interrupt signal
