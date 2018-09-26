@@ -50,6 +50,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *H
 	}
 	err := json.Unmarshal(m.Data, &r)
 	r.s = s
+	r.h = hs
 	r.msg = m
 	r.Type = rtype
 	r.ResourceName = rname
@@ -77,10 +78,13 @@ func (r *Request) executeHandler(hs *Handlers) {
 
 		switch e := v.(type) {
 		case *Error:
-			str = e.Message
 			if !r.replied {
 				r.error(e)
+				// Return without logging as panicing with a *Error is considered
+				// a valid way of sending an error response.
+				return
 			}
+			str = e.Message
 		case error:
 			str = e.Error()
 			if !r.replied {
@@ -98,7 +102,7 @@ func (r *Request) executeHandler(hs *Handlers) {
 			}
 		}
 
-		r.s.Log("error handling request %s: %s", r.msg.Subject, str)
+		r.s.Logf("error handling request %s: %s", r.msg.Subject, str)
 	}()
 
 	switch r.Type {
@@ -109,21 +113,34 @@ func (r *Request) executeHandler(hs *Handlers) {
 		}
 		hs.Access(r, (*AccessResponse)(r))
 	case "get":
-		if hs.Get == nil {
+		switch hs.typ {
+		case rtypeUnset:
 			r.reply(responseNotFound)
 			return
+		case rtypeModel:
+			hs.GetModel(r, (*GetModelResponse)(r))
+		case rtypeCollection:
+			hs.GetCollection(r, (*GetCollectionResponse)(r))
 		}
-		hs.Get(r, (*GetResponse)(r))
 	case "call":
-		var h CallHandler
-		if hs.Call != nil {
-			h = hs.Call[r.Method]
+		if r.Method == "new" {
+			nh := hs.New
+			if nh == nil {
+				r.reply(responseMethodNotFound)
+				return
+			}
+			nh(r, (*NewResponse)(r))
+		} else {
+			var h CallHandler
+			if hs.Call != nil {
+				h = hs.Call[r.Method]
+			}
+			if h == nil {
+				r.reply(responseMethodNotFound)
+				return
+			}
+			h(r, (*CallResponse)(r))
 		}
-		if h == nil {
-			r.reply(responseMethodNotFound)
-			return
-		}
-		h(r, (*CallResponse)(r))
 	case "auth":
 		var h AuthHandler
 		if hs.Auth != nil {

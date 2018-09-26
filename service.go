@@ -3,12 +3,10 @@ package res
 import (
 	"encoding/json"
 	"errors"
-	"log"
-	"os"
 	"strings"
 	"sync"
 
-	"github.com/jirenius/resgate/resourceCache"
+	"github.com/jirenius/resgate/logger"
 	nats "github.com/nats-io/go-nats"
 )
 
@@ -16,10 +14,11 @@ import (
 const inChannelSize = 256
 
 // The number of default workers handling resource requests.
-const workerCount = 10
+const workerCount = 1
 
-// Debugging flag set by SetDebug
-var debug = false
+var (
+	errAlreadyServing = errors.New("res: service already serving")
+)
 
 // Handler is a function for the handlers of a resource
 type Handler func(*Handlers)
@@ -27,21 +26,45 @@ type Handler func(*Handlers)
 // AccessHandler is a function called on resource access requests
 type AccessHandler func(*Request, *AccessResponse)
 
-// GetHandler is a function called on resource get requests
-type GetHandler func(*Request, *GetResponse)
+// GetModelHandler is a function called on model get requests
+type GetModelHandler func(*Request, *GetModelResponse)
+
+// GetCollectionHandler is a function called on collection get requests
+type GetCollectionHandler func(*Request, *GetCollectionResponse)
 
 // CallHandler is a function called on resource call requests
 type CallHandler func(*Request, *CallResponse)
+
+// NewHandler is a function called on new resource call requests
+type NewHandler func(*Request, *NewResponse)
 
 // AuthHandler is a function called on resource auth requests
 type AuthHandler func(*Request, *AuthResponse)
 
 // Handlers contains handlers for a given resource pattern.
 type Handlers struct {
+	// Use middleware handlers for requests
+	Use []func(Handler) Handler
+
+	// Access handler for access requests
 	Access AccessHandler
-	Get    GetHandler
-	Call   map[string]CallHandler
-	Auth   map[string]AuthHandler
+
+	// Get handler for models. If not nil, all other Get handlers must be nil.
+	GetModel GetModelHandler
+
+	// Get handler for collections. If not nil, all other Get handlers must be nil.
+	GetCollection GetCollectionHandler
+
+	// Call handler for call requests
+	Call map[string]CallHandler
+
+	// New handler for new call requests
+	New NewHandler
+
+	// Auth handler for auth requests
+	Auth map[string]AuthHandler
+
+	typ rtype
 }
 
 // A Service handles incoming requests from NATS Server and calls the
@@ -54,12 +77,13 @@ type Service struct {
 	nc             *nats.Conn                    // NATS Server connection
 	subs           map[string]*nats.Subscription // Request type nats subscriptions
 	patterns       patterns                      // pattern store with all handlers
-	rwork          map[string]*work              // map of resource work
 	inCh           chan *nats.Msg                // Channel for incoming nats messages
+	rwork          map[string]*work              // map of resource work
 	workCh         chan *work                    // Resource work channel, listened to by the workers
+	wg             sync.WaitGroup                // WaitGroup for all workers
+	mu             sync.Mutex                    // Mutex to protect rwork map
 	stopped        chan struct{}                 // Channel that is closed by the listen worker, on stop.
-	logger         *log.Logger                   // Logger
-	mu             sync.Mutex                    // Mutex to protect rs map
+	logger         logger.Logger                 // Logger
 	withAccess     bool                          // Flag that is true if there are patterns with Access handlers
 	resetResources []string                      // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
 	resetAccess    []string                      // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
@@ -68,35 +92,49 @@ type Service struct {
 // NewService creates a new Service given a service name.
 // The name must be a non-empty alphanumeric string with no embedded whitespace.
 func NewService(name string) *Service {
-	logFlags := log.LstdFlags
-	if debug {
-		logFlags = log.Ltime
-	}
-
 	// [TODO] panic on invalid name
 	return &Service{
 		Name:           name,
 		patterns:       patterns{root: &node{}},
-		logger:         log.New(os.Stdout, "[Service] ", logFlags),
+		logger:         logger.NewStdLogger(false, false),
 		resetResources: []string{name + ".>"},
 		resetAccess:    []string{name + ".>"},
 	}
 }
 
-// SetDebug enables debug logging
-func SetDebug(enabled bool) {
-	debug = enabled
-	resourceCache.SetDebug(enabled)
-}
+// SetLogger sets the logger.
+// Panics if service is already started.
+func (s *Service) SetLogger(l logger.Logger) *Service {
+	if s.nc != nil {
+		panic("res: service already started")
+	}
 
-// Log writes a log message
-func (s *Service) Log(v ...interface{}) {
-	s.logger.Print(v...)
+	s.logger = l
+	return s
 }
 
 // Logf writes a formatted log message
 func (s *Service) Logf(format string, v ...interface{}) {
-	s.logger.Printf(format, v...)
+	if s.logger == nil {
+		return
+	}
+	s.logger.Logf("[Service] ", format, v...)
+}
+
+// Debugf writes a formatted debug message
+func (s *Service) Debugf(format string, v ...interface{}) {
+	if s.logger == nil {
+		return
+	}
+	s.logger.Debugf("[Service] ", format, v...)
+}
+
+// Tracef writes a formatted trace message
+func (s *Service) Tracef(format string, v ...interface{}) {
+	if s.logger == nil {
+		return
+	}
+	s.logger.Tracef("[Service] ", format, v...)
 }
 
 // Handle registers the handlers for the given resource pattern.
@@ -129,18 +167,32 @@ func Access(h AccessHandler) Handler {
 	}
 }
 
-// Get is a handler for resource get requests
-func Get(h GetHandler) Handler {
+// GetModel is a handler for model get requests
+func GetModel(h GetModelHandler) Handler {
 	return func(hs *Handlers) {
-		if hs.Get != nil {
-			panic("res: multiple get handlers")
-		}
-		hs.Get = h
+		assertNoGetHandler(hs)
+		hs.GetModel = h
+		hs.typ = rtypeModel
 	}
 }
 
-// Call is a handler for resource call requests
+// GetCollection is a handler for collection get requests
+func GetCollection(h GetCollectionHandler) Handler {
+	return func(hs *Handlers) {
+		assertNoGetHandler(hs)
+		hs.GetCollection = h
+		hs.typ = rtypeCollection
+	}
+}
+
+// Call is a handler for resource call requests.
+// Panics if the method is one of the pre-defined call methods, set, or new.
+// For pre-defined call methods, the matching handlers, Set, and New
+// should be used instead.
 func Call(method string, h CallHandler) Handler {
+	if method == "new" {
+		panic("res: use New to handle new calls")
+	}
 	return func(hs *Handlers) {
 		if hs.Call == nil {
 			hs.Call = make(map[string]CallHandler)
@@ -149,6 +201,22 @@ func Call(method string, h CallHandler) Handler {
 			panic("res: multiple call handlers for method " + method)
 		}
 		hs.Call[method] = h
+	}
+}
+
+// Set is a handler for set resource requests.
+// Is a n alias for Call("set", h)
+func Set(h CallHandler) Handler {
+	return Call("set", h)
+}
+
+// New is a handler for new resource requests.
+func New(h NewHandler) Handler {
+	return func(hs *Handlers) {
+		if hs.New != nil {
+			panic("res: multiple new handlers")
+		}
+		hs.New = h
 	}
 }
 
@@ -173,83 +241,112 @@ func (s *Service) SetReset(resources, access []string) {
 	s.resetAccess = access
 }
 
-// Start connects to the NATS Server and subscribes to all handled resources.
-func (s *Service) Start(natsURL string) error {
+// ListenAndServe connects to the NATS server at the url. Once connected,
+// it subscribes to incoming requests and serves them on a single goroutine
+// in the order they are recieved. For each request, it calls the appropriate
+// handler, or replies with the appropriate error if no handler is available.
+//
+// In case of disconnect, it will try to reconnect until Close is called,
+// or until successfully reconnecting, upon which Reset will be called.
+//
+// ListenAndServe returns an error if failes to connect or subscribe.
+// Otherwise, nil is returned once the connection is closed using Close.
+func (s *Service) ListenAndServe(url string) error {
 	if s.nc != nil {
-		return errors.New("res: service already started")
+		return errAlreadyServing
 	}
 
-	s.Logf("Starting service: %s", s.Name)
-	nc, err := nats.Connect("nats://localhost:4222")
+	opts := nats.Options{
+		Url:            url,
+		Name:           s.Name,
+		AllowReconnect: true,
+		MaxReconnect:   -1,
+	}
+
+	s.Logf("Connecting to NATS server")
+	nc, err := opts.Connect()
 	if err != nil {
 		s.Logf("Failed to connect to NATS server: %s", err)
 		return err
 	}
-	nc.SetReconnectHandler(s.handleReconnect)
 
-	stopped := make(chan struct{})
+	nc.SetReconnectHandler(s.handleReconnect)
+	nc.SetDisconnectHandler(s.handleDisconnect)
+	nc.SetClosedHandler(s.handleClosed)
+
+	return s.Serve(nc)
+}
+
+// Serve subscribes to incoming requests on the *Conn nc, serving them on
+// a single goroutine in the order they are recieved. For each request,
+// it calls the appropriate handler, or replies with the appropriate
+// error if no handler is available.
+//
+// Serve returns an error if failes to subscribe. Otherwise, nil is
+// returned once the *Conn is closed.
+func (s *Service) Serve(nc *nats.Conn) error {
+	if s.nc != nil {
+		return errAlreadyServing
+	}
+
+	s.Logf("Starting service: %s", s.Name)
+
 	s.nc = nc
 	s.inCh = make(chan *nats.Msg, inChannelSize)
+	s.stopped = make(chan struct{})
+
 	s.rwork = make(map[string]*work)
 	s.workCh = make(chan *work)
-	s.stopped = stopped
-	go s.startListener(s.inCh, s.stopped)
+	s.wg.Add(workerCount)
 	for i := 0; i < workerCount; i++ {
 		go s.startWorker(s.workCh)
 	}
 
-	err = s.subscribe()
+	err := s.subscribe()
 	if err != nil {
 		s.Stop()
 		return err
 	}
 
-	s.Logf("Listening for requests")
-
 	// Always start with a reset
 	s.Reset()
 
-	<-stopped
-	return nil
-}
+	s.Logf("Listening for requests")
+	s.startListener(s.inCh, s.stopped)
 
-// subscribe makes a nats subscription for each required request type.
-func (s *Service) subscribe() error {
-	s.subs = make(map[string]*nats.Subscription, 4)
-	for _, t := range []string{RequestTypeAccess, RequestTypeGet, RequestTypeCall, RequestTypeAuth} {
-		if t == RequestTypeAccess && !s.withAccess {
-			continue
-		}
-		sub, err := s.nc.ChanSubscribe(t+"."+s.Name+".>", s.inCh)
-		if err != nil {
-			return err
-		}
-		s.subs[t] = sub
-	}
 	return nil
 }
 
 // Stop closes any existing connection to NATS Server.
 func (s *Service) Stop() {
-	if s.nc == nil {
+	nc := s.nc
+	if nc == nil {
 		return
 	}
 
-	s.Log("Stopping service...")
-
-	if !s.nc.IsClosed() {
-		s.nc.Close()
+	s.Logf("Stopping service...")
+	if !nc.IsClosed() {
+		nc.Close()
 	}
+
+	// Stop listener by closing incoming channel
 	close(s.inCh)
 	stopped := s.stopped
+
+	// Wait until listener has stopped
+	<-stopped
+
+	// Stop all workers by closing worker channel
+	close(s.workCh)
+	s.wg.Wait()
+
 	s.stopped = nil
 	s.inCh = nil
 	s.nc = nil
 	s.subs = nil
+	s.workCh = nil
 
-	<-stopped
-
-	s.Log("Stopped")
+	s.Logf("Stopped")
 }
 
 // Reset will send a system.reset to trigger any gateway to update their cache
@@ -270,21 +367,33 @@ func (s *Service) Reset() {
 	s.send("system.reset", ev)
 }
 
+// subscribe makes a nats subscription for each required request type.
+func (s *Service) subscribe() error {
+	s.subs = make(map[string]*nats.Subscription, 4)
+	for _, t := range []string{RequestTypeAccess, RequestTypeGet, RequestTypeCall, RequestTypeAuth} {
+		if t == RequestTypeAccess && !s.withAccess {
+			continue
+		}
+		sub, err := s.nc.ChanSubscribe(t+"."+s.Name+".>", s.inCh)
+		if err != nil {
+			return err
+		}
+		s.subs[t] = sub
+	}
+	return nil
+}
+
 // startListener listens for nats messages and passes them on to a worker.
 func (s *Service) startListener(ch chan *nats.Msg, stopped chan struct{}) {
 	for m := range ch {
 		s.handleRequest(m)
 	}
-
 	close(stopped)
 }
 
 // handleRequest is called by the nats listener on incoming messages.
 func (s *Service) handleRequest(m *nats.Msg) {
-	// Debug logging
-	if debug {
-		s.Logf("==> %s: %s", m.Subject, m.Data)
-	}
+	s.Tracef("==> %s: %s", m.Subject, m.Data)
 
 	// Assert there is a reply subject
 	if m.Reply == "" {
@@ -325,11 +434,12 @@ func (s *Service) handleRequest(m *nats.Msg) {
 	}
 
 	hs, params := s.patterns.get(rsub)
-
-	cb := func() {
+	s.Enqueue(rname, func() {
 		s.processRequest(m, rtype, rname, method, hs, params)
-	}
+	})
+}
 
+func (s *Service) Enqueue(rname string, cb func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// Get current work queue for the resource
@@ -353,9 +463,7 @@ func (s *Service) handleRequest(m *nats.Msg) {
 func (s *Service) send(subj string, data interface{}) {
 	payload, err := json.Marshal(data)
 	if err == nil {
-		if debug {
-			s.Logf("<-- %s: %s", subj, payload)
-		}
+		s.Tracef("<-- %s: %s", subj, payload)
 		err = s.nc.Publish(subj, payload)
 	}
 	if err != nil {
@@ -366,5 +474,22 @@ func (s *Service) send(subj string, data interface{}) {
 // handleReconnect is called when nats has reconnected.
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleReconnect(_ *nats.Conn) {
+	s.Logf("Reconnected to NATS. Sending system.reset eve.")
 	s.Reset()
+}
+
+// handleDisconnect is called when nats is disconnected.
+// It calls a system.reset to have the resgates update their caches.
+func (s *Service) handleDisconnect(_ *nats.Conn) {
+	s.Logf("Connection to NATS is lost.")
+}
+
+func (s *Service) handleClosed(_ *nats.Conn) {
+	s.Stop()
+}
+
+func assertNoGetHandler(hs *Handlers) {
+	if hs.typ != rtypeUnset {
+		panic("res: multiple get handlers")
+	}
 }

@@ -30,9 +30,9 @@ type Book struct {
 
 // Map of all book models
 var bookModels = map[string]*Book{
-	"bookService.book.1": &Book{ID: 1, Title: "Animal Farm", Author: "George Orwell"},
-	"bookService.book.2": &Book{ID: 2, Title: "Brave New World", Author: "Aldous Huxley"},
-	"bookService.book.3": &Book{ID: 3, Title: "Coraline", Author: "Neil Gaiman"},
+	"bookService.book.1": {ID: 1, Title: "Animal Farm", Author: "George Orwell"},
+	"bookService.book.2": {ID: 2, Title: "Brave New World", Author: "Aldous Huxley"},
+	"bookService.book.3": {ID: 3, Title: "Coraline", Author: "Neil Gaiman"},
 }
 
 // ID counter for book models
@@ -82,23 +82,19 @@ func newBook(title string, author string) string {
 }
 
 func main() {
-	// Enable debug logging
-	res.SetDebug(true)
-
 	// Create a new RES Service
-	s := res.NewService("bookService")
+	serv := res.NewService("bookService")
 
-	handleBookModels(s)      // Add handlers for the book models
-	handleBooksCollection(s) // Add handlers for the books collection
+	handleBookModels(serv)      // Add handlers for the book models
+	handleBooksCollection(serv) // Add handlers for the books collection
 
 	// Start service in separate goroutine
 	stop := make(chan bool)
 	go func() {
 		defer close(stop)
-		err := s.Start("nats://localhost:4222")
+		err := serv.ListenAndServe("nats://localhost:4222")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-			os.Exit(1)
+			fmt.Printf("%s\n", err.Error())
 		}
 	}()
 
@@ -116,7 +112,7 @@ func main() {
 	select {
 	case <-c:
 		// Graceful stop
-		s.Stop()
+		serv.Stop()
 	case <-stop:
 	}
 }
@@ -125,8 +121,19 @@ func main() {
 func handleBookModels(s *res.Service) {
 	s.Handle(
 		"book.$id",
+		// res.Use(func(next res.Handler) res.Handler {
+		// 	return func(r *res.Request, w *res.Response) {
+		// 		book := bookModels[r.ResourceName]
+		// 		if book == nil {
+		// 			w.NotFound()
+		// 			return
+		// 		}
+		// 		r.Value = book
+		// 		next(r.WithContext(context.WithValue(r.Context(), "book", book)), w)
+		// 	}
+		// }),
 		res.Access(res.AccessGranted),
-		res.Get(func(r *res.Request, w *res.GetResponse) {
+		res.GetModel(func(r *res.Request, w *res.GetModelResponse) {
 			book := getBook(r.ResourceName)
 			if book == nil {
 				w.NotFound()
@@ -134,20 +141,21 @@ func handleBookModels(s *res.Service) {
 			}
 			w.Model(book)
 		}),
-		res.Call("set", func(r *res.Request, w *res.CallResponse) {
+		res.Set(func(r *res.Request, w *res.CallResponse) {
 			book := getBook(r.ResourceName)
 			if book == nil {
 				w.NotFound()
 				return
 			}
 
+			// Unmarshal parameters to a anonymous struct
 			var p struct {
 				Title  *string `json:"title,omitempty"`
 				Author *string `json:"author,omitempty"`
 			}
 			r.UnmarshalParams(&p)
 
-			updated := false
+			changed := make(map[string]interface{}, 2)
 
 			// Check if the title property was changed
 			if p.Title != nil {
@@ -161,10 +169,7 @@ func handleBookModels(s *res.Service) {
 				if title != book.Title {
 					// Update the model.
 					book.Title = title
-					updated = true
-				} else {
-					// Remove title from any change event
-					p.Title = nil
+					changed["title"] = title
 				}
 			}
 
@@ -179,17 +184,12 @@ func handleBookModels(s *res.Service) {
 				if author != book.Author {
 					// Update the model.
 					book.Author = author
-					updated = true
-				} else {
-					// Remove author from any change event
-					p.Author = nil
+					changed["author"] = author
 				}
 			}
 
-			if updated {
-				// Send a change event with updated fields
-				r.Event("change", p)
-			}
+			// Send a change event with updated fields
+			r.ChangeEvent(changed)
 
 			// Send success response
 			w.OK(nil)
@@ -202,10 +202,10 @@ func handleBooksCollection(s *res.Service) {
 	s.Handle(
 		"books",
 		res.Access(res.AccessGranted),
-		res.Get(func(r *res.Request, w *res.GetResponse) {
+		res.GetCollection(func(r *res.Request, w *res.GetCollectionResponse) {
 			w.Collection(books)
 		}),
-		res.Call("new", func(r *res.Request, w *res.CallResponse) {
+		res.New(func(r *res.Request, w *res.NewResponse) {
 			var p struct {
 				Title  string `json:"title"`
 				Author string `json:"author"`
@@ -226,12 +226,11 @@ func handleBooksCollection(s *res.Service) {
 			// Convert resource ID to a resource reference
 			ref := res.Ref(rid)
 			// Send add event
-			r.Event("add", res.AddEvent{Value: ref, Idx: len(books)})
+			r.AddEvent(ref, len(books))
 			// Appends the book reference to the collection
 			books = append(books, ref)
 
-			// Send success response with reference as required for "new" requests:
-			// https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#new-call-request
+			// Respond with a reference to the newly created book model
 			w.OK(ref)
 		}),
 		res.Call("delete", func(r *res.Request, w *res.CallResponse) {
@@ -248,7 +247,7 @@ func handleBooksCollection(s *res.Service) {
 						// Remove it from slice
 						books = append(books[:i], books[i+1:]...)
 						// Send remove event
-						r.Event("remove", res.RemoveEvent{Idx: i})
+						r.RemoveEvent(i)
 						break
 					}
 				}

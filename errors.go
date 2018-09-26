@@ -11,7 +11,7 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
-// Error converts an error to an *Error. If it isn't of type *Error already, it will become a system.internalError.
+// ToError converts an error to an *Error. If it isn't of type *Error already, it will become a system.internalError.
 func ToError(err error) *Error {
 	rerr, ok := err.(*Error)
 	if !ok {
