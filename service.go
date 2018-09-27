@@ -17,7 +17,8 @@ const inChannelSize = 256
 const workerCount = 1
 
 var (
-	errAlreadyServing = errors.New("res: service already serving")
+	errAlreadyServing  = errors.New("res: service already serving")
+	errHandlerNotFound = errors.New("res: no matching handlers found")
 )
 
 // Handler is a function for the handlers of a resource
@@ -82,7 +83,6 @@ type Service struct {
 	workCh         chan *work                    // Resource work channel, listened to by the workers
 	wg             sync.WaitGroup                // WaitGroup for all workers
 	mu             sync.Mutex                    // Mutex to protect rwork map
-	stopped        chan struct{}                 // Channel that is closed by the listen worker, on stop.
 	logger         logger.Logger                 // Logger
 	withAccess     bool                          // Flag that is true if there are patterns with Access handlers
 	resetResources []string                      // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
@@ -293,10 +293,8 @@ func (s *Service) Serve(nc *nats.Conn) error {
 
 	s.nc = nc
 	s.inCh = make(chan *nats.Msg, inChannelSize)
-	s.stopped = make(chan struct{})
-
-	s.rwork = make(map[string]*work)
 	s.workCh = make(chan *work)
+	s.rwork = make(map[string]*work)
 	s.wg.Add(workerCount)
 	for i := 0; i < workerCount; i++ {
 		go s.startWorker(s.workCh)
@@ -312,39 +310,39 @@ func (s *Service) Serve(nc *nats.Conn) error {
 	s.Reset()
 
 	s.Logf("Listening for requests")
-	s.startListener(s.inCh, s.stopped)
+	s.startListener(s.inCh)
+
+	// Stop all workers by closing worker channel
+	close(s.workCh)
+
+	s.wg.Wait()
+
+	s.inCh = nil
+	s.nc = nil
+	s.subs = nil
+	s.workCh = nil
 
 	return nil
 }
 
 // Stop closes any existing connection to NATS Server.
 func (s *Service) Stop() {
-	nc := s.nc
-	if nc == nil {
+	if s.inCh == nil {
 		return
 	}
 
 	s.Logf("Stopping service...")
-	if !nc.IsClosed() {
-		nc.Close()
+	if !s.nc.IsClosed() {
+		s.nc.Close()
 	}
 
-	// Stop listener by closing incoming channel
-	close(s.inCh)
-	stopped := s.stopped
-
-	// Wait until listener has stopped
-	<-stopped
-
-	// Stop all workers by closing worker channel
-	close(s.workCh)
-	s.wg.Wait()
-
-	s.stopped = nil
+	inCh := s.inCh
 	s.inCh = nil
-	s.nc = nil
-	s.subs = nil
-	s.workCh = nil
+
+	// Stop listener by closing incoming channel
+	close(inCh)
+
+	s.wg.Wait()
 
 	s.Logf("Stopped")
 }
@@ -384,11 +382,10 @@ func (s *Service) subscribe() error {
 }
 
 // startListener listens for nats messages and passes them on to a worker.
-func (s *Service) startListener(ch chan *nats.Msg, stopped chan struct{}) {
+func (s *Service) startListener(ch chan *nats.Msg) {
 	for m := range ch {
 		s.handleRequest(m)
 	}
-	close(stopped)
 }
 
 // handleRequest is called by the nats listener on incoming messages.
@@ -424,22 +421,15 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		rname = rname[:idx]
 	}
 
-	// Get resource name without service name part
-	rsub := rname
-	idx = strings.IndexByte(rsub, '.')
-	if idx < 0 {
-		rsub = ""
-	} else {
-		rsub = rsub[idx+1:]
-	}
-
-	hs, params := s.patterns.get(rsub)
-	s.Enqueue(rname, func() {
+	hs, params := s.patterns.get(subname(rname))
+	s.RunWith(rname, func() {
 		s.processRequest(m, rtype, rname, method, hs, params)
 	})
 }
 
-func (s *Service) Enqueue(rname string, cb func()) {
+// RunWith enqueues the callback, cb, to be called by the worker goroutine
+// for the resource name.
+func (s *Service) RunWith(rname string, cb func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// Get current work queue for the resource
@@ -459,6 +449,33 @@ func (s *Service) Enqueue(rname string, cb func()) {
 	}
 }
 
+// Get matches the resource ID, rid, with the registered Handlers
+// before calling the callback, cb, on the worker goroutine for the
+// resource name.
+// Get will return an error and not call the callback if there are no
+// no matching handlers found.
+func (s *Service) Get(rid string, cb func(r *Resource)) error {
+	rname, q := parseRID(rid)
+	hs, params := s.patterns.get(subname(rname))
+	if hs == nil {
+		return errHandlerNotFound
+	}
+
+	r := &Resource{
+		ResourceName: rname,
+		PathParams:   params,
+		RawQuery:     q,
+		s:            s,
+		h:            hs,
+	}
+
+	s.RunWith(rname, func() {
+		cb(r)
+	})
+
+	return nil
+}
+
 // send marshals the data and sends a message to the NATS server.
 func (s *Service) send(subj string, data interface{}) {
 	payload, err := json.Marshal(data)
@@ -474,14 +491,14 @@ func (s *Service) send(subj string, data interface{}) {
 // handleReconnect is called when nats has reconnected.
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleReconnect(_ *nats.Conn) {
-	s.Logf("Reconnected to NATS. Sending system.reset eve.")
+	s.Logf("Reconnected to NATS. Sending reset event.")
 	s.Reset()
 }
 
 // handleDisconnect is called when nats is disconnected.
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleDisconnect(_ *nats.Conn) {
-	s.Logf("Connection to NATS is lost.")
+	s.Logf("Lost connection to NATS.")
 }
 
 func (s *Service) handleClosed(_ *nats.Conn) {
@@ -492,4 +509,26 @@ func assertNoGetHandler(hs *Handlers) {
 	if hs.typ != rtypeUnset {
 		panic("res: multiple get handlers")
 	}
+}
+
+// subname returns the resource name without service name part
+func subname(rname string) string {
+	idx := strings.IndexByte(rname, '.')
+	if idx < 0 {
+		return ""
+	}
+	return rname[idx+1:]
+}
+
+// parseRID parses a resource ID, rid, and splits it into the resource name
+// and query, if one is available.
+// The question mark query separator is not included in the returned
+// query string.
+func parseRID(rid string) (rname string, q string) {
+	i := strings.IndexByte(rid, '?')
+	if i == -1 {
+		return rid, ""
+	}
+
+	return rid[:i], rid[i+1:]
 }

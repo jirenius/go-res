@@ -20,6 +20,7 @@ func (s *Service) startWorker(ch chan *work) {
 	for w := range ch {
 		w.processQueue()
 	}
+	s.wg.Done()
 }
 
 func (w *work) processQueue() {

@@ -16,12 +16,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/jirenius/go-res"
 )
 
-// Book model
+// Book represents a book model
 type Book struct {
 	ID     int64  `json:"id"`
 	Title  string `json:"title"`
@@ -35,12 +34,6 @@ var bookModels = map[string]*Book{
 	"bookService.book.3": {ID: 3, Title: "Coraline", Author: "Neil Gaiman"},
 }
 
-// ID counter for book models
-var nextBookID int64 = 4
-
-// Mutex to protect the bookModels map and nextBookID counter
-var mu sync.RWMutex
-
 // Collection of books
 var books = []res.Ref{
 	res.Ref("bookService.book.1"),
@@ -48,57 +41,28 @@ var books = []res.Ref{
 	res.Ref("bookService.book.3"),
 }
 
-// getBook looks up a book based on the resource ID.
-// Returns nil if no book was found.
-func getBook(rid string) *Book {
-	mu.RLock()
-	defer mu.RUnlock()
-	return bookModels[rid]
-}
-
-// deleteBook deletes a book from the bookModels map.
-// Returns true when found and deleted, otherwise false.
-func deleteBook(rid string) bool {
-	mu.RLock()
-	defer mu.RUnlock()
-	_, ok := bookModels[rid]
-	if ok {
-		delete(bookModels, rid)
-	}
-	return ok
-}
-
-// createBook creates a new Book model, assigns it a unique ID,
-// and adds it to the bookModels map.
-// It returns the resource ID.
-func newBook(title string, author string) string {
-	mu.RLock()
-	defer mu.RUnlock()
-	rid := fmt.Sprintf("bookService.book.%d", nextBookID)
-	book := &Book{ID: nextBookID, Title: title, Author: author}
-	nextBookID++
-	bookModels[rid] = book
-	return rid
-}
+// ID counter for new book models
+var nextBookID int64 = 4
 
 func main() {
 	// Create a new RES Service
-	serv := res.NewService("bookService")
+	s := res.NewService("bookService")
 
-	handleBookModels(serv)      // Add handlers for the book models
-	handleBooksCollection(serv) // Add handlers for the books collection
+	handleBookModels(s)      // Add handlers for the book models
+	handleBooksCollection(s) // Add handlers for the books collection
 
 	// Start service in separate goroutine
 	stop := make(chan bool)
 	go func() {
 		defer close(stop)
-		err := serv.ListenAndServe("nats://localhost:4222")
+		err := s.ListenAndServe("nats://localhost:4222")
 		if err != nil {
 			fmt.Printf("%s\n", err.Error())
 		}
 	}()
 
-	// Serve a client.
+	// Run a simple webserver to serve the client.
+	// This is only for the purpose of making the example easier to run.
 	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		panic(err)
@@ -112,7 +76,7 @@ func main() {
 	select {
 	case <-c:
 		// Graceful stop
-		serv.Stop()
+		s.Stop()
 	case <-stop:
 	}
 }
@@ -121,20 +85,9 @@ func main() {
 func handleBookModels(s *res.Service) {
 	s.Handle(
 		"book.$id",
-		// res.Use(func(next res.Handler) res.Handler {
-		// 	return func(r *res.Request, w *res.Response) {
-		// 		book := bookModels[r.ResourceName]
-		// 		if book == nil {
-		// 			w.NotFound()
-		// 			return
-		// 		}
-		// 		r.Value = book
-		// 		next(r.WithContext(context.WithValue(r.Context(), "book", book)), w)
-		// 	}
-		// }),
 		res.Access(res.AccessGranted),
 		res.GetModel(func(r *res.Request, w *res.GetModelResponse) {
-			book := getBook(r.ResourceName)
+			book := bookModels[r.ResourceName]
 			if book == nil {
 				w.NotFound()
 				return
@@ -142,7 +95,7 @@ func handleBookModels(s *res.Service) {
 			w.Model(book)
 		}),
 		res.Set(func(r *res.Request, w *res.CallResponse) {
-			book := getBook(r.ResourceName)
+			book := bookModels[r.ResourceName]
 			if book == nil {
 				w.NotFound()
 				return
@@ -240,7 +193,10 @@ func handleBooksCollection(s *res.Service) {
 			r.UnmarshalParams(&p)
 
 			rname := fmt.Sprintf("bookService.book.%d", p.ID)
-			if deleteBook(rname) {
+
+			// Ddelete book if it exist
+			if _, ok := bookModels[rname]; ok {
+				delete(bookModels, rname)
 				// Find the book in books collection, and remove it
 				for i, rid := range books {
 					if rid == res.Ref(rname) {
@@ -259,4 +215,15 @@ func handleBooksCollection(s *res.Service) {
 			w.OK(nil)
 		}),
 	)
+}
+
+// createBook creates a new Book model, assigns it a unique ID,
+// and adds it to the bookModels map.
+// It returns the resource ID.
+func newBook(title string, author string) string {
+	rid := fmt.Sprintf("bookService.book.%d", nextBookID)
+	book := &Book{ID: nextBookID, Title: title, Author: author}
+	nextBookID++
+	bookModels[rid] = book
+	return rid
 }
