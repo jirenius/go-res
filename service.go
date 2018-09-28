@@ -307,7 +307,7 @@ func (s *Service) serve(nc *nats.Conn) error {
 
 	// Initialize fields
 	inCh := make(chan *nats.Msg, inChannelSize)
-	workCh := make(chan *work)
+	workCh := make(chan *work, 1)
 	s.nc = nc
 	s.inCh = inCh
 	s.workCh = workCh
@@ -458,7 +458,6 @@ func (s *Service) handleRequest(m *nats.Msg) {
 // for the resource name.
 func (s *Service) RunWith(rname string, cb func()) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	// Get current work queue for the resource
 	w, ok := s.rwork[rname]
 	if !ok {
@@ -469,10 +468,12 @@ func (s *Service) RunWith(rname string, cb func()) {
 			queue: []func(){cb},
 		}
 		s.rwork[rname] = w
+		s.mu.Unlock()
 		s.workCh <- w
 	} else {
 		// Append callback to existing work queue
 		w.queue = append(w.queue, cb)
+		s.mu.Unlock()
 	}
 }
 
