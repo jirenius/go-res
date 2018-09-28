@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/jirenius/resgate/logger"
 	nats "github.com/nats-io/go-nats"
@@ -17,7 +18,8 @@ const inChannelSize = 256
 const workerCount = 1
 
 var (
-	errAlreadyServing  = errors.New("res: service already serving")
+	errNotStopped      = errors.New("res: service is not stopped")
+	errNotStarted      = errors.New("res: service is not started")
 	errHandlerNotFound = errors.New("res: no matching handlers found")
 )
 
@@ -68,12 +70,21 @@ type Handlers struct {
 	typ rtype
 }
 
+const (
+	stateStopped = iota
+	stateStarting
+	stateStarted
+	stateStopping
+)
+
 // A Service handles incoming requests from NATS Server and calls the
 // appropriate callback on the resource handlers.
 type Service struct {
 	// Name of the service.
 	// Must be a non-empty alphanumeric string with no embedded whitespace.
 	Name string
+
+	state int32
 
 	nc             *nats.Conn                    // NATS Server connection
 	subs           map[string]*nats.Subscription // Request type nats subscriptions
@@ -96,7 +107,7 @@ func NewService(name string) *Service {
 	return &Service{
 		Name:           name,
 		patterns:       patterns{root: &node{}},
-		logger:         logger.NewStdLogger(false, false),
+		logger:         logger.NewStdLogger(true, true),
 		resetResources: []string{name + ".>"},
 		resetAccess:    []string{name + ".>"},
 	}
@@ -243,7 +254,7 @@ func (s *Service) SetReset(resources, access []string) {
 
 // ListenAndServe connects to the NATS server at the url. Once connected,
 // it subscribes to incoming requests and serves them on a single goroutine
-// in the order they are recieved. For each request, it calls the appropriate
+// in the order they are received. For each request, it calls the appropriate
 // handler, or replies with the appropriate error if no handler is available.
 //
 // In case of disconnect, it will try to reconnect until Close is called,
@@ -252,8 +263,8 @@ func (s *Service) SetReset(resources, access []string) {
 // ListenAndServe returns an error if failes to connect or subscribe.
 // Otherwise, nil is returned once the connection is closed using Close.
 func (s *Service) ListenAndServe(url string) error {
-	if s.nc != nil {
-		return errAlreadyServing
+	if !atomic.CompareAndSwapInt32(&s.state, stateStopped, stateStarting) {
+		return errNotStopped
 	}
 
 	opts := nats.Options{
@@ -274,47 +285,73 @@ func (s *Service) ListenAndServe(url string) error {
 	nc.SetDisconnectHandler(s.handleDisconnect)
 	nc.SetClosedHandler(s.handleClosed)
 
-	return s.Serve(nc)
+	return s.serve(nc)
 }
 
 // Serve subscribes to incoming requests on the *Conn nc, serving them on
-// a single goroutine in the order they are recieved. For each request,
+// a single goroutine in the order they are received. For each request,
 // it calls the appropriate handler, or replies with the appropriate
 // error if no handler is available.
 //
 // Serve returns an error if failes to subscribe. Otherwise, nil is
 // returned once the *Conn is closed.
 func (s *Service) Serve(nc *nats.Conn) error {
-	if s.nc != nil {
-		return errAlreadyServing
+	if !atomic.CompareAndSwapInt32(&s.state, stateStopped, stateStarting) {
+		return errNotStopped
 	}
+	return s.serve(nc)
+}
 
+func (s *Service) serve(nc *nats.Conn) error {
 	s.Logf("Starting service: %s", s.Name)
 
+	// Initialize fields
+	inCh := make(chan *nats.Msg, inChannelSize)
+	workCh := make(chan *work)
 	s.nc = nc
-	s.inCh = make(chan *nats.Msg, inChannelSize)
-	s.workCh = make(chan *work)
+	s.inCh = inCh
+	s.workCh = workCh
 	s.rwork = make(map[string]*work)
+
+	// Start workers
 	s.wg.Add(workerCount)
 	for i := 0; i < workerCount; i++ {
 		go s.startWorker(s.workCh)
 	}
 
+	atomic.StoreInt32(&s.state, stateStarted)
+
 	err := s.subscribe()
 	if err != nil {
-		s.Stop()
-		return err
+		s.Logf("Failed to subscribe: %s", err)
+		s.close()
+	} else {
+		// Always start with a reset
+		s.Reset()
+
+		s.Logf("Listening for requests")
+		s.startListener(inCh)
 	}
 
-	// Always start with a reset
-	s.Reset()
-
-	s.Logf("Listening for requests")
-	s.startListener(s.inCh)
-
 	// Stop all workers by closing worker channel
-	close(s.workCh)
+	close(workCh)
 
+	// Wait for all workers to be done
+	s.wg.Wait()
+	return nil
+}
+
+// Shutdown closes any existing connection to NATS Server.
+// Returns an error if service is not started.
+func (s *Service) Shutdown() error {
+	if !atomic.CompareAndSwapInt32(&s.state, stateStarted, stateStopping) {
+		return errNotStarted
+	}
+
+	s.Logf("Stopping service...")
+	s.close()
+
+	// Wait for all workers to be done
 	s.wg.Wait()
 
 	s.inCh = nil
@@ -322,35 +359,25 @@ func (s *Service) Serve(nc *nats.Conn) error {
 	s.subs = nil
 	s.workCh = nil
 
+	atomic.StoreInt32(&s.state, stateStopped)
+
+	s.Logf("Stopped")
 	return nil
 }
 
-// Stop closes any existing connection to NATS Server.
-func (s *Service) Stop() {
-	if s.inCh == nil {
-		return
-	}
-
-	s.Logf("Stopping service...")
+// close calls Close on the NATS connection, and closes the incoming channel
+func (s *Service) close() {
 	if !s.nc.IsClosed() {
 		s.nc.Close()
 	}
-
-	inCh := s.inCh
-	s.inCh = nil
-
-	// Stop listener by closing incoming channel
-	close(inCh)
-
-	s.wg.Wait()
-
-	s.Logf("Stopped")
+	close(s.inCh)
 }
 
 // Reset will send a system.reset to trigger any gateway to update their cache
 func (s *Service) Reset() {
-	if s.nc == nil {
-		s.Logf("failed to reset: no connection")
+	if atomic.LoadInt32(&s.state) != stateStarted {
+		s.Logf("failed to reset: service not started")
+		return
 	}
 
 	type resetEvent struct {
@@ -502,7 +529,7 @@ func (s *Service) handleDisconnect(_ *nats.Conn) {
 }
 
 func (s *Service) handleClosed(_ *nats.Conn) {
-	s.Stop()
+	s.Shutdown()
 }
 
 func assertNoGetHandler(hs *Handlers) {

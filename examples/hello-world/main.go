@@ -58,8 +58,7 @@ func main() {
 	stop := make(chan bool)
 	go func() {
 		defer close(stop)
-		err := s.ListenAndServe("nats://localhost:4222")
-		if err != nil {
+		if err := s.ListenAndServe("nats://localhost:4222"); err != nil {
 			fmt.Printf("%s\n", err.Error())
 		}
 	}()
@@ -74,12 +73,12 @@ func main() {
 	fmt.Println("Client at: http://localhost:8081/")
 
 	// Wait for interrupt signal
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	select {
 	case <-c:
 		// Graceful stop
-		s.Stop()
+		s.Shutdown()
 	case <-stop:
 	}
 }

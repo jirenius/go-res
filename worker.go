@@ -59,7 +59,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *H
 	r.PathParams = params
 
 	if err != nil {
-		s.Logf("error unmarshalling incoming request: %s", err)
+		s.Logf("error unmarshaling incoming request: %s", err)
 		r.error(ToError(err))
 		return
 	}
@@ -109,7 +109,7 @@ func (r *Request) executeHandler(hs *Handlers) {
 	switch r.Type {
 	case "access":
 		if hs.Access == nil {
-			// No handling. Access requests might be handled by other services.
+			// No handling. Assume the access requests is handled by other services.
 			return
 		}
 		hs.Access(r, (*AccessResponse)(r))
