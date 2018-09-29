@@ -107,7 +107,7 @@ func NewService(name string) *Service {
 	return &Service{
 		Name:           name,
 		patterns:       patterns{root: &node{}},
-		logger:         logger.NewStdLogger(true, true),
+		logger:         logger.NewStdLogger(false, false),
 		resetResources: []string{name + ".>"},
 		resetAccess:    []string{name + ".>"},
 	}

@@ -61,11 +61,7 @@ func main() {
 
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	path, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	go func() { log.Fatal(http.ListenAndServe(":8082", http.FileServer(http.Dir(path)))) }()
+	go func() { log.Fatal(http.ListenAndServe(":8082", http.FileServer(http.Dir("./")))) }()
 	fmt.Println("Client at: http://localhost:8082/")
 
 	// Wait for interrupt signal
