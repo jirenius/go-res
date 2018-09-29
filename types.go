@@ -7,21 +7,30 @@ import "encoding/json"
 //  {"rid":"userService.user.42"}
 type Ref string
 
+// Resource type enum
+type rtype byte
+
+const (
+	rtypeUnset rtype = iota
+	rtypeModel
+	rtypeCollection
+)
+
 var refPrefix = []byte(`{"rid":`)
 
-// AddEvent is used as event payload on "add" events
-type AddEvent struct {
+// DeleteAction is used for deleted properties in "change" events
+var DeleteAction = json.RawMessage(`{"action":"delete"}`)
+
+// addEvent is used as event payload on "add" events
+type addEvent struct {
 	Value interface{} `json:"value"`
 	Idx   int         `json:"idx"`
 }
 
-// RemoveEvent is used as event payload on "remove" events
-type RemoveEvent struct {
+// removeEvent is used as event payload on "remove" events
+type removeEvent struct {
 	Idx int `json:"idx"`
 }
-
-// DeleteAction is used for deleted properties in "change" events
-var DeleteAction = json.RawMessage(`{"action":"delete"}`)
 
 // MarshalJSON makes Ref implement the json.Marshaler interface.
 func (r Ref) MarshalJSON() ([]byte, error) {

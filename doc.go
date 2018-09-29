@@ -17,27 +17,38 @@ Usage
 
 Create a new service:
 
-	serv := res.NewService("exampleService")
+	serv := res.NewService("myservice")
 
-Add handlers for a single resource:
+Add handlers for a single model resource:
 
-	s.Handle("myModel",
+	mymodel := map[string]interface{}{"name": "foo", "value": 42}
+	s.Handle("mymodel",
 		res.Access(res.AccessGranted),
-		res.Get(func(r *res.Request, w *res.GetResponse) {
-			w.Model(myModel)
+		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
+			w.Model(mymodel)
+		}),
+	)
+
+Add handlers for a single collection resource:
+
+	mycollection := []string{"first", "second", "third"}
+	s.Handle("mycollection",
+		res.Access(res.AccessGranted),
+		res.GetCollection(func(w res.GetCollectionResponse, r *res.Request) {
+			w.Collection(mycollection)
 		}),
 	)
 
 Add handlers for parameterized resources:
 
-	s.Handle("book.$id",
+	s.Handle("article.$id",
 		res.Access(res.AccessGranted),
-		res.Get(func(r *res.Request, w *res.GetResponse) {
-			book := getBook(r.PathParams["id"]) // Returns nil if not found
-			if book == nil {
+		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
+			article := getArticle(r.PathParams["id"]) // Returns nil if not found
+			if article == nil {
 				w.NotFound()
 			} else {
-				w.Model(book)
+				w.Model(article)
 			}
 		}),
 	)
@@ -45,38 +56,32 @@ Add handlers for parameterized resources:
 Add handlers for method calls:
 
 	s.Handle("math",
-		...
-		res.Call("double", func(r *res.Request, w *res.CallResponse) {
+		res.Access(res.AccessGranted),
+		res.Call("double", func(w res.CallResponse, r *res.Request) {
 			var p struct {
-				Value `json:"value"`
+				Value int `json:"value"`
 			}
 			r.UnmarshalParams(&p)
-
 			w.OK(p.Value * 2)
 		}),
 	)
 
-Send event:
+Send change event on model update:
 
-	s.Handle("myModel",
-		...
-		res.Call("set", func(r *res.Request, w *res.CallResponse) {
-			var p struct {
-				Message *string `json:"message,omitempty"`
-			}
-			r.UnmarshalParams(&p)
+	s.Get("myservice.mymodel", func(r *res.Resource) {
+		mymodel["name"] = "bar"
+		r.ChangeEvent(map[string]interface{}{"name": "bar"})
+	})
 
-			// Check if the message property was changed
-			if p.Message != nil && *p.Message != myModel.Message {
-				// Update the model
-				myModel.Message = *p.Message
-				// Send a change event with updated fields
-				r.Event("change", p)
-			}
+Send add event on collection update:
 
-			// Send success response
-			w.OK(nil)
-		}),
-	)
+	s.Get("myservice.mycollection", func(r *res.Resource) {
+		mycollection = append(mycollection, "fourth")
+		r.AddEvent("fourth", len(mycollection)-1)
+	})
+
+Start service:
+
+	s.ListenAndServe("nats://localhost:4222")
 */
 package res

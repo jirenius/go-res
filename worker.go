@@ -20,6 +20,7 @@ func (s *Service) startWorker(ch chan *work) {
 	for w := range ch {
 		w.processQueue()
 	}
+	s.wg.Done()
 }
 
 func (w *work) processQueue() {
@@ -50,6 +51,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *H
 	}
 	err := json.Unmarshal(m.Data, &r)
 	r.s = s
+	r.h = hs
 	r.msg = m
 	r.Type = rtype
 	r.ResourceName = rname
@@ -57,7 +59,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *H
 	r.PathParams = params
 
 	if err != nil {
-		s.Logf("error unmarshalling incoming request: %s", err)
+		s.Logf("error unmarshaling incoming request: %s", err)
 		r.error(ToError(err))
 		return
 	}
@@ -77,10 +79,13 @@ func (r *Request) executeHandler(hs *Handlers) {
 
 		switch e := v.(type) {
 		case *Error:
-			str = e.Message
 			if !r.replied {
 				r.error(e)
+				// Return without logging as panicing with a *Error is considered
+				// a valid way of sending an error response.
+				return
 			}
+			str = e.Message
 		case error:
 			str = e.Error()
 			if !r.replied {
@@ -98,32 +103,45 @@ func (r *Request) executeHandler(hs *Handlers) {
 			}
 		}
 
-		r.s.Log("error handling request %s: %s", r.msg.Subject, str)
+		r.s.Logf("error handling request %s: %s", r.msg.Subject, str)
 	}()
 
 	switch r.Type {
 	case "access":
 		if hs.Access == nil {
-			// No handling. Access requests might be handled by other services.
+			// No handling. Assume the access requests is handled by other services.
 			return
 		}
-		hs.Access(r, (*AccessResponse)(r))
+		hs.Access((*response)(r), r)
 	case "get":
-		if hs.Get == nil {
+		switch hs.typ {
+		case rtypeUnset:
 			r.reply(responseNotFound)
 			return
+		case rtypeModel:
+			hs.GetModel((*response)(r), r)
+		case rtypeCollection:
+			hs.GetCollection((*response)(r), r)
 		}
-		hs.Get(r, (*GetResponse)(r))
 	case "call":
-		var h CallHandler
-		if hs.Call != nil {
-			h = hs.Call[r.Method]
+		if r.Method == "new" {
+			h := hs.New
+			if h == nil {
+				r.reply(responseMethodNotFound)
+				return
+			}
+			h((*response)(r), r)
+		} else {
+			var h CallHandler
+			if hs.Call != nil {
+				h = hs.Call[r.Method]
+			}
+			if h == nil {
+				r.reply(responseMethodNotFound)
+				return
+			}
+			h((*response)(r), r)
 		}
-		if h == nil {
-			r.reply(responseMethodNotFound)
-			return
-		}
-		h(r, (*CallResponse)(r))
 	case "auth":
 		var h AuthHandler
 		if hs.Auth != nil {
@@ -133,7 +151,7 @@ func (r *Request) executeHandler(hs *Handlers) {
 			r.reply(responseMethodNotFound)
 			return
 		}
-		h(r, (*AuthResponse)(r))
+		h((*response)(r), r)
 	default:
 		r.s.Logf("unknown request type: %s", r.Type)
 		return

@@ -25,19 +25,16 @@ type Model struct {
 var myModel = &Model{Message: "Hello Go World"}
 
 func main() {
-	// Enable debug logging
-	res.SetDebug(true)
-
 	// Create a new RES Service
 	s := res.NewService("exampleService")
 
 	// Add handlers for "exampleService.myModel" resource
 	s.Handle("myModel",
 		res.Access(res.AccessGranted),
-		res.Get(func(r *res.Request, w *res.GetResponse) {
+		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
 			w.Model(myModel)
 		}),
-		res.Call("set", func(r *res.Request, w *res.CallResponse) {
+		res.Call("set", func(w res.CallResponse, r *res.Request) {
 			var p struct {
 				Message *string `json:"message,omitempty"`
 			}
@@ -48,7 +45,7 @@ func main() {
 				// Update the model
 				myModel.Message = *p.Message
 				// Send a change event with updated fields
-				r.Event("change", p)
+				r.ChangeEvent(map[string]interface{}{"message": p.Message})
 			}
 
 			// Send success response
@@ -60,24 +57,23 @@ func main() {
 	stop := make(chan bool)
 	go func() {
 		defer close(stop)
-		err := s.Start("nats://localhost:4222")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-			os.Exit(1)
+		if err := s.ListenAndServe("nats://localhost:4222"); err != nil {
+			fmt.Printf("%s\n", err.Error())
 		}
 	}()
 
-	// Serve a client.
+	// Run a simple webserver to serve the client.
+	// This is only for the purpose of making the example easier to run.
 	go func() { log.Fatal(http.ListenAndServe(":8081", http.FileServer(http.Dir("./")))) }()
 	fmt.Println("Client at: http://localhost:8081/")
 
 	// Wait for interrupt signal
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	select {
 	case <-c:
 		// Graceful stop
-		s.Stop()
+		s.Shutdown()
 	case <-stop:
 	}
 }

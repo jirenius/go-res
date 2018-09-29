@@ -15,12 +15,11 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 
 	"github.com/jirenius/go-res"
 )
 
-// Book model
+// Book represents a book model
 type Book struct {
 	ID     int64  `json:"id"`
 	Title  string `json:"title"`
@@ -29,16 +28,10 @@ type Book struct {
 
 // Map of all book models
 var bookModels = map[string]*Book{
-	"bookService.book.1": &Book{ID: 1, Title: "Animal Farm", Author: "George Orwell"},
-	"bookService.book.2": &Book{ID: 2, Title: "Brave New World", Author: "Aldous Huxley"},
-	"bookService.book.3": &Book{ID: 3, Title: "Coraline", Author: "Neil Gaiman"},
+	"bookService.book.1": {ID: 1, Title: "Animal Farm", Author: "George Orwell"},
+	"bookService.book.2": {ID: 2, Title: "Brave New World", Author: "Aldous Huxley"},
+	"bookService.book.3": {ID: 3, Title: "Coraline", Author: "Neil Gaiman"},
 }
-
-// ID counter for book models
-var nextBookID int64 = 4
-
-// Mutex to protect the bookModels map and nextBookID counter
-var mu sync.RWMutex
 
 // Collection of books
 var books = []res.Ref{
@@ -47,43 +40,10 @@ var books = []res.Ref{
 	res.Ref("bookService.book.3"),
 }
 
-// getBook looks up a book based on the resource ID.
-// Returns nil if no book was found.
-func getBook(rid string) *Book {
-	mu.RLock()
-	defer mu.RUnlock()
-	return bookModels[rid]
-}
-
-// deleteBook deletes a book from the bookModels map.
-// Returns true when found and deleted, otherwise false.
-func deleteBook(rid string) bool {
-	mu.RLock()
-	defer mu.RUnlock()
-	_, ok := bookModels[rid]
-	if ok {
-		delete(bookModels, rid)
-	}
-	return ok
-}
-
-// createBook creates a new Book model, assigns it a unique ID,
-// and adds it to the bookModels map.
-// It returns the resource ID.
-func newBook(title string, author string) string {
-	mu.RLock()
-	defer mu.RUnlock()
-	rid := fmt.Sprintf("bookService.book.%d", nextBookID)
-	book := &Book{ID: nextBookID, Title: title, Author: author}
-	nextBookID++
-	bookModels[rid] = book
-	return rid
-}
+// ID counter for new book models
+var nextBookID int64 = 4
 
 func main() {
-	// Enable debug logging
-	res.SetDebug(true)
-
 	// Create a new RES Service
 	s := res.NewService("bookService")
 
@@ -94,24 +54,23 @@ func main() {
 	stop := make(chan bool)
 	go func() {
 		defer close(stop)
-		err := s.Start("nats://localhost:4222")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-			os.Exit(1)
+		if err := s.ListenAndServe("nats://localhost:4222"); err != nil {
+			fmt.Printf("%s\n", err.Error())
 		}
 	}()
 
-	// Serve a client
+	// Run a simple webserver to serve the client.
+	// This is only for the purpose of making the example easier to run.
 	go func() { log.Fatal(http.ListenAndServe(":8082", http.FileServer(http.Dir("./")))) }()
 	fmt.Println("Client at: http://localhost:8082/")
 
 	// Wait for interrupt signal
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	select {
 	case <-c:
 		// Graceful stop
-		s.Stop()
+		s.Shutdown()
 	case <-stop:
 	}
 }
@@ -121,28 +80,29 @@ func handleBookModels(s *res.Service) {
 	s.Handle(
 		"book.$id",
 		res.Access(res.AccessGranted),
-		res.Get(func(r *res.Request, w *res.GetResponse) {
-			book := getBook(r.ResourceName)
+		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
+			book := bookModels[r.ResourceName]
 			if book == nil {
 				w.NotFound()
 				return
 			}
 			w.Model(book)
 		}),
-		res.Call("set", func(r *res.Request, w *res.CallResponse) {
-			book := getBook(r.ResourceName)
+		res.Set(func(w res.CallResponse, r *res.Request) {
+			book := bookModels[r.ResourceName]
 			if book == nil {
 				w.NotFound()
 				return
 			}
 
+			// Unmarshal parameters to a anonymous struct
 			var p struct {
 				Title  *string `json:"title,omitempty"`
 				Author *string `json:"author,omitempty"`
 			}
 			r.UnmarshalParams(&p)
 
-			updated := false
+			changed := make(map[string]interface{}, 2)
 
 			// Check if the title property was changed
 			if p.Title != nil {
@@ -156,10 +116,7 @@ func handleBookModels(s *res.Service) {
 				if title != book.Title {
 					// Update the model.
 					book.Title = title
-					updated = true
-				} else {
-					// Remove title from any change event
-					p.Title = nil
+					changed["title"] = title
 				}
 			}
 
@@ -174,17 +131,12 @@ func handleBookModels(s *res.Service) {
 				if author != book.Author {
 					// Update the model.
 					book.Author = author
-					updated = true
-				} else {
-					// Remove author from any change event
-					p.Author = nil
+					changed["author"] = author
 				}
 			}
 
-			if updated {
-				// Send a change event with updated fields
-				r.Event("change", p)
-			}
+			// Send a change event with updated fields
+			r.ChangeEvent(changed)
 
 			// Send success response
 			w.OK(nil)
@@ -197,10 +149,10 @@ func handleBooksCollection(s *res.Service) {
 	s.Handle(
 		"books",
 		res.Access(res.AccessGranted),
-		res.Get(func(r *res.Request, w *res.GetResponse) {
+		res.GetCollection(func(w res.GetCollectionResponse, r *res.Request) {
 			w.Collection(books)
 		}),
-		res.Call("new", func(r *res.Request, w *res.CallResponse) {
+		res.New(func(w res.NewResponse, r *res.Request) {
 			var p struct {
 				Title  string `json:"title"`
 				Author string `json:"author"`
@@ -221,29 +173,31 @@ func handleBooksCollection(s *res.Service) {
 			// Convert resource ID to a resource reference
 			ref := res.Ref(rid)
 			// Send add event
-			r.Event("add", res.AddEvent{Value: ref, Idx: len(books)})
+			r.AddEvent(ref, len(books))
 			// Appends the book reference to the collection
 			books = append(books, ref)
 
-			// Send success response with reference as required for "new" requests:
-			// https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#new-call-request
-			w.OK(ref)
+			// Respond with a reference to the newly created book model
+			w.New(ref)
 		}),
-		res.Call("delete", func(r *res.Request, w *res.CallResponse) {
+		res.Call("delete", func(w res.CallResponse, r *res.Request) {
 			var p struct {
 				ID int64 `json:"id,omitempty"`
 			}
 			r.UnmarshalParams(&p)
 
 			rname := fmt.Sprintf("bookService.book.%d", p.ID)
-			if deleteBook(rname) {
+
+			// Ddelete book if it exist
+			if _, ok := bookModels[rname]; ok {
+				delete(bookModels, rname)
 				// Find the book in books collection, and remove it
 				for i, rid := range books {
 					if rid == res.Ref(rname) {
 						// Remove it from slice
 						books = append(books[:i], books[i+1:]...)
 						// Send remove event
-						r.Event("remove", res.RemoveEvent{Idx: i})
+						r.RemoveEvent(i)
 						break
 					}
 				}
@@ -255,4 +209,15 @@ func handleBooksCollection(s *res.Service) {
 			w.OK(nil)
 		}),
 	)
+}
+
+// createBook creates a new Book model, assigns it a unique ID,
+// and adds it to the bookModels map.
+// It returns the resource ID.
+func newBook(title string, author string) string {
+	rid := fmt.Sprintf("bookService.book.%d", nextBookID)
+	book := &Book{ID: nextBookID, Title: title, Author: author}
+	nextBookID++
+	bookModels[rid] = book
+	return rid
 }
