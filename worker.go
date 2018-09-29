@@ -112,25 +112,25 @@ func (r *Request) executeHandler(hs *Handlers) {
 			// No handling. Assume the access requests is handled by other services.
 			return
 		}
-		hs.Access(r, (*AccessResponse)(r))
+		hs.Access((*response)(r), r)
 	case "get":
 		switch hs.typ {
 		case rtypeUnset:
 			r.reply(responseNotFound)
 			return
 		case rtypeModel:
-			hs.GetModel(r, (*GetModelResponse)(r))
+			hs.GetModel((*response)(r), r)
 		case rtypeCollection:
-			hs.GetCollection(r, (*GetCollectionResponse)(r))
+			hs.GetCollection((*response)(r), r)
 		}
 	case "call":
 		if r.Method == "new" {
-			nh := hs.New
-			if nh == nil {
+			h := hs.New
+			if h == nil {
 				r.reply(responseMethodNotFound)
 				return
 			}
-			nh(r, (*NewResponse)(r))
+			h((*response)(r), r)
 		} else {
 			var h CallHandler
 			if hs.Call != nil {
@@ -140,7 +140,7 @@ func (r *Request) executeHandler(hs *Handlers) {
 				r.reply(responseMethodNotFound)
 				return
 			}
-			h(r, (*CallResponse)(r))
+			h((*response)(r), r)
 		}
 	case "auth":
 		var h AuthHandler
@@ -151,7 +151,7 @@ func (r *Request) executeHandler(hs *Handlers) {
 			r.reply(responseMethodNotFound)
 			return
 		}
-		h(r, (*AuthResponse)(r))
+		h((*response)(r), r)
 	default:
 		r.s.Logf("unknown request type: %s", r.Type)
 		return

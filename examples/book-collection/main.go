@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 
 	"github.com/jirenius/go-res"
@@ -62,7 +61,7 @@ func main() {
 
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	path, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +84,7 @@ func handleBookModels(s *res.Service) {
 	s.Handle(
 		"book.$id",
 		res.Access(res.AccessGranted),
-		res.GetModel(func(r *res.Request, w *res.GetModelResponse) {
+		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
 			book := bookModels[r.ResourceName]
 			if book == nil {
 				w.NotFound()
@@ -93,7 +92,7 @@ func handleBookModels(s *res.Service) {
 			}
 			w.Model(book)
 		}),
-		res.Set(func(r *res.Request, w *res.CallResponse) {
+		res.Set(func(w res.CallResponse, r *res.Request) {
 			book := bookModels[r.ResourceName]
 			if book == nil {
 				w.NotFound()
@@ -154,10 +153,10 @@ func handleBooksCollection(s *res.Service) {
 	s.Handle(
 		"books",
 		res.Access(res.AccessGranted),
-		res.GetCollection(func(r *res.Request, w *res.GetCollectionResponse) {
+		res.GetCollection(func(w res.GetCollectionResponse, r *res.Request) {
 			w.Collection(books)
 		}),
-		res.New(func(r *res.Request, w *res.NewResponse) {
+		res.New(func(w res.NewResponse, r *res.Request) {
 			var p struct {
 				Title  string `json:"title"`
 				Author string `json:"author"`
@@ -183,9 +182,9 @@ func handleBooksCollection(s *res.Service) {
 			books = append(books, ref)
 
 			// Respond with a reference to the newly created book model
-			w.OK(ref)
+			w.New(ref)
 		}),
-		res.Call("delete", func(r *res.Request, w *res.CallResponse) {
+		res.Call("delete", func(w res.CallResponse, r *res.Request) {
 			var p struct {
 				ID int64 `json:"id,omitempty"`
 			}

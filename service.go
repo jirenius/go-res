@@ -27,22 +27,22 @@ var (
 type Handler func(*Handlers)
 
 // AccessHandler is a function called on resource access requests
-type AccessHandler func(*Request, *AccessResponse)
+type AccessHandler func(AccessResponse, *Request)
 
 // GetModelHandler is a function called on model get requests
-type GetModelHandler func(*Request, *GetModelResponse)
+type GetModelHandler func(GetModelResponse, *Request)
 
 // GetCollectionHandler is a function called on collection get requests
-type GetCollectionHandler func(*Request, *GetCollectionResponse)
+type GetCollectionHandler func(GetCollectionResponse, *Request)
 
 // CallHandler is a function called on resource call requests
-type CallHandler func(*Request, *CallResponse)
+type CallHandler func(CallResponse, *Request)
 
 // NewHandler is a function called on new resource call requests
-type NewHandler func(*Request, *NewResponse)
+type NewHandler func(NewResponse, *Request)
 
 // AuthHandler is a function called on resource auth requests
-type AuthHandler func(*Request, *AuthResponse)
+type AuthHandler func(AuthResponse, *Request)
 
 // Handlers contains handlers for a given resource pattern.
 type Handlers struct {
@@ -165,7 +165,7 @@ func (s *Service) Handle(pattern string, handlers ...Handler) {
 	if hs.Access != nil {
 		s.withAccess = true
 	}
-	s.patterns.add(pattern, &hs)
+	s.patterns.add(s.Name+"."+pattern, &hs)
 }
 
 // Access is a handler for resource access requests
@@ -448,7 +448,7 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		rname = rname[:idx]
 	}
 
-	hs, params := s.patterns.get(subname(rname))
+	hs, params := s.patterns.get(rname)
 	s.RunWith(rname, func() {
 		s.processRequest(m, rtype, rname, method, hs, params)
 	})
@@ -457,6 +457,10 @@ func (s *Service) handleRequest(m *nats.Msg) {
 // RunWith enqueues the callback, cb, to be called by the worker goroutine
 // for the resource name.
 func (s *Service) RunWith(rname string, cb func()) {
+	if atomic.LoadInt32(&s.state) != stateStarted {
+		return
+	}
+
 	s.mu.Lock()
 	// Get current work queue for the resource
 	w, ok := s.rwork[rname]
@@ -484,7 +488,7 @@ func (s *Service) RunWith(rname string, cb func()) {
 // no matching handlers found.
 func (s *Service) Get(rid string, cb func(r *Resource)) error {
 	rname, q := parseRID(rid)
-	hs, params := s.patterns.get(subname(rname))
+	hs, params := s.patterns.get(rname)
 	if hs == nil {
 		return errHandlerNotFound
 	}

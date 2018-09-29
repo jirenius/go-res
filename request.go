@@ -62,23 +62,55 @@ type Request struct {
 	replied bool // Flag telling if a reply has been made
 }
 
+type response Request
+
 // AccessResponse has methods for responding to access requests.
-type AccessResponse Request
+type AccessResponse interface {
+	Access(get bool, call string)
+	AccessDenied()
+	NotFound()
+}
 
 // GetModelResponse has methods for responding to model get requests.
-type GetModelResponse Request
+type GetModelResponse interface {
+	Model(model interface{})
+	QueryModel(model interface{}, query string)
+	NotFound()
+}
 
 // GetCollectionResponse has methods for responding to collection get requests.
-type GetCollectionResponse Request
+type GetCollectionResponse interface {
+	Collection(collection interface{})
+	QueryCollection(collection interface{}, query string)
+	NotFound()
+}
 
 // CallResponse has methods for responding to call requests.
-type CallResponse Request
+type CallResponse interface {
+	OK(result interface{})
+	NotFound()
+	MethodNotFound()
+	InvalidParams(message string)
+	Error(err *Error)
+}
 
 // NewResponse has methods for responding to new call requests.
-type NewResponse Request
+type NewResponse interface {
+	New(rid Ref)
+	NotFound()
+	MethodNotFound()
+	InvalidParams(message string)
+	Error(err *Error)
+}
 
 // AuthResponse has methods for responding to auth requests.
-type AuthResponse Request
+type AuthResponse interface {
+	OK(result interface{})
+	NotFound()
+	MethodNotFound()
+	InvalidParams(message string)
+	Error(err *Error)
+}
 
 // Static responses and events
 var (
@@ -94,13 +126,13 @@ var (
 // Predefined handlers
 var (
 	// Access handler that provides full get and call access.
-	AccessGranted AccessHandler = func(r *Request, w *AccessResponse) {
-		(*Request)(w).reply(responseAccessGranted)
+	AccessGranted AccessHandler = func(w AccessResponse, r *Request) {
+		r.reply(responseAccessGranted)
 	}
 
 	// Access handler that sends a system.accessDenied error response.
-	AccessDenied AccessHandler = func(r *Request, w *AccessResponse) {
-		(*Request)(w).reply(responseAccessDenied)
+	AccessDenied AccessHandler = func(w AccessResponse, r *Request) {
+		r.reply(responseAccessDenied)
 	}
 )
 
@@ -152,12 +184,12 @@ func (r *Request) send(subj string, data []byte) {
 	}
 }
 
-// OK sends a successful response for the access request.
+// Access sends a successful response for the access request.
 // The get flag tells if the client has access to get (read) the resource.
 // The call string is a comma separated list of methods that the client can
 // call. Eg. "set,foo,bar". A single asterisk character ("*") means the client
 // is allowed to call any method. Empty string means no calls are allowed.
-func (w *AccessResponse) OK(get bool, call string) {
+func (w *response) Access(get bool, call string) {
 	type okResponse struct {
 		Get  bool   `json:"get,omitempty"`
 		Call string `json:"call,omitempty"`
@@ -171,34 +203,29 @@ func (w *AccessResponse) OK(get bool, call string) {
 }
 
 // AccessDenied sends a system.accessDenied response for the access request.
-func (w *AccessResponse) AccessDenied() {
+func (w *response) AccessDenied() {
 	(*Request)(w).reply(responseAccessDenied)
 }
 
 // NotFound sends a system.notFound response for the access request.
-func (w *AccessResponse) NotFound() {
+func (w *response) NotFound() {
 	(*Request)(w).reply(responseNotFound)
 }
 
 // Model sends a successful model response for the get request.
 // The model must marshal into a JSON object.
-func (w *GetModelResponse) Model(model interface{}) {
+func (w *response) Model(model interface{}) {
 	w.model(model, "")
 }
 
 // QueryModel sends a successful query model response for the get request.
 // The model must marshal into a JSON object.
-func (w *GetModelResponse) QueryModel(model interface{}, query string) {
+func (w *response) QueryModel(model interface{}, query string) {
 	w.model(model, query)
 }
 
-// NotFound sends a system.notFound response for the get request.
-func (w *GetModelResponse) NotFound() {
-	(*Request)(w).reply(responseNotFound)
-}
-
 // model sends a successful model response for the get request.
-func (w *GetModelResponse) model(model interface{}, query string) {
+func (w *response) model(model interface{}, query string) {
 	type modelResponse struct {
 		Model interface{} `json:"model"`
 		Query string      `json:"query,omitempty"`
@@ -214,23 +241,18 @@ func (w *GetModelResponse) model(model interface{}, query string) {
 
 // Collection sends a successful collection response for the get request.
 // The collection must marshal into a JSON array.
-func (w *GetCollectionResponse) Collection(collection interface{}) {
+func (w *response) Collection(collection interface{}) {
 	w.collection(collection, "")
 }
 
 // QueryCollection sends a successful query collection response for the get request.
 // The collection must marshal into a JSON array.
-func (w *GetCollectionResponse) QueryCollection(collection interface{}, query string) {
+func (w *response) QueryCollection(collection interface{}, query string) {
 	w.collection(collection, query)
 }
 
-// NotFound sends a system.notFound response for the get request.
-func (w *GetCollectionResponse) NotFound() {
-	(*Request)(w).reply(responseNotFound)
-}
-
 // collection sends a successful collection response for the get request.
-func (w *GetCollectionResponse) collection(collection interface{}, query string) {
+func (w *response) collection(collection interface{}, query string) {
 	type collectionResponse struct {
 		Collection interface{} `json:"collection"`
 		Query      string      `json:"query,omitempty"`
@@ -246,23 +268,18 @@ func (w *GetCollectionResponse) collection(collection interface{}, query string)
 
 // OK sends a successful response for the call request.
 // The result may be nil.
-func (w *CallResponse) OK(result interface{}) {
+func (w *response) OK(result interface{}) {
 	(*Request)(w).success(result)
 }
 
-// NotFound sends a system.notFound response for the call request.
-func (w *CallResponse) NotFound() {
-	(*Request)(w).reply(responseNotFound)
-}
-
 // MethodNotFound sends a system.methodNotFound response for the call request.
-func (w *CallResponse) MethodNotFound() {
+func (w *response) MethodNotFound() {
 	(*Request)(w).reply(responseMethodNotFound)
 }
 
 // InvalidParams sends a system.invalidParams response for the call request.
 // An empty message will be replaced will default to "Invalid parameters".
-func (w *CallResponse) InvalidParams(message string) {
+func (w *response) InvalidParams(message string) {
 	if message == "" {
 		(*Request)(w).reply(responseInvalidParams)
 	} else {
@@ -271,69 +288,13 @@ func (w *CallResponse) InvalidParams(message string) {
 }
 
 // Error sends a custom error response for the call request.
-func (w *CallResponse) Error(err *Error) {
+func (w *response) Error(err *Error) {
 	(*Request)(w).error(err)
 }
 
-// OK sends a successful response for the new call request.
-func (w *NewResponse) OK(rid Ref) {
+// New sends a successful response for the new call request.
+func (w *response) New(rid Ref) {
 	(*Request)(w).success(rid)
-}
-
-// NotFound sends a system.notFound response for the new call request.
-func (w *NewResponse) NotFound() {
-	(*Request)(w).reply(responseNotFound)
-}
-
-// MethodNotFound sends a system.methodNotFound response for the new call request.
-func (w *NewResponse) MethodNotFound() {
-	(*Request)(w).reply(responseMethodNotFound)
-}
-
-// InvalidParams sends a system.invalidParams response for the new call request.
-// An empty message will be replaced will default to "Invalid parameters".
-func (w *NewResponse) InvalidParams(message string) {
-	if message == "" {
-		(*Request)(w).reply(responseInvalidParams)
-	} else {
-		(*Request)(w).error(&Error{Code: CodeInvalidParams, Message: message})
-	}
-}
-
-// Error sends a custom error response for the new call request.
-func (w *NewResponse) Error(err *Error) {
-	(*Request)(w).error(err)
-}
-
-// OK sends a successful response for the auth request.
-// The result may be nil.
-func (w *AuthResponse) OK(result interface{}) {
-	(*Request)(w).success(result)
-}
-
-// NotFound sends a system.notFound response for the auth request.
-func (w *AuthResponse) NotFound() {
-	(*Request)(w).reply(responseNotFound)
-}
-
-// MethodNotFound sends a system.methodNotFound response for the auth request.
-func (w *AuthResponse) MethodNotFound() {
-	(*Request)(w).reply(responseMethodNotFound)
-}
-
-// InvalidParams sends a system.invalidParams response for the auth request.
-// An empty message will be replaced will default to "Invalid parameters".
-func (w *AuthResponse) InvalidParams(message string) {
-	if message == "" {
-		(*Request)(w).reply(responseInvalidParams)
-	} else {
-		(*Request)(w).error(&Error{Code: CodeInvalidParams, Message: message})
-	}
-}
-
-// Error sends a custom error response for the auth request.
-func (w *AuthResponse) Error(err *Error) {
-	(*Request)(w).error(err)
 }
 
 // UnmarshalParams parses the encoded parameters and stores the result in params.

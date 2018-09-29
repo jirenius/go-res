@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 
 	"github.com/jirenius/go-res"
 )
@@ -32,10 +31,10 @@ func main() {
 	// Add handlers for "exampleService.myModel" resource
 	s.Handle("myModel",
 		res.Access(res.AccessGranted),
-		res.GetModel(func(r *res.Request, w *res.GetModelResponse) {
+		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
 			w.Model(myModel)
 		}),
-		res.Call("set", func(r *res.Request, w *res.CallResponse) {
+		res.Call("set", func(w res.CallResponse, r *res.Request) {
 			var p struct {
 				Message *string `json:"message,omitempty"`
 			}
@@ -65,7 +64,7 @@ func main() {
 
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	path, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
