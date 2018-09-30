@@ -49,7 +49,7 @@ While a RES service communicates over a message broker (NATS Server), instead of
 
     serv := res.NewService("myservice")
 
-#### Add a model handlers
+#### Add model handlers
 
 ```go
 mymodel := map[string]interface{}{"name": "foo", "value": 42}
@@ -128,6 +128,10 @@ s.Get("myservice.mycollection", func(r *res.Resource) {
 ```go
 s.ListenAndServe("nats://localhost:4222")
 ```
+
+## Credits
+
+Inspiration on the API has been taken from [github.com/go-chi/chi](https://github.com/go-chi/chi), and will continue to do so when it is time to implement Middleware, sub-handlers, and mounting.
 
 ## Contributing
 
