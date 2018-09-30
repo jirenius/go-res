@@ -13,7 +13,7 @@ This is an example of a simple Hello World RES service.
 Clone go-res repository and run example:
 ```bash
 git clone https://github.com/jirenius/go-res
-cd go-res/example/hello-world
+cd go-res/examples/hello-world
 go run main.go
 ```
 

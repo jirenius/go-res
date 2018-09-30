@@ -131,7 +131,7 @@ s.ListenAndServe("nats://localhost:4222")
 
 ## Credits
 
-Inspiration on the API has been taken from [github.com/go-chi/chi](https://github.com/go-chi/chi), and will continue to do so when it is time to implement Middleware, sub-handlers, and mounting.
+Inspiration on the go-res API has been taken from [github.com/go-chi/chi](https://github.com/go-chi/chi), a great package when writing ordinary HTTP services, and will continue to do so when it is time to implement Middleware, sub-handlers, and mounting.
 
 ## Contributing
 
