@@ -86,7 +86,7 @@ type Service struct {
 
 	state int32
 
-	nc             *nats.Conn                    // NATS Server connection
+	nc             Conn                          // NATS Server connection
 	subs           map[string]*nats.Subscription // Request type nats subscriptions
 	patterns       patterns                      // pattern store with all handlers
 	inCh           chan *nats.Msg                // Channel for incoming nats messages
@@ -295,14 +295,14 @@ func (s *Service) ListenAndServe(url string) error {
 //
 // Serve returns an error if failes to subscribe. Otherwise, nil is
 // returned once the *Conn is closed.
-func (s *Service) Serve(nc *nats.Conn) error {
+func (s *Service) Serve(nc Conn) error {
 	if !atomic.CompareAndSwapInt32(&s.state, stateStopped, stateStarting) {
 		return errNotStopped
 	}
 	return s.serve(nc)
 }
 
-func (s *Service) serve(nc *nats.Conn) error {
+func (s *Service) serve(nc Conn) error {
 	s.Logf("Starting service: %s", s.Name)
 
 	// Initialize fields
@@ -367,9 +367,7 @@ func (s *Service) Shutdown() error {
 
 // close calls Close on the NATS connection, and closes the incoming channel
 func (s *Service) close() {
-	if !s.nc.IsClosed() {
-		s.nc.Close()
-	}
+	s.nc.Close()
 	close(s.inCh)
 }
 
@@ -417,40 +415,41 @@ func (s *Service) startListener(ch chan *nats.Msg) {
 
 // handleRequest is called by the nats listener on incoming messages.
 func (s *Service) handleRequest(m *nats.Msg) {
-	s.Tracef("==> %s: %s", m.Subject, m.Data)
+	subj := m.Subject
+	data := m.Data
+	s.Tracef("==> %s: %s", subj, data)
 
 	// Assert there is a reply subject
 	if m.Reply == "" {
-		s.Logf("missing reply subject on request: %s", m.Subject)
+		s.Logf("missing reply subject on request: %s", subj)
 		return
 	}
 
 	// Get request type
-	idx := strings.IndexByte(m.Subject, '.')
+	idx := strings.IndexByte(subj, '.')
 	if idx < 0 {
 		// Shouldn't be possible unless NATS is really acting up
-		s.Logf("invalid request subject: %s", m.Subject)
+		s.Logf("invalid request subject: %s", subj)
 		return
 	}
 
 	var method string
-	rtype := m.Subject[:idx]
-	rname := m.Subject[idx+1:]
+	rtype := subj[:idx]
+	rname := subj[idx+1:]
 
 	if rtype == "call" || rtype == "auth" {
 		idx = strings.LastIndexByte(rname, '.')
 		if idx < 0 {
 			// No method? Resgate must be acting up
-			s.Logf("invalid request subject: %s", m.Subject)
+			s.Logf("invalid request subject: %s", subj)
 			return
 		}
 		method = rname[idx+1:]
 		rname = rname[:idx]
 	}
 
-	hs, params := s.patterns.get(rname)
 	s.RunWith(rname, func() {
-		s.processRequest(m, rtype, rname, method, hs, params)
+		s.processRequest(m, rtype, rname, method)
 	})
 }
 
