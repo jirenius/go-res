@@ -18,7 +18,7 @@ This is an example that lists of books which can be created, edited and deleted 
 Clone go-res repository and run example:
 ```bash
 git clone https://github.com/jirenius/go-res
-cd go-res/example/book-collection
+cd go-res/examples/book-collection
 go run main.go
 ```
 
