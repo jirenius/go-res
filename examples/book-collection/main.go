@@ -1,6 +1,6 @@
 /*
 This is an example of how to create a RES service with collections.
-* It exposes a collection: "bookService.books".
+* It exposes a collection: "library.books".
 * It allows setting the books' Title and Author property through the "set" method.
 * It allows creating new books that are added to the collection
 * It allows deleting existing books from the collection
@@ -28,16 +28,16 @@ type Book struct {
 
 // Map of all book models
 var bookModels = map[string]*Book{
-	"bookService.book.1": {ID: 1, Title: "Animal Farm", Author: "George Orwell"},
-	"bookService.book.2": {ID: 2, Title: "Brave New World", Author: "Aldous Huxley"},
-	"bookService.book.3": {ID: 3, Title: "Coraline", Author: "Neil Gaiman"},
+	"library.book.1": {ID: 1, Title: "Animal Farm", Author: "George Orwell"},
+	"library.book.2": {ID: 2, Title: "Brave New World", Author: "Aldous Huxley"},
+	"library.book.3": {ID: 3, Title: "Coraline", Author: "Neil Gaiman"},
 }
 
 // Collection of books
 var books = []res.Ref{
-	res.Ref("bookService.book.1"),
-	res.Ref("bookService.book.2"),
-	res.Ref("bookService.book.3"),
+	res.Ref("library.book.1"),
+	res.Ref("library.book.2"),
+	res.Ref("library.book.3"),
 }
 
 // ID counter for new book models
@@ -45,7 +45,7 @@ var nextBookID int64 = 4
 
 func main() {
 	// Create a new RES Service
-	s := res.NewService("bookService")
+	s := res.NewService("library")
 
 	handleBookModels(s)      // Add handlers for the book models
 	handleBooksCollection(s) // Add handlers for the books collection
@@ -75,7 +75,7 @@ func main() {
 	}
 }
 
-// handleBookModels adds handlers for "bookService.book.$id" models
+// handleBookModels adds handlers for "library.book.$id" models
 func handleBookModels(s *res.Service) {
 	s.Handle(
 		"book.$id",
@@ -144,7 +144,7 @@ func handleBookModels(s *res.Service) {
 	)
 }
 
-// handleBooksCollection adds handlers for "bookService.books" collection
+// handleBooksCollection adds handlers for "library.books" collection
 func handleBooksCollection(s *res.Service) {
 	s.Handle(
 		"books",
@@ -186,7 +186,7 @@ func handleBooksCollection(s *res.Service) {
 			}
 			r.UnmarshalParams(&p)
 
-			rname := fmt.Sprintf("bookService.book.%d", p.ID)
+			rname := fmt.Sprintf("library.book.%d", p.ID)
 
 			// Ddelete book if it exist
 			if _, ok := bookModels[rname]; ok {
@@ -215,7 +215,7 @@ func handleBooksCollection(s *res.Service) {
 // and adds it to the bookModels map.
 // It returns the resource ID.
 func newBook(title string, author string) string {
-	rid := fmt.Sprintf("bookService.book.%d", nextBookID)
+	rid := fmt.Sprintf("library.book.%d", nextBookID)
 	book := &Book{ID: nextBookID, Title: title, Author: author}
 	nextBookID++
 	bookModels[rid] = book
