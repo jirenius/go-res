@@ -4,10 +4,6 @@ import "net/url"
 
 // Resource represents a resource
 type Resource struct {
-	// Resource model or collection as returned from the get handler.
-	// Value is nil on get or access request, or if no GetModel or GetCollection handler is set.
-	Value interface{}
-
 	// Resource name. The name is the resource ID without the query.
 	ResourceName string
 
@@ -17,8 +13,8 @@ type Resource struct {
 	// RawQuery part of the resource ID without the question mark separator.
 	RawQuery string `json:"query"`
 
-	s *Service
-	h *Handlers
+	s  *Service
+	hs *Handlers
 }
 
 // Query parses RawQuery and returns the corresponding values.
@@ -58,7 +54,7 @@ func (r *Resource) Event(event string, payload interface{}) {
 // If ev is empty, no event is sent.
 // Panics if the resource is not a Model.
 func (r *Resource) ChangeEvent(ev map[string]interface{}) {
-	if r.h.typ != rtypeModel {
+	if r.hs.typ != rtypeModel {
 		panic("res: change event only allowed on Models")
 	}
 	if len(ev) == 0 {
@@ -70,7 +66,7 @@ func (r *Resource) ChangeEvent(ev map[string]interface{}) {
 // AddEvent sends an add event, adding the value v at index idx.
 // Panics if the resource is not a Collection.
 func (r *Resource) AddEvent(v interface{}, idx int) {
-	if r.h.typ != rtypeCollection {
+	if r.hs.typ != rtypeCollection {
 		panic("res: add event only allowed on Collections")
 	}
 	r.s.send("event."+r.ResourceName+".add", addEvent{Value: v, Idx: idx})
@@ -79,7 +75,7 @@ func (r *Resource) AddEvent(v interface{}, idx int) {
 // RemoveEvent sends an remove event, removing the value at index idx.
 // Panics if the resource is not a Collection.
 func (r *Resource) RemoveEvent(idx int) {
-	if r.h.typ != rtypeCollection {
+	if r.hs.typ != rtypeCollection {
 		panic("res: remove event only allowed on Collections")
 	}
 	r.s.send("event."+r.ResourceName+".remove", removeEvent{Idx: idx})
@@ -88,4 +84,20 @@ func (r *Resource) RemoveEvent(idx int) {
 // ReaccessEvent sends an reaccess event.
 func (r *Resource) ReaccessEvent() {
 	r.s.send("event."+r.ResourceName+".reaccess", nil)
+}
+
+func (r *Resource) sendEvent(name string, payload interface{}) {
+	r.s.send("event."+r.ResourceName+"."+name, payload)
+
+	// 	if r.hs.observers != nil {
+
+	// 		func(*Resource, *ObserveEvent)
+	// 		for _, oh := range r.hs.ohs {
+	// 			// Use runWith to ensure the handler is complete with whatever it needed to do
+	// 			r.s.runWith(func() {
+	// 			oh()
+	// 			})
+	// 		}
+	// }
+
 }

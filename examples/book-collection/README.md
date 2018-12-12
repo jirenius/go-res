@@ -1,8 +1,8 @@
 # Book Collection example
 
 This is an example that lists of books which can be created, edited and deleted by multiple users simultaneously.
-* It exposes a collection, `bookService.books`, containing book model references.
-* It exposes book models, `bookService.book.<BOOK_ID>`, of each book.
+* It exposes a collection, `library.books`, containing book model references.
+* It exposes book models, `library.book.<BOOK_ID>`, of each book.
 * It allows setting the books' *title* and *author* property through the `set` method.
 * It allows creating new books that are added to the collection with the `new` method.
 * It allows deleting existing books from the collection with the `delete` method.
@@ -43,17 +43,17 @@ Run the client on two separate devices. Disconnect one device, then make changes
 
 ### Get book collection
 ```
-GET http://localhost:8080/api/bookService/books
+GET http://localhost:8080/api/library/books
 ```
 
 ### Get book
 ```
-GET http://localhost:8080/api/bookService/book/<BOOK_ID>
+GET http://localhost:8080/api/library/book/<BOOK_ID>
 ```
 
 ### Update book properties
 ```
-POST http://localhost:8080/api/bookService/book/<BOOK_ID>/set
+POST http://localhost:8080/api/library/book/<BOOK_ID>/set
 ```
 *Body*  
 ```
@@ -62,7 +62,7 @@ POST http://localhost:8080/api/bookService/book/<BOOK_ID>/set
 
 ### Add new book
 ```
-POST http://localhost:8080/api/bookService/books/add
+POST http://localhost:8080/api/library/books/add
 ```
 *Body*  
 ```
@@ -71,7 +71,7 @@ POST http://localhost:8080/api/bookService/books/add
 
 ### Delete book
 ```
-POST http://localhost:8080/api/bookService/books/delete
+POST http://localhost:8080/api/library/books/delete
 ```
 *Body*  
 ```

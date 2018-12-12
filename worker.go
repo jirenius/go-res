@@ -10,7 +10,7 @@ import (
 
 type work struct {
 	s     *Service
-	rname string   // Resource name for the work queue
+	wid   string   // Worker ID for the work queue
 	queue []func() // Callback queue
 }
 
@@ -36,15 +36,14 @@ func (w *work) processQueue() {
 		w.s.mu.Lock()
 	}
 	// Work complete
-	delete(w.s.rwork, w.rname)
+	delete(w.s.rwork, w.wid)
 	w.s.mu.Unlock()
 }
 
 // processRequest is executed by the worker to process an incoming request.
-func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string) {
+func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *Handlers, params map[string]string) {
 	var r Request
 
-	hs, params := s.patterns.get(rname)
 	if hs == nil {
 		r.s = s
 		r.msg = m
@@ -53,7 +52,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string) {
 	}
 	err := json.Unmarshal(m.Data, &r)
 	r.s = s
-	r.h = hs
+	r.hs = hs
 	r.msg = m
 	r.Type = rtype
 	r.ResourceName = rname

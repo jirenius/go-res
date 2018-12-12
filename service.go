@@ -44,6 +44,9 @@ type NewHandler func(NewResponse, *Request)
 // AuthHandler is a function called on resource auth requests
 type AuthHandler func(AuthResponse, *Request)
 
+// ObserveHandler is a function called on events on observed resources
+type ObserveHandler func(*Resource, *ObserveEvent)
+
 // Handlers contains handlers for a given resource pattern.
 type Handlers struct {
 	// Use middleware handlers for requests
@@ -58,7 +61,7 @@ type Handlers struct {
 	// Get handler for collections. If not nil, all other Get handlers must be nil.
 	GetCollection GetCollectionHandler
 
-	// Call handler for call requests
+	// Call handlers for call requests
 	Call map[string]CallHandler
 
 	// New handler for new call requests
@@ -67,7 +70,16 @@ type Handlers struct {
 	// Auth handler for auth requests
 	Auth map[string]AuthHandler
 
+	// Observe handlers for events in resources
+	Observe map[string]ObserveHandler
+
 	typ rtype
+
+	// Worker ID which the handlers should run on. If empty, the resource name is used.
+	wid string
+
+	// Observers handlers
+	ohs []ObserveHandler
 }
 
 const (
@@ -168,7 +180,7 @@ func (s *Service) Handle(pattern string, handlers ...Handler) {
 	s.patterns.add(s.Name+"."+pattern, &hs)
 }
 
-// Access is a handler for resource access requests
+// Access sets a handler for resource access requests
 func Access(h AccessHandler) Handler {
 	return func(hs *Handlers) {
 		if hs.Access != nil {
@@ -178,7 +190,7 @@ func Access(h AccessHandler) Handler {
 	}
 }
 
-// GetModel is a handler for model get requests
+// GetModel sets a handler for model get requests
 func GetModel(h GetModelHandler) Handler {
 	return func(hs *Handlers) {
 		assertNoGetHandler(hs)
@@ -187,7 +199,7 @@ func GetModel(h GetModelHandler) Handler {
 	}
 }
 
-// GetCollection is a handler for collection get requests
+// GetCollection sets a handler for collection get requests
 func GetCollection(h GetCollectionHandler) Handler {
 	return func(hs *Handlers) {
 		assertNoGetHandler(hs)
@@ -196,7 +208,7 @@ func GetCollection(h GetCollectionHandler) Handler {
 	}
 }
 
-// Call is a handler for resource call requests.
+// Call sets a handler for resource call requests.
 // Panics if the method is one of the pre-defined call methods, set, or new.
 // For pre-defined call methods, the matching handlers, Set, and New
 // should be used instead.
@@ -215,13 +227,13 @@ func Call(method string, h CallHandler) Handler {
 	}
 }
 
-// Set is a handler for set resource requests.
+// Set sets a handler for set resource requests.
 // Is a n alias for Call("set", h)
 func Set(h CallHandler) Handler {
 	return Call("set", h)
 }
 
-// New is a handler for new resource requests.
+// New sets a handler for new resource requests.
 func New(h NewHandler) Handler {
 	return func(hs *Handlers) {
 		if hs.New != nil {
@@ -231,7 +243,7 @@ func New(h NewHandler) Handler {
 	}
 }
 
-// Auth is a handler for resource auth requests
+// Auth sets a handler for resource auth requests
 func Auth(method string, h AuthHandler) Handler {
 	return func(hs *Handlers) {
 		if hs.Auth == nil {
@@ -241,6 +253,22 @@ func Auth(method string, h AuthHandler) Handler {
 			panic("res: multiple auth handlers for method " + method)
 		}
 		hs.Auth[method] = h
+	}
+}
+
+// Observe sets a handler for events on observed resources.
+func Observe(patterns []string, h ObserveHandler) Handler {
+	return func(hs *Handlers) {
+		if hs.Observe == nil {
+			hs.Observe = make(map[string]ObserveHandler)
+		}
+
+		for _, p := range patterns {
+			if _, ok := hs.Observe[p]; ok {
+				panic("res: pattern observed multiple times: " + p)
+			}
+			hs.Observe[p] = h
+		}
 	}
 }
 
@@ -448,29 +476,37 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		rname = rname[:idx]
 	}
 
-	s.RunWith(rname, func() {
-		s.processRequest(m, rtype, rname, method)
+	hs, params := s.patterns.get(rname)
+
+	s.runWith(hs, rname, func() {
+		s.processRequest(m, rtype, rname, method, hs, params)
 	})
 }
 
-// RunWith enqueues the callback, cb, to be called by the worker goroutine
-// for the resource name.
-func (s *Service) RunWith(rname string, cb func()) {
+// runWith enqueues the callback, cb, to be called by the worker goroutine.
+// The worker ID of the worker is the hs.wid value, if one is set.
+// Otherwise the worker ID will fall back to rname.
+func (s *Service) runWith(hs *Handlers, rname string, cb func()) {
 	if atomic.LoadInt32(&s.state) != stateStarted {
 		return
 	}
 
+	wid := rname
+	if hs != nil && hs.wid != "" {
+		wid = hs.wid
+	}
+
 	s.mu.Lock()
 	// Get current work queue for the resource
-	w, ok := s.rwork[rname]
+	w, ok := s.rwork[wid]
 	if !ok {
 		// Create a new work queue and pass it to a worker
 		w = &work{
 			s:     s,
-			rname: rname,
+			wid:   wid,
 			queue: []func(){cb},
 		}
-		s.rwork[rname] = w
+		s.rwork[wid] = w
 		s.mu.Unlock()
 		s.workCh <- w
 	} else {
@@ -497,10 +533,10 @@ func (s *Service) Get(rid string, cb func(r *Resource)) error {
 		PathParams:   params,
 		RawQuery:     q,
 		s:            s,
-		h:            hs,
+		hs:           hs,
 	}
 
-	s.RunWith(rname, func() {
+	s.runWith(hs, rname, func() {
 		cb(r)
 	})
 
