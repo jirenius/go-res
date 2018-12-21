@@ -27,22 +27,22 @@ var (
 type Handler func(*Handlers)
 
 // AccessHandler is a function called on resource access requests
-type AccessHandler func(AccessResponse, *Request)
+type AccessHandler func(AccessRequest)
 
 // GetModelHandler is a function called on model get requests
-type GetModelHandler func(GetModelResponse, *Request)
+type GetModelHandler func(ModelRequest)
 
 // GetCollectionHandler is a function called on collection get requests
-type GetCollectionHandler func(GetCollectionResponse, *Request)
+type GetCollectionHandler func(CollectionRequest)
 
 // CallHandler is a function called on resource call requests
-type CallHandler func(CallResponse, *Request)
+type CallHandler func(CallRequest)
 
 // NewHandler is a function called on new resource call requests
-type NewHandler func(NewResponse, *Request)
+type NewHandler func(NewRequest)
 
 // AuthHandler is a function called on resource auth requests
-type AuthHandler func(AuthResponse, *Request)
+type AuthHandler func(AuthRequest)
 
 // ObserveHandler is a function called on events on observed resources
 type ObserveHandler func(*Resource, *ObserveEvent)
@@ -73,7 +73,7 @@ type Handlers struct {
 	// Observe handlers for events in resources
 	Observe map[string]ObserveHandler
 
-	typ rtype
+	rtype rtype
 
 	// Worker ID which the handlers should run on. If empty, the resource name is used.
 	wid string
@@ -195,7 +195,7 @@ func GetModel(h GetModelHandler) Handler {
 	return func(hs *Handlers) {
 		assertNoGetHandler(hs)
 		hs.GetModel = h
-		hs.typ = rtypeModel
+		hs.rtype = rtypeModel
 	}
 }
 
@@ -204,7 +204,7 @@ func GetCollection(h GetCollectionHandler) Handler {
 	return func(hs *Handlers) {
 		assertNoGetHandler(hs)
 		hs.GetCollection = h
-		hs.typ = rtypeCollection
+		hs.rtype = rtypeCollection
 	}
 }
 
@@ -405,17 +405,12 @@ func (s *Service) Reset() {
 		s.Logf("failed to reset: service not started")
 		return
 	}
-
-	type resetEvent struct {
-		Resources []string `json:"resources,omitempty"`
-		Access    []string `json:"access,omitempty"`
-	}
 	ev := resetEvent{Resources: s.resetResources}
 	// Only reset access if there are access handlers
 	if s.withAccess {
 		ev.Access = s.resetAccess
 	}
-	s.send("system.reset", ev)
+	s.event("system.reset", ev)
 }
 
 // subscribe makes a nats subscription for each required request type.
@@ -444,8 +439,7 @@ func (s *Service) startListener(ch chan *nats.Msg) {
 // handleRequest is called by the nats listener on incoming messages.
 func (s *Service) handleRequest(m *nats.Msg) {
 	subj := m.Subject
-	data := m.Data
-	s.Tracef("==> %s: %s", subj, data)
+	s.Tracef("==> %s: %s", subj, m.Data)
 
 	// Assert there is a reply subject
 	if m.Reply == "" {
@@ -529,11 +523,11 @@ func (s *Service) Get(rid string, cb func(r *Resource)) error {
 	}
 
 	r := &Resource{
-		ResourceName: rname,
-		PathParams:   params,
-		RawQuery:     q,
-		s:            s,
-		hs:           hs,
+		rname:      rname,
+		pathParams: params,
+		query:      q,
+		s:          s,
+		hs:         hs,
 	}
 
 	s.runWith(hs, rname, func() {
@@ -543,15 +537,39 @@ func (s *Service) Get(rid string, cb func(r *Resource)) error {
 	return nil
 }
 
-// send marshals the data and sends a message to the NATS server.
-func (s *Service) send(subj string, data interface{}) {
+// event marshals the data and publishes it on a subject,
+// and logs it as an outgoing event.
+func (s *Service) event(subj string, data interface{}) {
+	if data == nil {
+		s.rawEvent(subj, nil)
+		return
+	}
+
 	payload, err := json.Marshal(data)
 	if err == nil {
 		s.Tracef("<-- %s: %s", subj, payload)
 		err = s.nc.Publish(subj, payload)
 	}
 	if err != nil {
-		s.Logf("error sending request %s: %s", subj, err)
+		s.Logf("error sending event %s: %s", subj, err)
+	}
+}
+
+// rawEvent publishes the payload on a subject,
+// and logs it as an outgoing event.
+func (s *Service) rawEvent(subj string, payload []byte) {
+	s.Tracef("<-- %s: %s", subj, payload)
+	err := s.nc.Publish(subj, payload)
+	if err != nil {
+		s.Logf("error sending event %s: %s", subj, err)
+	}
+}
+
+// send publishes an encoded data payload on a subject.
+func (s *Service) send(subj string, payload []byte) {
+	err := s.nc.Publish(subj, payload)
+	if err != nil {
+		s.Logf("error sending event %s: %s", subj, err)
 	}
 }
 
@@ -573,7 +591,7 @@ func (s *Service) handleClosed(_ *nats.Conn) {
 }
 
 func assertNoGetHandler(hs *Handlers) {
-	if hs.typ != rtypeUnset {
+	if hs.rtype != rtypeUnset {
 		panic("res: multiple get handlers")
 	}
 }

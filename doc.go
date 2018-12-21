@@ -24,8 +24,8 @@ Add handlers for a single model resource:
 	mymodel := map[string]interface{}{"name": "foo", "value": 42}
 	s.Handle("mymodel",
 		res.Access(res.AccessGranted),
-		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
-			w.Model(mymodel)
+		res.GetModel(func(r res.ModelRequest) {
+			r.Model(mymodel)
 		}),
 	)
 
@@ -34,8 +34,8 @@ Add handlers for a single collection resource:
 	mycollection := []string{"first", "second", "third"}
 	s.Handle("mycollection",
 		res.Access(res.AccessGranted),
-		res.GetCollection(func(w res.GetCollectionResponse, r *res.Request) {
-			w.Collection(mycollection)
+		res.GetCollection(func(r res.CollectionRequest) {
+			r.Collection(mycollection)
 		}),
 	)
 
@@ -43,12 +43,12 @@ Add handlers for parameterized resources:
 
 	s.Handle("article.$id",
 		res.Access(res.AccessGranted),
-		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
+		res.GetModel(func(r res.ModelRequest) {
 			article := getArticle(r.PathParams["id"]) // Returns nil if not found
 			if article == nil {
-				w.NotFound()
+				r.NotFound()
 			} else {
-				w.Model(article)
+				r.Model(article)
 			}
 		}),
 	)
@@ -57,12 +57,12 @@ Add handlers for method calls:
 
 	s.Handle("math",
 		res.Access(res.AccessGranted),
-		res.Call("double", func(w res.CallResponse, r *res.Request) {
+		res.Call("double", func(r res.CallRequest) {
 			var p struct {
 				Value int `json:"value"`
 			}
-			r.UnmarshalParams(&p)
-			w.OK(p.Value * 2)
+			r.ParseParams(&p)
+			r.OK(p.Value * 2)
 		}),
 	)
 

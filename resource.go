@@ -1,27 +1,43 @@
 package res
 
-import "net/url"
+import (
+	"net/url"
+)
 
 // Resource represents a resource
 type Resource struct {
-	// Resource name. The name is the resource ID without the query.
-	ResourceName string
-
-	// Path parameters parsed from the resource name
-	PathParams map[string]string
-
-	// RawQuery part of the resource ID without the question mark separator.
-	RawQuery string `json:"query"`
-
-	s  *Service
-	hs *Handlers
+	rname      string
+	pathParams map[string]string
+	query      string
+	s          *Service
+	hs         *Handlers
 }
 
-// Query parses RawQuery and returns the corresponding values.
+// Service returns the service instance
+func (r *Resource) Service() *Service {
+	return r.s
+}
+
+// ResourceName returns the resource name.
+func (r *Resource) ResourceName() string {
+	return r.rname
+}
+
+// PathParams returns parameters that are derived from the resource name.
+func (r *Resource) PathParams() map[string]string {
+	return r.pathParams
+}
+
+// Query returns the query part of the resource ID without the question mark separator.
+func (r *Resource) Query() string {
+	return r.query
+}
+
+// ParseQuery parses the query and returns the corresponding values.
 // It silently discards malformed value pairs.
 // To check errors use url.ParseQuery.
-func (r *Resource) Query() url.Values {
-	v, _ := url.ParseQuery(r.RawQuery)
+func (r *Resource) ParseQuery() url.Values {
+	v, _ := url.ParseQuery(r.query)
 	return v
 }
 
@@ -47,57 +63,41 @@ func (r *Resource) Event(event string, payload interface{}) {
 		panic(`res: "unsubscribe" is a reserved event name`)
 	}
 
-	r.s.send("event."+r.ResourceName+"."+event, payload)
+	r.s.event("event."+r.rname+"."+event, payload)
 }
 
 // ChangeEvent sends a change event.
 // If ev is empty, no event is sent.
 // Panics if the resource is not a Model.
 func (r *Resource) ChangeEvent(ev map[string]interface{}) {
-	if r.hs.typ != rtypeModel {
+	if r.hs.rtype != rtypeModel {
 		panic("res: change event only allowed on Models")
 	}
 	if len(ev) == 0 {
 		return
 	}
-	r.s.send("event."+r.ResourceName+".change", ev)
+	r.s.event("event."+r.rname+".change", ev)
 }
 
 // AddEvent sends an add event, adding the value v at index idx.
 // Panics if the resource is not a Collection.
 func (r *Resource) AddEvent(v interface{}, idx int) {
-	if r.hs.typ != rtypeCollection {
+	if r.hs.rtype != rtypeCollection {
 		panic("res: add event only allowed on Collections")
 	}
-	r.s.send("event."+r.ResourceName+".add", addEvent{Value: v, Idx: idx})
+	r.s.event("event."+r.rname+".add", addEvent{Value: v, Idx: idx})
 }
 
 // RemoveEvent sends an remove event, removing the value at index idx.
 // Panics if the resource is not a Collection.
 func (r *Resource) RemoveEvent(idx int) {
-	if r.hs.typ != rtypeCollection {
+	if r.hs.rtype != rtypeCollection {
 		panic("res: remove event only allowed on Collections")
 	}
-	r.s.send("event."+r.ResourceName+".remove", removeEvent{Idx: idx})
+	r.s.event("event."+r.rname+".remove", removeEvent{Idx: idx})
 }
 
-// ReaccessEvent sends an reaccess event.
+// ReaccessEvent sends a reaccess event.
 func (r *Resource) ReaccessEvent() {
-	r.s.send("event."+r.ResourceName+".reaccess", nil)
-}
-
-func (r *Resource) sendEvent(name string, payload interface{}) {
-	r.s.send("event."+r.ResourceName+"."+name, payload)
-
-	// 	if r.hs.observers != nil {
-
-	// 		func(*Resource, *ObserveEvent)
-	// 		for _, oh := range r.hs.ohs {
-	// 			// Use runWith to ensure the handler is complete with whatever it needed to do
-	// 			r.s.runWith(func() {
-	// 			oh()
-	// 			})
-	// 		}
-	// }
-
+	r.s.rawEvent("event."+r.rname+".reaccess", nil)
 }

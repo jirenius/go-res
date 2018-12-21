@@ -41,34 +41,45 @@ func (w *work) processQueue() {
 }
 
 // processRequest is executed by the worker to process an incoming request.
-func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *Handlers, params map[string]string) {
-	var r Request
+func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *Handlers, pathParams map[string]string) {
+	r := Request{
+		Resource: Resource{
+			rname:      rname,
+			pathParams: pathParams,
+			s:          s,
+			hs:         hs,
+		},
+		rtype:  rtype,
+		method: method,
+		msg:    m,
+	}
 
 	if hs == nil {
-		r.s = s
-		r.msg = m
 		r.reply(responseNotFound)
 		return
 	}
-	err := json.Unmarshal(m.Data, &r)
-	r.s = s
-	r.hs = hs
-	r.msg = m
-	r.Type = rtype
-	r.ResourceName = rname
-	r.Method = method
-	r.PathParams = params
 
+	var rc resRequest
+	err := json.Unmarshal(m.Data, &rc)
 	if err != nil {
 		s.Logf("error unmarshaling incoming request: %s", err)
 		r.error(ToError(err))
 		return
 	}
 
-	r.executeHandler(hs)
+	r.cid = rc.CID
+	r.params = rc.Params
+	r.token = rc.Token
+	r.header = rc.Header
+	r.host = rc.Host
+	r.remoteAddr = rc.RemoteAddr
+	r.uri = rc.URI
+	r.query = rc.Query
+
+	r.executeHandler()
 }
 
-func (r *Request) executeHandler(hs *Handlers) {
+func (r *Request) executeHandler() {
 	// Recover from panics inside handlers
 	defer func() {
 		v := recover()
@@ -107,52 +118,54 @@ func (r *Request) executeHandler(hs *Handlers) {
 		r.s.Logf("error handling request %s: %s", r.msg.Subject, str)
 	}()
 
-	switch r.Type {
+	hs := r.hs
+
+	switch r.rtype {
 	case "access":
 		if hs.Access == nil {
 			// No handling. Assume the access requests is handled by other services.
 			return
 		}
-		hs.Access((*response)(r), r)
+		hs.Access(r)
 	case "get":
-		switch hs.typ {
+		switch hs.rtype {
 		case rtypeUnset:
 			r.reply(responseNotFound)
 			return
 		case rtypeModel:
-			hs.GetModel((*response)(r), r)
+			hs.GetModel(r)
 		case rtypeCollection:
-			hs.GetCollection((*response)(r), r)
+			hs.GetCollection(r)
 		}
 	case "call":
-		if r.Method == "new" {
+		if r.method == "new" {
 			h := hs.New
 			if h == nil {
 				r.reply(responseMethodNotFound)
 				return
 			}
-			h((*response)(r), r)
+			h(r)
 		} else {
 			var h CallHandler
 			if hs.Call != nil {
-				h = hs.Call[r.Method]
+				h = hs.Call[r.method]
 			}
 			if h == nil {
 				r.reply(responseMethodNotFound)
 				return
 			}
-			h((*response)(r), r)
+			h(r)
 		}
 	case "auth":
 		var h AuthHandler
 		if hs.Auth != nil {
-			h = hs.Auth[r.Method]
+			h = hs.Auth[r.method]
 		}
 		if h == nil {
 			r.reply(responseMethodNotFound)
 			return
 		}
-		h((*response)(r), r)
+		h(r)
 	default:
 		r.s.Logf("unknown request type: %s", r.Type)
 		return

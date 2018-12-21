@@ -1,5 +1,6 @@
 /*
-This is an example of how to create a RES service with collections.
+This is an example of how to create a RES service with collections (list of books)
+of resource references to models (books).
 * It exposes a collection: "library.books".
 * It allows setting the books' Title and Author property through the "set" method.
 * It allows creating new books that are added to the collection
@@ -89,28 +90,28 @@ func main() {
 	}
 }
 
-func getBookHandler(w res.GetModelResponse, r *res.Request) {
-	book := bookModels[r.ResourceName]
+func getBookHandler(r res.ModelRequest) {
+	book := bookModels[r.ResourceName()]
 	if book == nil {
-		w.NotFound()
+		r.NotFound()
 		return
 	}
-	w.Model(book)
+	r.Model(book)
 }
 
-func setBookHandler(w res.CallResponse, r *res.Request) {
-	book := bookModels[r.ResourceName]
+func setBookHandler(r res.CallRequest) {
+	book := bookModels[r.ResourceName()]
 	if book == nil {
-		w.NotFound()
+		r.NotFound()
 		return
 	}
 
-	// Unmarshal parameters to a anonymous struct
+	// Unmarshal parameters to an anonymous struct
 	var p struct {
 		Title  *string `json:"title,omitempty"`
 		Author *string `json:"author,omitempty"`
 	}
-	r.UnmarshalParams(&p)
+	r.ParseParams(&p)
 
 	changed := make(map[string]interface{}, 2)
 
@@ -119,7 +120,7 @@ func setBookHandler(w res.CallResponse, r *res.Request) {
 		// Verify it is not empty
 		title := strings.TrimSpace(*p.Title)
 		if title == "" {
-			w.InvalidParams("Title must not be empty")
+			r.InvalidParams("Title must not be empty")
 			return
 		}
 
@@ -135,7 +136,7 @@ func setBookHandler(w res.CallResponse, r *res.Request) {
 		// Verify it is not empty
 		author := strings.TrimSpace(*p.Author)
 		if author == "" {
-			w.InvalidParams("Author must not be empty")
+			r.InvalidParams("Author must not be empty")
 			return
 		}
 		if author != book.Author {
@@ -149,19 +150,19 @@ func setBookHandler(w res.CallResponse, r *res.Request) {
 	r.ChangeEvent(changed)
 
 	// Send success response
-	w.OK(nil)
+	r.OK(nil)
 }
 
-func getBooksHandler(w res.GetCollectionResponse, r *res.Request) {
-	w.Collection(books)
+func getBooksHandler(r res.CollectionRequest) {
+	r.Collection(books)
 }
 
-func newBookHandler(w res.NewResponse, r *res.Request) {
+func newBookHandler(r res.NewRequest) {
 	var p struct {
 		Title  string `json:"title"`
 		Author string `json:"author"`
 	}
-	r.UnmarshalParams(&p)
+	r.ParseParams(&p)
 
 	// Trim whitespace
 	title := strings.TrimSpace(p.Title)
@@ -169,7 +170,7 @@ func newBookHandler(w res.NewResponse, r *res.Request) {
 
 	// Check if we received both title and author
 	if title == "" || author == "" {
-		w.InvalidParams("Must provide both title and author")
+		r.InvalidParams("Must provide both title and author")
 		return
 	}
 	// Create a new book model
@@ -186,14 +187,15 @@ func newBookHandler(w res.NewResponse, r *res.Request) {
 	books = append(books, ref)
 
 	// Respond with a reference to the newly created book model
-	w.New(ref)
+	r.New(ref)
 }
 
-func deleteBookHandler(w res.CallResponse, r *res.Request) {
+func deleteBookHandler(r res.CallRequest) {
+	// Unmarshal parameters to an anonymous struct
 	var p struct {
 		ID int64 `json:"id,omitempty"`
 	}
-	r.UnmarshalParams(&p)
+	r.ParseParams(&p)
 
 	rname := fmt.Sprintf("library.book.%d", p.ID)
 
@@ -216,7 +218,7 @@ func deleteBookHandler(w res.CallResponse, r *res.Request) {
 	// Send success response. It is up to the service to define if a delete
 	// should be idempotent or not. In this case we send success regardless
 	// if the book existed or not, making it idempotent.
-	w.OK(nil)
+	r.OK(nil)
 }
 
 // createBook creates a new Book model, assigns it a unique ID,
