@@ -10,7 +10,7 @@ type Resource struct {
 	pathParams map[string]string
 	query      string
 	s          *Service
-	hs         *Handlers
+	hs         *regHandler
 }
 
 // Service returns the service instance
@@ -70,7 +70,7 @@ func (r *Resource) Event(event string, payload interface{}) {
 // If ev is empty, no event is sent.
 // Panics if the resource is not a Model.
 func (r *Resource) ChangeEvent(ev map[string]interface{}) {
-	if r.hs.rtype != rtypeModel {
+	if r.hs.typ != rtypeModel {
 		panic("res: change event only allowed on Models")
 	}
 	if len(ev) == 0 {
@@ -82,7 +82,7 @@ func (r *Resource) ChangeEvent(ev map[string]interface{}) {
 // AddEvent sends an add event, adding the value v at index idx.
 // Panics if the resource is not a Collection.
 func (r *Resource) AddEvent(v interface{}, idx int) {
-	if r.hs.rtype != rtypeCollection {
+	if r.hs.typ != rtypeCollection {
 		panic("res: add event only allowed on Collections")
 	}
 	r.s.event("event."+r.rname+".add", addEvent{Value: v, Idx: idx})
@@ -91,7 +91,7 @@ func (r *Resource) AddEvent(v interface{}, idx int) {
 // RemoveEvent sends an remove event, removing the value at index idx.
 // Panics if the resource is not a Collection.
 func (r *Resource) RemoveEvent(idx int) {
-	if r.hs.rtype != rtypeCollection {
+	if r.hs.typ != rtypeCollection {
 		panic("res: remove event only allowed on Collections")
 	}
 	r.s.event("event."+r.rname+".remove", removeEvent{Idx: idx})

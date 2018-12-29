@@ -10,8 +10,8 @@ Concurrency
 
 Requests are handled concurrently for multiple resources, but the package
 guarantees that only one goroutine is executing handlers for any unique
-resource at any one time. This allows handlers to modify models without
-additional synchronization such as mutexes.
+resource at any one time. This allows handlers to modify models and collections
+without additional synchronization such as mutexes.
 
 Usage
 

@@ -2,6 +2,8 @@ package res
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -390,5 +392,102 @@ func (r *Request) reply(payload []byte) {
 	err := r.s.nc.Publish(r.msg.Reply, payload)
 	if err != nil {
 		r.s.Logf("error sending reply %s: %s", r.msg.Subject, err)
+	}
+}
+
+func (r *Request) executeHandler() {
+	// Recover from panics inside handlers
+	defer func() {
+		v := recover()
+		if v == nil {
+			return
+		}
+
+		var str string
+
+		switch e := v.(type) {
+		case *Error:
+			if !r.replied {
+				r.error(e)
+				// Return without logging as panicing with a *Error is considered
+				// a valid way of sending an error response.
+				return
+			}
+			str = e.Message
+		case error:
+			str = e.Error()
+			if !r.replied {
+				r.error(ToError(e))
+			}
+		case string:
+			str = e
+			if !r.replied {
+				r.error(ToError(errors.New(e)))
+			}
+		default:
+			str = fmt.Sprintf("%v", e)
+			if !r.replied {
+				r.error(ToError(errors.New(str)))
+			}
+		}
+
+		r.s.Logf("error handling request %s: %s", r.msg.Subject, str)
+	}()
+
+	hs := r.hs
+
+	switch r.rtype {
+	case "access":
+		if hs.Access == nil {
+			// No handling. Assume the access requests is handled by other services.
+			return
+		}
+		hs.Access(r)
+	case "get":
+		switch hs.typ {
+		case rtypeUnset:
+			r.reply(responseNotFound)
+			return
+		case rtypeModel:
+			hs.GetModel(r)
+		case rtypeCollection:
+			hs.GetCollection(r)
+		}
+	case "call":
+		if r.method == "new" {
+			h := hs.New
+			if h == nil {
+				r.reply(responseMethodNotFound)
+				return
+			}
+			h(r)
+		} else {
+			var h CallHandler
+			if hs.Call != nil {
+				h = hs.Call[r.method]
+			}
+			if h == nil {
+				r.reply(responseMethodNotFound)
+				return
+			}
+			h(r)
+		}
+	case "auth":
+		var h AuthHandler
+		if hs.Auth != nil {
+			h = hs.Auth[r.method]
+		}
+		if h == nil {
+			r.reply(responseMethodNotFound)
+			return
+		}
+		h(r)
+	default:
+		r.s.Logf("unknown request type: %s", r.Type)
+		return
+	}
+
+	if !r.replied {
+		r.reply(responseMissingResponse)
 	}
 }

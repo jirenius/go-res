@@ -220,14 +220,3 @@ func deleteBookHandler(r res.CallRequest) {
 	// if the book existed or not, making it idempotent.
 	r.OK(nil)
 }
-
-// createBook creates a new Book model, assigns it a unique ID,
-// and adds it to the bookModels map.
-// It returns the resource ID.
-func newBook(title string, author string) string {
-	rid := fmt.Sprintf("library.book.%d", nextBookID)
-	book := &Book{ID: nextBookID, Title: title, Author: author}
-	nextBookID++
-	bookModels[rid] = book
-	return rid
-}
