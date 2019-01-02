@@ -21,7 +21,7 @@ type errorResponse struct {
 	Error *Error `json:"error"`
 }
 
-type okResponse struct {
+type accessResponse struct {
 	Get  bool   `json:"get,omitempty"`
 	Call string `json:"call,omitempty"`
 }

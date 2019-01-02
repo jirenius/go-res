@@ -2,6 +2,7 @@
 This is an example of a simple Hello World RES service written in Go.
 * It exposes a single resource: "example.mymodel".
 * It allows setting the resource's Message property through the "set" method.
+* It resets the model on server restart.
 * It serves a web client at http://localhost:8081
 */
 package main

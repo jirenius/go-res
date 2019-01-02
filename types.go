@@ -18,6 +18,8 @@ const (
 
 var refPrefix = []byte(`{"rid":`)
 
+const refSuffix = '}'
+
 // DeleteAction is used for deleted properties in "change" events
 var DeleteAction = json.RawMessage(`{"action":"delete"}`)
 
@@ -41,6 +43,29 @@ func (r Ref) MarshalJSON() ([]byte, error) {
 	o := make([]byte, len(rid)+8)
 	copy(o, refPrefix)
 	copy(o[7:], rid)
-	o[len(o)-1] = '}'
+	o[len(o)-1] = refSuffix
 	return o, nil
+}
+
+// IsValid returns true if the reference RID is valid, otherwise false.
+func (r Ref) IsValid() bool {
+	start := true
+	for i, r := range r {
+		if r == '?' {
+			return i != 0
+		}
+		if r < 33 || r > 126 || r == '*' || r == '>' {
+			return false
+		}
+		if r == '.' {
+			if start {
+				return false
+			}
+			start = true
+		} else {
+			start = false
+		}
+	}
+
+	return !start
 }

@@ -15,7 +15,7 @@ import (
 const inChannelSize = 256
 
 // The number of default workers handling resource requests.
-const workerCount = 1
+const workerCount = 32
 
 var (
 	errNotStopped      = errors.New("res: service is not stopped")
@@ -347,7 +347,7 @@ func (s *Service) serve(nc Conn) error {
 		s.close()
 	} else {
 		// Always start with a reset
-		s.Reset()
+		s.ResetAll()
 
 		s.Logf("Listening for requests")
 		s.startListener(inCh)
@@ -391,8 +391,9 @@ func (s *Service) close() {
 	close(s.inCh)
 }
 
-// Reset will send a system.reset to trigger any gateway to update their cache
-func (s *Service) Reset() {
+// ResetAll will send a system.reset to trigger any gateway to update their cache
+// for all resources owned by the service
+func (s *Service) ResetAll() {
 	if atomic.LoadInt32(&s.state) != stateStarted {
 		s.Logf("failed to reset: service not started")
 		return
@@ -561,7 +562,7 @@ func (s *Service) rawEvent(subj string, payload []byte) {
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleReconnect(_ *nats.Conn) {
 	s.Logf("Reconnected to NATS. Sending reset event.")
-	s.Reset()
+	s.ResetAll()
 }
 
 // handleDisconnect is called when nats is disconnected.

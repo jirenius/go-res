@@ -102,6 +102,7 @@ type AccessRequest interface {
 	AccessDenied()
 	AccessGranted()
 	NotFound()
+	Error(err *Error)
 	RawToken() json.RawMessage
 	ParseToken(interface{})
 }
@@ -112,6 +113,7 @@ type ModelRequest interface {
 	Model(model interface{})
 	QueryModel(model interface{}, query string)
 	NotFound()
+	Error(err *Error)
 }
 
 // CollectionRequest has methods for responding to collection get requests.
@@ -120,6 +122,7 @@ type CollectionRequest interface {
 	Collection(collection interface{})
 	QueryCollection(collection interface{}, query string)
 	NotFound()
+	Error(err *Error)
 }
 
 // CallRequest has methods for responding to call requests.
@@ -217,29 +220,32 @@ func (r *Request) RawToken() json.RawMessage {
 	return r.token
 }
 
-// OK sends a successful response for the call request.
+// OK sends a successful response for the request.
+// For get requests, the Model or Collection methods is usually used instead.
+// For access requests, the Access or AccessGranted methods is usally used instead.
 // The result may be nil.
 func (r *Request) OK(result interface{}) {
 	r.success(result)
 }
 
-// Error sends a custom error response for the call request.
+// Error sends a custom error response for the request.
 func (r *Request) Error(err *Error) {
 	r.error(err)
 }
 
-// NotFound sends a system.notFound response for the access request.
+// NotFound sends a system.notFound response for the request.
 func (r *Request) NotFound() {
 	r.reply(responseNotFound)
 }
 
-// MethodNotFound sends a system.methodNotFound response for the call request.
+// MethodNotFound sends a system.methodNotFound response for the request.
+// Only valid for call and auth requests.
 func (r *Request) MethodNotFound() {
 	r.reply(responseMethodNotFound)
 }
 
 // InvalidParams sends a system.invalidParams response.
-// An empty message will be replaced will default to "Invalid parameters".
+// An empty message will default to "Invalid parameters".
 // Only valid for call and auth requests.
 func (r *Request) InvalidParams(message string) {
 	if message == "" {
@@ -259,7 +265,7 @@ func (r *Request) Access(get bool, call string) {
 	if !get && call == "" {
 		r.reply(responseAccessDenied)
 	} else {
-		r.success(okResponse{Get: get, Call: call})
+		r.success(accessResponse{Get: get, Call: call})
 	}
 }
 
@@ -278,7 +284,7 @@ func (r *Request) AccessGranted() {
 
 // Model sends a successful model response for the get request.
 // The model must marshal into a JSON object.
-// Only valid for get requests for a model query resource.
+// Only valid for get requests for a model resource.
 func (r *Request) Model(model interface{}) {
 	r.model(model, "")
 }
@@ -308,7 +314,7 @@ func (r *Request) Collection(collection interface{}) {
 
 // QueryCollection sends a successful query collection response for the get request.
 // The collection must marshal into a JSON array.
-// Only valid for get requests for a query collection resource.
+// Only valid for get requests for a collection query resource.
 func (r *Request) QueryCollection(collection interface{}, query string) {
 	r.collection(collection, query)
 }
@@ -323,14 +329,23 @@ func (r *Request) collection(collection interface{}, query string) {
 }
 
 // New sends a successful response for the new call request.
+// Panics if rid is invalid.
+// Only valid for new call requests.
 func (r *Request) New(rid Ref) {
+	if !rid.IsValid() {
+		panic("res: invalid reference RID: " + rid)
+	}
 	r.success(rid)
 }
 
 // ParseParams unmarshals the JSON encoded parameters and stores the result in p.
 // If the request has no parameters, ParseParams does nothing.
 // On any error, ParseParams panics with a system.invalidParams *Error.
+// Only valid for call and auth requests.
 func (r *Request) ParseParams(p interface{}) {
+	if len(r.params) == 0 {
+		return
+	}
 	err := json.Unmarshal(r.params, p)
 	if err != nil {
 		panic(&Error{Code: CodeInvalidParams, Message: err.Error()})
@@ -340,13 +355,14 @@ func (r *Request) ParseParams(p interface{}) {
 // ParseToken unmarshals the JSON encoded token and stores the result in t.
 // If the request has no token, ParseToken does nothing.
 // On any error, ParseToken panics with a system.internalError *Error.
+// Not valid for get requests.
 func (r *Request) ParseToken(t interface{}) {
-	if r.params == nil {
+	if len(r.token) == 0 {
 		return
 	}
-	err := json.Unmarshal(r.params, t)
+	err := json.Unmarshal(r.token, t)
 	if err != nil {
-		panic(&Error{Code: CodeInvalidParams, Message: err.Error()})
+		panic(InternalError(err))
 	}
 }
 
