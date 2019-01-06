@@ -50,9 +50,9 @@ func (r Ref) MarshalJSON() ([]byte, error) {
 // IsValid returns true if the reference RID is valid, otherwise false.
 func (r Ref) IsValid() bool {
 	start := true
-	for i, r := range r {
+	for _, r := range r {
 		if r == '?' {
-			return i != 0
+			return !start
 		}
 		if r < 33 || r > 126 || r == '*' || r == '>' {
 			return false

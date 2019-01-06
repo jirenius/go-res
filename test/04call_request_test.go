@@ -112,7 +112,7 @@ func TestCallRawParams(t *testing.T) {
 
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, r.RawParams(), params)
+			AssertEqual(t, "RawParams", r.RawParams(), params)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -129,7 +129,7 @@ func TestCallRawParams(t *testing.T) {
 func TestCallRawParamsWithNilParams(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, r.RawParams(), nil)
+			AssertEqual(t, "RawParams", r.RawParams(), nil)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -147,7 +147,7 @@ func TestCallRawToken(t *testing.T) {
 
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, r.RawToken(), token)
+			AssertEqual(t, "RawToken", r.RawToken(), token)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -164,7 +164,7 @@ func TestCallRawToken(t *testing.T) {
 func TestCallRawTokenWithNoToken(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, r.RawToken(), nil)
+			AssertEqual(t, "RawToken", r.RawToken(), nil)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -187,8 +187,8 @@ func TestCallParseParams(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.ParseParams(&p)
-			AssertEqual(t, p.Foo, "bar")
-			AssertEqual(t, p.Baz, 42)
+			AssertEqual(t, "p.Foo", p.Foo, "bar")
+			AssertEqual(t, "p.Baz", p.Baz, 42)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -211,8 +211,8 @@ func TestCallParseParamsWithNilParams(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.ParseParams(&p)
-			AssertEqual(t, p.Foo, "")
-			AssertEqual(t, p.Baz, 0)
+			AssertEqual(t, "p.Foo", p.Foo, "")
+			AssertEqual(t, "p.Baz", p.Baz, 0)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -235,8 +235,8 @@ func TestCallParseToken(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.ParseToken(&o)
-			AssertEqual(t, o.User, "foo")
-			AssertEqual(t, o.ID, 42)
+			AssertEqual(t, "o.User", o.User, "foo")
+			AssertEqual(t, "o.ID", o.ID, 42)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -259,8 +259,8 @@ func TestCallParseTokenWithNilToken(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.ParseToken(&o)
-			AssertEqual(t, o.User, "")
-			AssertEqual(t, o.ID, 0)
+			AssertEqual(t, "o.User", o.User, "")
+			AssertEqual(t, "o.ID", o.ID, 0)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -270,4 +270,41 @@ func TestCallParseTokenWithNilToken(t *testing.T) {
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
 	})
+}
+
+// Test set call response with result
+func TestSetCall(t *testing.T) {
+	result := `{"foo":"bar","zoo":42}`
+
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Set(func(r res.CallRequest) {
+			r.OK(json.RawMessage(result))
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.set", nil)
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":`+result+`}`))
+	})
+}
+
+// Test that registering call methods with duplicate names causes panic
+func TestRegisteringDuplicateCallMethodPanics(t *testing.T) {
+	runTest(t, func(s *Session) {
+		defer func() {
+			v := recover()
+			if v == nil {
+				t.Errorf(`expected test to panic, but nothing happened`)
+			}
+		}()
+		s.Handle("model",
+			res.Call("foo", func(r res.CallRequest) {
+				r.OK(nil)
+			}),
+			res.Call("bar", func(r res.CallRequest) {
+				r.OK(nil)
+			}),
+			res.Call("foo", func(r res.CallRequest) {
+				r.OK(nil)
+			}),
+		)
+	}, nil)
 }

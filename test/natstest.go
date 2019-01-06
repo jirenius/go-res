@@ -14,7 +14,7 @@ import (
 	nats "github.com/nats-io/go-nats"
 )
 
-const timeoutSeconds = 1000
+const timeoutSeconds = 1
 
 // TestConn mocks a client connection to a NATS server.
 type TestConn struct {
@@ -176,18 +176,26 @@ func (c *TestConn) GetMsg(t *testing.T) *Msg {
 	return nil
 }
 
-// AssertEqual expects that a equals b,
+// AssertEqual expects that a equals b for the named value,
 // and returns true if it is, otherwise logs an error and returns false.
-func AssertEqual(t *testing.T, result, expected interface{}) bool {
+func AssertEqual(t *testing.T, name string, result, expected interface{}) bool {
 	aa, aj := jsonMap(t, result)
 	bb, bj := jsonMap(t, expected)
 
 	if !reflect.DeepEqual(aa, bb) {
-		t.Errorf("expected value to be:\n%s\nbut got:\n%s", bj, aj)
+		t.Errorf("expected %s to be:\n%s\nbut got:\n%s", name, bj, aj)
 		return false
 	}
 
 	return true
+}
+
+// AssertNoError expects that err is nil, otherwise logs an error
+// with t.Fatalf
+func AssertNoError(t *testing.T, err error) {
+	if err != nil {
+		t.Fatalf("expected no error but got:\n%s", err)
+	}
 }
 
 // Equals asserts that the message has the expected subject and payload

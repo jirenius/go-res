@@ -21,7 +21,7 @@ func TestRefIsValid(t *testing.T) {
 		{"test.model.23?", true},
 		{"test.model.23?foo=bar", true},
 		{"test.model.23?foo=test.bar", true},
-		{"test.model.23?foo=*&?", false},
+		{"test.model.23?foo=*&?", true},
 		// Invalid RID
 		{"", false},
 		{".test", false},
@@ -59,9 +59,9 @@ func TestRefIsValid(t *testing.T) {
 		v := l.RID.IsValid()
 		if v != l.Valid {
 			if l.Valid {
-				t.Logf("expected Ref %#v to be valid, but it wasn't", l.RID)
+				t.Errorf("expected Ref %#v to be valid, but it wasn't", l.RID)
 			} else {
-				t.Logf("expected Ref %#v not to be valid, but it was", l.RID)
+				t.Errorf("expected Ref %#v not to be valid, but it was", l.RID)
 			}
 		}
 	}

@@ -17,17 +17,20 @@ type Session struct {
 
 func teardown(s *Session) {
 	err := s.Shutdown()
-	// Check error, as it means that server hasn't had
+
+	// Check error, as an error means that server hasn't had
 	// time to start. We can then ignore waiting for the closing
-	if err != nil {
-		return
+	if err == nil {
+		select {
+		case <-s.cl:
+		case <-time.After(3 * time.Second):
+			panic("test: failed to shutdown service: timeout")
+		}
 	}
-	<-s.cl
 }
 
-func runTest(t *testing.T, precb func(s *Session), cb func(s *Session)) {
+func setup(t *testing.T, l logger.Logger, precb func(s *Session)) *Session {
 	var s *Session
-	l := logger.NewMemLogger(true, true)
 	c := NewTestConn()
 	r := res.NewService("test")
 	r.SetLogger(l)
@@ -42,13 +45,6 @@ func runTest(t *testing.T, precb func(s *Session), cb func(s *Session)) {
 		precb(s)
 	}
 
-	panicked := true
-	defer func() {
-		if panicked {
-			t.Logf("Trace log:\n%s", l)
-		}
-	}()
-
 	go func() {
 		defer close(s.cl)
 		if err := r.Serve(c); err != nil {
@@ -56,6 +52,26 @@ func runTest(t *testing.T, precb func(s *Session), cb func(s *Session)) {
 		}
 	}()
 	s.GetMsg(t).AssertSubject(t, "system.reset")
+
+	return s
+}
+
+func runTest(t *testing.T, precb func(s *Session), cb func(s *Session)) {
+	runTestWithLogger(t, logger.NewMemLogger(true, true), precb, cb)
+}
+
+func runTestWithLogger(t *testing.T, l logger.Logger, precb func(s *Session), cb func(s *Session)) {
+	s := setup(t, l, precb)
+
+	panicked := true
+	defer func() {
+		if panicked {
+			l := s.Logger()
+			if l != nil {
+				t.Logf("Trace log:\n%s", l)
+			}
+		}
+	}()
 
 	if cb != nil {
 		cb(s)
@@ -73,5 +89,35 @@ func runTest(t *testing.T, precb func(s *Session), cb func(s *Session)) {
 		}
 	}
 
+	panicked = false
+}
+
+func runTestAsync(t *testing.T, precb func(s *Session), cb func(s *Session, done func())) {
+	s := setup(t, logger.NewMemLogger(true, true), precb)
+
+	panicked := true
+	defer func() {
+		if panicked {
+			l := s.Logger()
+			if l != nil {
+				t.Logf("Trace log:\n%s", l)
+			}
+		}
+	}()
+
+	acl := make(chan struct{})
+	if cb != nil {
+		cb(s, func() {
+			close(acl)
+		})
+	}
+
+	select {
+	case <-acl:
+	case <-time.After(3 * time.Second):
+		panic("test: async test failed by never calling done: timeout")
+	}
+
+	teardown(s)
 	panicked = false
 }

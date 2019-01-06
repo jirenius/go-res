@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -21,7 +20,7 @@ const (
 
 // Request represent a RES request
 type Request struct {
-	Resource
+	resource
 	rtype   string
 	method  string
 	msg     *nats.Msg
@@ -37,67 +36,9 @@ type Request struct {
 	uri        string
 }
 
-type ResourceRequest interface {
-	// Service returns the service instance
-	Service() *Service
-
-	/// Resource returns the resource name.
-	ResourceName() string
-
-	// PathParams returns parameters that are derived from the resource name.
-	PathParams() map[string]string
-
-	// Query returns the query part of the resource ID without the question mark separator.
-	Query() string
-
-	// ParseQuery parses the query and returns the corresponding values.
-	// It silently discards malformed value pairs.
-	// To check errors use url.ParseQuery(Query()).
-	ParseQuery() url.Values
-
-	// Event sends a custom event on the resource.
-	// Will panic if the event is one of the pre-defined or reserved events,
-	// "change", "add", "remove", "reaccess", or "unsubscribe".
-	// For pre-defined events, the matching method, ChangeEvent, AddEvent,
-	// RemoveEvent, or ReaccessEvent should be used instead.
-	//
-	// See the protocol specification for more information:
-	// https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#events
-	Event(event string, payload interface{})
-
-	// ChangeEvents sends a change event with properties that has been changed
-	// and their new values.
-	// If props is empty, no event is sent.
-	// Panics if the resource is not a Model.
-	// The values must be serializable into JSON primitives, resource references,
-	// or a delete action objects.
-	// See the protocol specification for more information:
-	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#model-change-event
-	ChangeEvent(props map[string]interface{})
-
-	// AddEvent sends an add event, adding the value at index idx.
-	// Panics if the resource is not a Collection.
-	// The value must be serializable into a JSON primitive or resource reference.
-	// See the protocol specification for more information:
-	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#collection-add-event
-	AddEvent(value interface{}, idx int)
-
-	// RemoveEvent sends a remove event, removing the value at index idx.
-	// Panics if the resource is not a Collection.
-	// See the protocol specification for more information:
-	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#collection-remove-event
-	RemoveEvent(idx int)
-
-	// ReaccessEvent sends a reaccess event to signal that the resource's access permissions has changed.
-	// It will invalidate any previous access response sent for the resource.
-	// See the protocol specification for more information:
-	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
-	ReaccessEvent()
-}
-
 // AccessRequest has methods for responding to access requests.
 type AccessRequest interface {
-	ResourceRequest
+	Resource
 	Access(get bool, call string)
 	AccessDenied()
 	AccessGranted()
@@ -109,7 +50,7 @@ type AccessRequest interface {
 
 // ModelRequest has methods for responding to model get requests.
 type ModelRequest interface {
-	ResourceRequest
+	Resource
 	Model(model interface{})
 	QueryModel(model interface{}, query string)
 	NotFound()
@@ -118,7 +59,7 @@ type ModelRequest interface {
 
 // CollectionRequest has methods for responding to collection get requests.
 type CollectionRequest interface {
-	ResourceRequest
+	Resource
 	Collection(collection interface{})
 	QueryCollection(collection interface{}, query string)
 	NotFound()
@@ -127,7 +68,7 @@ type CollectionRequest interface {
 
 // CallRequest has methods for responding to call requests.
 type CallRequest interface {
-	ResourceRequest
+	Resource
 	OK(result interface{})
 	NotFound()
 	MethodNotFound()
@@ -141,7 +82,7 @@ type CallRequest interface {
 
 // NewRequest has methods for responding to new call requests.
 type NewRequest interface {
-	ResourceRequest
+	Resource
 	New(rid Ref)
 	NotFound()
 	MethodNotFound()
@@ -155,7 +96,7 @@ type NewRequest interface {
 
 // AuthRequest has methods for responding to auth requests.
 type AuthRequest interface {
-	ResourceRequest
+	Resource
 	OK(result interface{})
 	NotFound()
 	MethodNotFound()

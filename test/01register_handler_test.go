@@ -52,3 +52,18 @@ func TestPanicOnMultipleGetHandlers(t *testing.T) {
 		)
 	}, nil)
 }
+
+// Test that registering both a model and collection handler results
+// in a panic
+func TestPanicOnSameParamPlaceholder(t *testing.T) {
+	defer func() {
+		v := recover()
+		if v == nil {
+			t.Fatalf("expected a panic, but nothing happened")
+		}
+	}()
+
+	runTest(t, func(s *Session) {
+		s.Handle("model.$id.type.$id")
+	}, nil)
+}

@@ -48,7 +48,7 @@ type NewHandler func(NewRequest)
 type AuthHandler func(AuthRequest)
 
 // ObserveHandler is a function called on events on observed resources
-type ObserveHandler func(*Resource, *ObserveEvent)
+type ObserveHandler func(*resource, *ObserveEvent)
 
 // Handler contains handler functions for a given resource pattern.
 type Handler struct {
@@ -117,11 +117,9 @@ type Service struct {
 func NewService(name string) *Service {
 	// [TODO] panic on invalid name
 	return &Service{
-		Name:           name,
-		patterns:       patterns{root: &node{}},
-		logger:         logger.NewStdLogger(false, false),
-		resetResources: []string{name + ".>"},
-		resetAccess:    []string{name + ".>"},
+		Name:     name,
+		patterns: patterns{root: &node{}},
+		logger:   logger.NewStdLogger(false, false),
 	}
 }
 
@@ -134,6 +132,11 @@ func (s *Service) SetLogger(l logger.Logger) *Service {
 
 	s.logger = l
 	return s
+}
+
+// Logger returns the logger.
+func (s *Service) Logger() logger.Logger {
+	return s.logger
 }
 
 // Logf writes a formatted log message
@@ -222,7 +225,7 @@ func GetCollection(h CollectionHandler) HandlerOption {
 // should be used instead.
 func Call(method string, h CallHandler) HandlerOption {
 	if method == "new" {
-		panic("res: use New to handle new calls")
+		panic("res: new handler should be registered using the New method")
 	}
 	return func(hs *Handler) {
 		if hs.Call == nil {
@@ -398,9 +401,17 @@ func (s *Service) ResetAll() {
 		s.Logf("failed to reset: service not started")
 		return
 	}
-	ev := resetEvent{Resources: s.resetResources}
+	var ev resetEvent
+	if s.resetResources == nil {
+		ev.Resources = []string{s.Name + ".>"}
+	} else {
+		ev.Resources = s.resetResources
+	}
+
 	// Only reset access if there are access handlers
-	if s.withAccess {
+	if s.resetAccess == nil && s.withAccess {
+		ev.Access = []string{s.Name + ".>"}
+	} else {
 		ev.Access = s.resetAccess
 	}
 	s.event("system.reset", ev)
@@ -503,19 +514,19 @@ func (s *Service) runWith(hs *regHandler, rname string, cb func()) {
 	}
 }
 
-// Get matches the resource ID, rid, with the registered Handlers
+// With matches the resource ID, rid, with the registered Handlers
 // before calling the callback, cb, on the worker goroutine for the
 // resource name.
-// Get will return an error and not call the callback if there are no
+// With will return an error and not call the callback if there are no
 // no matching handlers found.
-func (s *Service) Get(rid string, cb func(r *Resource)) error {
+func (s *Service) With(rid string, cb func(r Resource)) error {
 	rname, q := parseRID(rid)
 	hs, params := s.patterns.get(rname)
 	if hs == nil {
 		return errHandlerNotFound
 	}
 
-	r := &Resource{
+	r := &resource{
 		rname:      rname,
 		pathParams: params,
 		query:      q,
@@ -608,7 +619,7 @@ func parseRID(rid string) (rname string, q string) {
 // processRequest is executed by the worker to process an incoming request.
 func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *regHandler, pathParams map[string]string) {
 	r := Request{
-		Resource: Resource{
+		resource: resource{
 			rname:      rname,
 			pathParams: pathParams,
 			s:          s,

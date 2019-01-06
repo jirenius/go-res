@@ -68,7 +68,15 @@ func (ls *patterns) add(pattern string, hs *regHandler) {
 			if lt == 1 {
 				panic(invalidPattern)
 			}
-			params = append(params, pathParam{name: t[1:], idx: i})
+
+			name := t[1:]
+			// Validate pattern is unique
+			for _, p := range params {
+				if p.name == name {
+					panic("res: placeholder " + t + " found multiple times in pattern: " + pattern)
+				}
+			}
+			params = append(params, pathParam{name: name, idx: i})
 			if l.param == nil {
 				l.param = &node{}
 			}

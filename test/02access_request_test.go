@@ -111,3 +111,33 @@ func TestMultipleAccess(t *testing.T) {
 		}
 	})
 }
+
+// Test registering multiple access handlers causes panic
+func TestRegisteringMultipleAccessHandlersPanics(t *testing.T) {
+	runTest(t, func(s *Session) {
+		defer func() {
+			v := recover()
+			if v == nil {
+				t.Errorf(`expected test to panic, but nothing happened`)
+			}
+		}()
+		s.Handle("model",
+			res.Access(func(r res.AccessRequest) {
+				r.NotFound()
+			}),
+			res.Access(func(r res.AccessRequest) {
+				r.NotFound()
+			}),
+		)
+	}, nil)
+}
+
+// Test that AccessGranted handler grants full access.
+func TestAccessGrantedHandler(t *testing.T) {
+	panic("not implemented")
+}
+
+// Test that AccessDenied handler sends a system.accessDenied error response.
+func TestAccessDeniedHandler(t *testing.T) {
+	panic("not implemented")
+}

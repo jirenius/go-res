@@ -114,7 +114,7 @@ func TestNewRawParams(t *testing.T) {
 
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, r.RawParams(), params)
+			AssertEqual(t, "RawParams", r.RawParams(), params)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -131,7 +131,7 @@ func TestNewRawParams(t *testing.T) {
 func TestNewRawParamsWithNilParams(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, r.RawParams(), nil)
+			AssertEqual(t, "RawParams", r.RawParams(), nil)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -149,7 +149,7 @@ func TestNewRawToken(t *testing.T) {
 
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, r.RawToken(), token)
+			AssertEqual(t, "RawToken", r.RawToken(), token)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -166,7 +166,7 @@ func TestNewRawToken(t *testing.T) {
 func TestNewRawTokenWithNoToken(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, r.RawToken(), nil)
+			AssertEqual(t, "RawToken", r.RawToken(), nil)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -189,8 +189,8 @@ func TestNewParseParams(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.ParseParams(&p)
-			AssertEqual(t, p.Foo, "bar")
-			AssertEqual(t, p.Baz, 42)
+			AssertEqual(t, "p.Foo", p.Foo, "bar")
+			AssertEqual(t, "p.Baz", p.Baz, 42)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -213,8 +213,8 @@ func TestNewParseParamsWithNilParams(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.ParseParams(&p)
-			AssertEqual(t, p.Foo, "")
-			AssertEqual(t, p.Baz, 0)
+			AssertEqual(t, "p.Foo", p.Foo, "")
+			AssertEqual(t, "p.Baz", p.Baz, 0)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -237,8 +237,8 @@ func TestNewParseToken(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.ParseToken(&o)
-			AssertEqual(t, o.User, "foo")
-			AssertEqual(t, o.ID, 42)
+			AssertEqual(t, "o.User", o.User, "foo")
+			AssertEqual(t, "o.ID", o.ID, 42)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -261,8 +261,8 @@ func TestNewParseTokenWithNilToken(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.ParseToken(&o)
-			AssertEqual(t, o.User, "")
-			AssertEqual(t, o.ID, 0)
+			AssertEqual(t, "o.User", o.User, "")
+			AssertEqual(t, "o.ID", o.ID, 0)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
@@ -272,4 +272,39 @@ func TestNewParseTokenWithNilToken(t *testing.T) {
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
 	})
+}
+
+// Test registering a new handler using the Call method causes panic
+func TestRegisteringNewCallPanics(t *testing.T) {
+	runTest(t, func(s *Session) {
+		defer func() {
+			v := recover()
+			if v == nil {
+				t.Errorf(`expected test to panic, but nothing happened`)
+			}
+		}()
+		s.Handle("model", res.Call("new", func(r res.CallRequest) {
+			r.OK(nil)
+		}))
+	}, nil)
+}
+
+// Test registering multiple new handlers causes panic
+func TestRegisteringMultipleNewHandlersPanics(t *testing.T) {
+	runTest(t, func(s *Session) {
+		defer func() {
+			v := recover()
+			if v == nil {
+				t.Errorf(`expected test to panic, but nothing happened`)
+			}
+		}()
+		s.Handle("model",
+			res.New(func(r res.NewRequest) {
+				r.NotFound()
+			}),
+			res.New(func(r res.NewRequest) {
+				r.NotFound()
+			}),
+		)
+	}, nil)
 }
