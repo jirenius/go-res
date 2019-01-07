@@ -112,7 +112,7 @@ func TestMultipleAccess(t *testing.T) {
 	})
 }
 
-// Test registering multiple access handlers causes panic
+// Test registering multiple access handlers causes panic.
 func TestRegisteringMultipleAccessHandlersPanics(t *testing.T) {
 	runTest(t, func(s *Session) {
 		defer func() {
@@ -132,12 +132,24 @@ func TestRegisteringMultipleAccessHandlersPanics(t *testing.T) {
 	}, nil)
 }
 
-// Test that AccessGranted handler grants full access.
+// Test that access granted response is sent when using AccessGranted handler.
 func TestAccessGrantedHandler(t *testing.T) {
-	panic("not implemented")
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(res.AccessGranted))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", nil)
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"get":true,"call":"*"}}`))
+	})
 }
 
-// Test that AccessDenied handler sends a system.accessDenied error response.
+// Test that system.accessDenied response is sent when using AccessDenied handler.
 func TestAccessDeniedHandler(t *testing.T) {
-	panic("not implemented")
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(res.AccessDenied))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", nil)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrAccessDenied)
+	})
 }

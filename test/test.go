@@ -8,6 +8,8 @@ import (
 	"github.com/jirenius/resgate/logger"
 )
 
+const timeoutDuration = 1 * time.Second
+
 // Session represents a test session with a res server
 type Session struct {
 	*TestConn
@@ -23,7 +25,7 @@ func teardown(s *Session) {
 	if err == nil {
 		select {
 		case <-s.cl:
-		case <-time.After(3 * time.Second):
+		case <-time.After(timeoutDuration):
 			panic("test: failed to shutdown service: timeout")
 		}
 	}
@@ -84,7 +86,7 @@ func runTestWithLogger(t *testing.T, l logger.Logger, precb func(s *Session), cb
 	if err == nil {
 		select {
 		case <-s.cl:
-		case <-time.After(3 * time.Second):
+		case <-time.After(timeoutDuration):
 			panic("test: failed to shutdown service: timeout")
 		}
 	}
@@ -114,7 +116,7 @@ func runTestAsync(t *testing.T, precb func(s *Session), cb func(s *Session, done
 
 	select {
 	case <-acl:
-	case <-time.After(3 * time.Second):
+	case <-time.After(timeoutDuration):
 		panic("test: async test failed by never calling done: timeout")
 	}
 

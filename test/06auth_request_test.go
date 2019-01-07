@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/jirenius/go-res"
 )
@@ -18,6 +19,25 @@ func TestAuth(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("auth.test.model.method", nil)
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":`+result+`}`))
+	})
+}
+
+// Test AuthRequest getter methods
+func TestAuthRequestGetters(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("foo", func(r res.AuthRequest) {
+			AssertEqual(t, "Method", r.Method(), "foo")
+			AssertEqual(t, "CID", r.CID(), defaultCID)
+			AssertEqual(t, "Header", r.Header(), defaultHeader)
+			AssertEqual(t, "Host", r.Host(), defaultHost)
+			AssertEqual(t, "RemoteAddr", r.RemoteAddr(), defaultRemoteAddr)
+			AssertEqual(t, "URI", r.URI(), defaultURI)
+			r.NotFound()
+		}))
+	}, func(s *Session) {
+		req := newAuthRequest()
+		inb := s.Request("auth.test.model.foo", req)
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 	})
 }
 
@@ -116,7 +136,7 @@ func TestAuthRawParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := newAuthRequest()
 		req.Params = params
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
@@ -133,7 +153,7 @@ func TestAuthRawParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := newAuthRequest()
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -151,7 +171,7 @@ func TestAuthRawToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := newAuthRequest()
 		req.Token = token
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
@@ -168,7 +188,7 @@ func TestAuthRawTokenWithNoToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := newAuthRequest()
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -192,7 +212,7 @@ func TestAuthParseParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := newAuthRequest()
 		req.Params = params
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
@@ -216,7 +236,7 @@ func TestAuthParseParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := newAuthRequest()
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -240,7 +260,7 @@ func TestAuthParseToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := newAuthRequest()
 		req.Token = token
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
@@ -264,7 +284,7 @@ func TestAuthParseTokenWithNilToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := newAuthRequest()
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -293,4 +313,38 @@ func TestRegisteringDuplicateAuthMethodPanics(t *testing.T) {
 			}),
 		)
 	}, nil)
+}
+
+// Test that Timeout sends the pre-response with timeout
+func TestAuthRequestTimeout(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			r.Timeout(time.Second * 42)
+			r.NotFound()
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertRawPayload(t, []byte(`timeout:"42000"`))
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
+	})
+}
+
+// Test that Timeout panics if duration is less than zero
+func TestAuthRequestTimeoutWithDurationLessThanZero(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			panicked := true
+			defer func() {
+				if !panicked {
+					t.Errorf("expected Timeout to panic, but nothing happened")
+				}
+			}()
+			r.Timeout(-time.Millisecond * 10)
+			r.NotFound()
+			panicked = false
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
+	})
 }

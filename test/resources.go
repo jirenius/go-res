@@ -15,12 +15,43 @@ var resource = map[string]string{
 	"test.collection.b":            `[{"rid":"test.collection.a"},{"rid":"test.collection.b"}]`,
 }
 
+var (
+	defaultCID    = "testcid"
+	defaultHeader = map[string][]string{
+		"Accept-Encoding":          []string{"gzip, deflate, br"},
+		"Accept-Language":          []string{"*"},
+		"Cache-Control":            []string{"no-cache"},
+		"Connection":               []string{"Upgrade"},
+		"Origin":                   []string{"http://localhost"},
+		"Pragma":                   []string{"no-cache"},
+		"Sec-Websocket-Extensions": []string{"permessage-deflate; client_max_window_bits"},
+		"Sec-Websocket-Key":        []string{"dGhlIHNhbXBsZSBub25jZQ=="},
+		"Sec-Websocket-Version":    []string{"13"},
+		"Upgrade":                  []string{"websocket"},
+		"User-Agent":               []string{"GolangTest/1.0 (Test)"},
+	}
+	defaultHost       = "local"
+	defaultRemoteAddr = "127.0.0.1"
+	defaultURI        = "/ws"
+)
+
 func newDefaultRequest() *request {
 	return &request{
-		CID:        "testcid",
-		Host:       "local",
-		RemoteAddr: "127.0.0.1",
-		URI:        "/ws",
+		CID: defaultCID,
+	}
+}
+
+func newRequest() *request {
+	return &request{}
+}
+
+func newAuthRequest() *request {
+	return &request{
+		CID:        defaultCID,
+		Header:     defaultHeader,
+		Host:       defaultHost,
+		RemoteAddr: defaultRemoteAddr,
+		URI:        defaultURI,
 	}
 }
 

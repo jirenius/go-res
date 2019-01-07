@@ -94,8 +94,7 @@ func TestResourceNameAndQuery(t *testing.T) {
 			}))
 		}, func(s *Session) {
 			// Test getting the model
-			req := newDefaultRequest()
-			req.Query = l.Query
+			req := &request{Query: l.Query}
 			inb := s.Request("get."+l.ResourceName, req)
 			s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 		})

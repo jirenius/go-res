@@ -26,9 +26,6 @@ var (
 // HandlerOption is a function that sets an option to a resource handler.
 type HandlerOption func(*Handler)
 
-// RequestHandler is a function called on resource requests
-type RequestHandler func(*Request)
-
 // AccessHandler is a function called on resource access requests
 type AccessHandler func(AccessRequest)
 

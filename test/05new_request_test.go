@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/jirenius/go-res"
 )
@@ -18,6 +19,20 @@ func TestNew(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("call.test.collection.new", nil)
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"rid":"`+rid+`"}}`))
+	})
+}
+
+// Test NewRequest getter methods
+func TestNewRequestGetters(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.New(func(r res.NewRequest) {
+			AssertEqual(t, "CID", r.CID(), defaultCID)
+			r.NotFound()
+		}))
+	}, func(s *Session) {
+		req := newDefaultRequest()
+		inb := s.Request("call.test.collection.new", req)
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 	})
 }
 
@@ -307,4 +322,38 @@ func TestRegisteringMultipleNewHandlersPanics(t *testing.T) {
 			}),
 		)
 	}, nil)
+}
+
+// Test that Timeout sends the pre-response with timeout
+func TestNewRequestTimeout(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.New(func(r res.NewRequest) {
+			r.Timeout(time.Second * 42)
+			r.NotFound()
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.new", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertRawPayload(t, []byte(`timeout:"42000"`))
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
+	})
+}
+
+// Test that Timeout panics if duration is less than zero
+func TestNewRequestTimeoutWithDurationLessThanZero(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.New(func(r res.NewRequest) {
+			panicked := true
+			defer func() {
+				if !panicked {
+					t.Errorf("expected Timeout to panic, but nothing happened")
+				}
+			}()
+			r.Timeout(-time.Millisecond * 10)
+			r.NotFound()
+			panicked = false
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.new", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
+	})
 }

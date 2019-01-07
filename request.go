@@ -46,6 +46,7 @@ type AccessRequest interface {
 	Error(err *Error)
 	RawToken() json.RawMessage
 	ParseToken(interface{})
+	Timeout(d time.Duration)
 }
 
 // ModelRequest has methods for responding to model get requests.
@@ -55,6 +56,7 @@ type ModelRequest interface {
 	QueryModel(model interface{}, query string)
 	NotFound()
 	Error(err *Error)
+	Timeout(d time.Duration)
 }
 
 // CollectionRequest has methods for responding to collection get requests.
@@ -64,48 +66,61 @@ type CollectionRequest interface {
 	QueryCollection(collection interface{}, query string)
 	NotFound()
 	Error(err *Error)
+	Timeout(d time.Duration)
 }
 
 // CallRequest has methods for responding to call requests.
 type CallRequest interface {
 	Resource
+	Method() string
+	CID() string
+	RawParams() json.RawMessage
+	RawToken() json.RawMessage
+	ParseParams(interface{})
+	ParseToken(interface{})
 	OK(result interface{})
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
 	Error(err *Error)
-	RawParams() json.RawMessage
-	RawToken() json.RawMessage
-	ParseParams(interface{})
-	ParseToken(interface{})
+	Timeout(d time.Duration)
 }
 
 // NewRequest has methods for responding to new call requests.
 type NewRequest interface {
 	Resource
+	CID() string
+	RawParams() json.RawMessage
+	RawToken() json.RawMessage
+	ParseParams(interface{})
+	ParseToken(interface{})
 	New(rid Ref)
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
 	Error(err *Error)
-	RawParams() json.RawMessage
-	RawToken() json.RawMessage
-	ParseParams(interface{})
-	ParseToken(interface{})
+	Timeout(d time.Duration)
 }
 
 // AuthRequest has methods for responding to auth requests.
 type AuthRequest interface {
 	Resource
+	Method() string
+	CID() string
+	RawParams() json.RawMessage
+	RawToken() json.RawMessage
+	ParseParams(interface{})
+	ParseToken(interface{})
+	Header() map[string][]string
+	Host() string
+	RemoteAddr() string
+	URI() string
 	OK(result interface{})
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
 	Error(err *Error)
-	RawParams() json.RawMessage
-	RawToken() json.RawMessage
-	ParseParams(interface{})
-	ParseToken(interface{})
+	Timeout(d time.Duration)
 }
 
 // Static responses and events
@@ -159,6 +174,34 @@ func (r *Request) RawParams() json.RawMessage {
 // Always returns nil for get requests.
 func (r *Request) RawToken() json.RawMessage {
 	return r.token
+}
+
+// Header returns the HTTP headers sent by client on connect.
+// Only set for auth requests.
+func (r *Request) Header() map[string][]string {
+	return r.header
+}
+
+// Host returns the host on which the URL is sought by the client.
+// Per RFC 2616, this is either the value of the "Host" header or the host name
+// given in the URL itself.
+// Only set for auth requests.
+func (r *Request) Host() string {
+	return r.host
+}
+
+// RemoteAddr returns the network address of the client sent on connect.
+// The format is not specified.
+// Only set for auth requests.
+func (r *Request) RemoteAddr() string {
+	return r.remoteAddr
+}
+
+// URI returns the unmodified Request-URI of the Request-Line
+// (RFC 2616, Section 5.1) as sent by the client on connect.
+// Only set for auth requests.
+func (r *Request) URI() string {
+	return r.uri
 }
 
 // OK sends a successful response for the request.

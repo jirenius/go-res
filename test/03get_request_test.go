@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/jirenius/go-res"
 )
@@ -17,17 +18,17 @@ func TestGetModel(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.model.foo", nil)
+		inb := s.Request("get.test.model.foo", newRequest())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
 
 		// Test getting the model with missing part
-		inb = s.Request("get.test.model", nil)
+		inb = s.Request("get.test.model", newRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
 
 		// Test getting the model with extra part
-		inb = s.Request("get.test.model.foo.bar", nil)
+		inb = s.Request("get.test.model.foo.bar", newRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -44,17 +45,17 @@ func TestGetCollection(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		// Test getting the collection
-		inb := s.Request("get.test.collection.foo", nil)
+		inb := s.Request("get.test.collection.foo", newRequest())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"collection":`+collection+`}}`))
 
 		// Test getting the collection with missing part
-		inb = s.Request("get.test.collection", nil)
+		inb = s.Request("get.test.collection", newRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
 
 		// Test getting the collection with extra part
-		inb = s.Request("get.test.collection.foo.bar", nil)
+		inb = s.Request("get.test.collection.foo.bar", newRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -70,7 +71,7 @@ func TestGetModelNotFound(t *testing.T) {
 			isCalled = true
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.model", nil)
+		inb := s.Request("get.test.model", newRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -90,7 +91,7 @@ func TestGetCollectionNotFound(t *testing.T) {
 			isCalled = true
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.collection", nil)
+		inb := s.Request("get.test.collection", newRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -109,7 +110,7 @@ func TestGetModelError(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.model", nil)
+			inb := s.Request("get.test.model", newRequest())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertError(t, res.ErrMethodNotFound)
@@ -125,7 +126,7 @@ func TestGetCollectionError(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.collection", nil)
+			inb := s.Request("get.test.collection", newRequest())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertError(t, res.ErrMethodNotFound)
@@ -141,7 +142,7 @@ func TestPanicOnGetModel(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.model", nil)
+			inb := s.Request("get.test.model", newRequest())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertErrorCode(t, "system.internalError")
@@ -157,7 +158,7 @@ func TestPanicOnGetCollection(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.collection", nil)
+			inb := s.Request("get.test.collection", newRequest())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertErrorCode(t, "system.internalError")
@@ -172,7 +173,7 @@ func TestPanicWithErrorOnGetModel(t *testing.T) {
 			panic(res.ErrMethodNotFound)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.model", nil)
+		inb := s.Request("get.test.model", newRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrMethodNotFound)
@@ -186,7 +187,7 @@ func TestPanicWithErrorOnGetCollection(t *testing.T) {
 			panic(res.ErrMethodNotFound)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.collection", nil)
+		inb := s.Request("get.test.collection", newRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrMethodNotFound)
@@ -208,7 +209,7 @@ func TestMultipleGetModel(t *testing.T) {
 
 		// Test getting the model
 		for i := 0; i < requestCount; i++ {
-			inbs[i] = s.Request("get.test.model", nil)
+			inbs[i] = s.Request("get.test.model", newRequest())
 		}
 
 		for _, inb := range inbs {
@@ -232,7 +233,7 @@ func TestMultipleGetCollection(t *testing.T) {
 
 		// Test getting the collection
 		for i := 0; i < requestCount; i++ {
-			inbs[i] = s.Request("get.test.collection", nil)
+			inbs[i] = s.Request("get.test.collection", newRequest())
 		}
 
 		for _, inb := range inbs {
@@ -261,8 +262,8 @@ func TestMultipleGetDifferentResources(t *testing.T) {
 
 		// Test getting the resources
 		for i := 0; i < requestCount; i++ {
-			minbs[i] = s.Request("get.test.model", nil)
-			cinbs[i] = s.Request("get.test.collection", nil)
+			minbs[i] = s.Request("get.test.model", newRequest())
+			cinbs[i] = s.Request("get.test.collection", newRequest())
 		}
 
 		var mi, ci int
@@ -279,5 +280,73 @@ func TestMultipleGetDifferentResources(t *testing.T) {
 				t.Fatalf("expected message subject to be a for a collection or model requestion, but got %#v", m.Subject)
 			}
 		}
+	})
+}
+
+// Test that Timeout sends the pre-response with timeout on a model get request.
+func TestGetModelRequestTimeout(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			r.Timeout(time.Second * 42)
+			r.NotFound()
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertRawPayload(t, []byte(`timeout:"42000"`))
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
+	})
+}
+
+// Test that Timeout panics if duration is less than zero on a model get request.
+func TestGetModelRequestTimeoutWithDurationLessThanZero(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			panicked := true
+			defer func() {
+				if !panicked {
+					t.Errorf("expected Timeout to panic, but nothing happened")
+				}
+			}()
+			r.Timeout(-time.Millisecond * 10)
+			r.NotFound()
+			panicked = false
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
+	})
+}
+
+// Test that Timeout sends the pre-response with timeout on a collection get request.
+func TestGetCollectionRequestTimeout(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			r.Timeout(time.Second * 42)
+			r.NotFound()
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertRawPayload(t, []byte(`timeout:"42000"`))
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
+	})
+}
+
+// Test that Timeout panics if duration is less than zero on a collection get request.
+func TestGetCollectionRequestTimeoutWithDurationLessThanZero(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			panicked := true
+			defer func() {
+				if !panicked {
+					t.Errorf("expected Timeout to panic, but nothing happened")
+				}
+			}()
+			r.Timeout(-time.Millisecond * 10)
+			r.NotFound()
+			panicked = false
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
 	})
 }

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"reflect"
@@ -13,8 +14,6 @@ import (
 	res "github.com/jirenius/go-res"
 	nats "github.com/nats-io/go-nats"
 )
-
-const timeoutSeconds = 1
 
 // TestConn mocks a client connection to a NATS server.
 type TestConn struct {
@@ -33,6 +32,7 @@ type Msg struct {
 	Subject    string
 	RawPayload []byte
 	Payload    interface{}
+	Error      error
 	c          *TestConn
 }
 
@@ -53,17 +53,16 @@ func (c *TestConn) Publish(subj string, payload []byte) error {
 	defer c.mu.Unlock()
 
 	var p interface{}
+	var err error
 	if len(payload) > 0 {
-		err := json.Unmarshal(payload, &p)
-		if err != nil {
-			panic("test: error unmarshaling message payload: " + err.Error())
-		}
+		err = json.Unmarshal(payload, &p)
 	}
 
 	m := &Msg{
 		Subject:    subj,
 		RawPayload: payload,
 		Payload:    p,
+		Error:      err,
 		c:          c,
 	}
 
@@ -165,7 +164,7 @@ func (c *TestConn) GetMsg(t *testing.T) *Msg {
 	select {
 	case r := <-c.reqs:
 		return r
-	case <-time.After(timeoutSeconds * time.Second):
+	case <-time.After(timeoutDuration):
 		if t == nil {
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			panic("expected a message but found none")
@@ -229,6 +228,14 @@ func (m *Msg) AssertPayload(t *testing.T, payload interface{}) *Msg {
 
 	if !reflect.DeepEqual(p, m.Payload) {
 		t.Fatalf("expected message payload to be:\n%s\nbut got:\n%s", pj, m.RawPayload)
+	}
+	return m
+}
+
+// AssertRawPayload asserts that the message has the expected payload bytes
+func (m *Msg) AssertRawPayload(t *testing.T, payload []byte) *Msg {
+	if !bytes.Equal(payload, m.RawPayload) {
+		t.Fatalf("expected message payload to be:\n%s\nbut got:\n%s", payload, m.RawPayload)
 	}
 	return m
 }
