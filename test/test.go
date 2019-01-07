@@ -12,7 +12,7 @@ const timeoutDuration = 1 * time.Second
 
 // Session represents a test session with a res server
 type Session struct {
-	*TestConn
+	*MockConn
 	*res.Service
 	cl chan struct{}
 }
@@ -38,7 +38,7 @@ func setup(t *testing.T, l logger.Logger, precb func(s *Session)) *Session {
 	r.SetLogger(l)
 
 	s = &Session{
-		TestConn: c,
+		MockConn: c,
 		Service:  r,
 		cl:       make(chan struct{}),
 	}

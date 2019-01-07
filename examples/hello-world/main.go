@@ -14,6 +14,7 @@ import (
 	"github.com/jirenius/go-res"
 )
 
+// Model is the structure for our model resource
 type Model struct {
 	Message string `json:"message"`
 }

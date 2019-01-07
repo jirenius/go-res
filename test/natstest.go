@@ -15,8 +15,8 @@ import (
 	nats "github.com/nats-io/go-nats"
 )
 
-// TestConn mocks a client connection to a NATS server.
-type TestConn struct {
+// MockConn mocks a client connection to a NATS server.
+type MockConn struct {
 	closed bool
 
 	reqs chan *Msg
@@ -31,22 +31,22 @@ type Msg struct {
 	RawPayload []byte
 	Payload    interface{}
 	Error      error
-	c          *TestConn
+	c          *MockConn
 }
 
 // ParallelMsgs holds multiple requests in undetermined order
 type ParallelMsgs []*Msg
 
 // NewTestConn creates a new TestConn instance
-func NewTestConn() *TestConn {
-	return &TestConn{
+func NewTestConn() *MockConn {
+	return &MockConn{
 		subs: make(map[string]struct{}),
 		reqs: make(chan *Msg, 256),
 	}
 }
 
 // Publish publishes the data argument to the given subject
-func (c *TestConn) Publish(subj string, payload []byte) error {
+func (c *MockConn) Publish(subj string, payload []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -70,7 +70,7 @@ func (c *TestConn) Publish(subj string, payload []byte) error {
 }
 
 // ChanSubscribe subscribes to messages matching the subject pattern.
-func (c *TestConn) ChanSubscribe(subj string, ch chan *nats.Msg) (*nats.Subscription, error) {
+func (c *MockConn) ChanSubscribe(subj string, ch chan *nats.Msg) (*nats.Subscription, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -90,7 +90,7 @@ func (c *TestConn) ChanSubscribe(subj string, ch chan *nats.Msg) (*nats.Subscrip
 }
 
 // Close will close the connection to the server.
-func (c *TestConn) Close() {
+func (c *MockConn) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -104,7 +104,7 @@ func (c *TestConn) Close() {
 }
 
 // Request mocks a request from NATS
-func (c *TestConn) Request(subj string, payload interface{}) string {
+func (c *MockConn) Request(subj string, payload interface{}) string {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		panic("test: error marshaling request: " + err.Error())
@@ -114,7 +114,7 @@ func (c *TestConn) Request(subj string, payload interface{}) string {
 
 // RequestRaw mocks a raw byte request from NATS and returns
 // the reply inbox used.
-func (c *TestConn) RequestRaw(subj string, data []byte) string {
+func (c *MockConn) RequestRaw(subj string, data []byte) string {
 	inbox := nats.NewInbox()
 	msg := nats.Msg{
 		Subject: subj,
@@ -127,14 +127,14 @@ func (c *TestConn) RequestRaw(subj string, data []byte) string {
 }
 
 // IsClosed tests if the client connection has been closed.
-func (c *TestConn) IsClosed() bool {
+func (c *MockConn) IsClosed() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.closed
 }
 
 // AssertSubscription asserts that the given subjects is subscribed to with the channel
-func (c *TestConn) AssertSubscription(t *testing.T, subj string) {
+func (c *MockConn) AssertSubscription(t *testing.T, subj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -145,7 +145,7 @@ func (c *TestConn) AssertSubscription(t *testing.T, subj string) {
 }
 
 // AssertNoSubscription asserts that there is no subscription for the given subject
-func (c *TestConn) AssertNoSubscription(t *testing.T, subj string) {
+func (c *MockConn) AssertNoSubscription(t *testing.T, subj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -158,7 +158,7 @@ func (c *TestConn) AssertNoSubscription(t *testing.T, subj string) {
 // GetMsg gets a pending message that is published to NATS.
 // If no message is received within a set amount of time,
 // it will log it as a fatal error.
-func (c *TestConn) GetMsg(t *testing.T) *Msg {
+func (c *MockConn) GetMsg(t *testing.T) *Msg {
 	select {
 	case r := <-c.reqs:
 		return r
@@ -400,7 +400,7 @@ func (m *Msg) AssertNoPath(t *testing.T, path string) *Msg {
 }
 
 // GetParallelMsgs gets n number of published messages where the order is uncertain.
-func (c *TestConn) GetParallelMsgs(t *testing.T, n int) ParallelMsgs {
+func (c *MockConn) GetParallelMsgs(t *testing.T, n int) ParallelMsgs {
 	pm := make(ParallelMsgs, n)
 	for i := 0; i < n; i++ {
 		pm[i] = c.GetMsg(t)

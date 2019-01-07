@@ -44,9 +44,6 @@ type NewHandler func(NewRequest)
 // AuthHandler is a function called on resource auth requests
 type AuthHandler func(AuthRequest)
 
-// ObserveHandler is a function called on events on observed resources
-type ObserveHandler func(*resource, *ObserveEvent)
-
 // Handler contains handler functions for a given resource pattern.
 type Handler struct {
 	// Access handler for access requests

@@ -50,7 +50,7 @@ func TestServiceSetReset(t *testing.T) {
 	r.SetReset(resources, access)
 
 	s = &Session{
-		TestConn: c,
+		MockConn: c,
 		Service:  r,
 		cl:       make(chan struct{}),
 	}
