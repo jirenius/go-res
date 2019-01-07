@@ -10,32 +10,32 @@ Concurrency
 
 Requests are handled concurrently for multiple resources, but the package
 guarantees that only one goroutine is executing handlers for any unique
-resource at any one time. This allows handlers to modify models without
-additional synchronization such as mutexes.
+resource at any one time. This allows handlers to modify models and collections
+without additional synchronization such as mutexes.
 
 Usage
 
 Create a new service:
 
-	serv := res.NewService("myservice")
+	s := res.NewService("myservice")
 
-Add handlers for a single model resource:
+Add handlers for a model resource:
 
 	mymodel := map[string]interface{}{"name": "foo", "value": 42}
 	s.Handle("mymodel",
 		res.Access(res.AccessGranted),
-		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
-			w.Model(mymodel)
+		res.GetModel(func(r res.ModelRequest) {
+			r.Model(mymodel)
 		}),
 	)
 
-Add handlers for a single collection resource:
+Add handlers for a collection resource:
 
 	mycollection := []string{"first", "second", "third"}
 	s.Handle("mycollection",
 		res.Access(res.AccessGranted),
-		res.GetCollection(func(w res.GetCollectionResponse, r *res.Request) {
-			w.Collection(mycollection)
+		res.GetCollection(func(r res.CollectionRequest) {
+			r.Collection(mycollection)
 		}),
 	)
 
@@ -43,12 +43,12 @@ Add handlers for parameterized resources:
 
 	s.Handle("article.$id",
 		res.Access(res.AccessGranted),
-		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
-			article := getArticle(r.PathParams["id"]) // Returns nil if not found
+		res.GetModel(func(r res.ModelRequest) {
+			article := getArticle(r.PathParam("id"))
 			if article == nil {
-				w.NotFound()
+				r.NotFound()
 			} else {
-				w.Model(article)
+				r.Model(article)
 			}
 		}),
 	)
@@ -57,28 +57,64 @@ Add handlers for method calls:
 
 	s.Handle("math",
 		res.Access(res.AccessGranted),
-		res.Call("double", func(w res.CallResponse, r *res.Request) {
+		res.Call("double", func(r res.CallRequest) {
 			var p struct {
 				Value int `json:"value"`
 			}
-			r.UnmarshalParams(&p)
-			w.OK(p.Value * 2)
+			r.ParseParams(&p)
+			r.OK(p.Value * 2)
 		}),
 	)
 
 Send change event on model update:
 
-	s.Get("myservice.mymodel", func(r *res.Resource) {
+	s.With("myservice.mymodel", func(r res.Resource) {
 		mymodel["name"] = "bar"
 		r.ChangeEvent(map[string]interface{}{"name": "bar"})
 	})
 
 Send add event on collection update:
 
-	s.Get("myservice.mycollection", func(r *res.Resource) {
+	s.With("myservice.mycollection", func(r res.Resource) {
 		mycollection = append(mycollection, "fourth")
 		r.AddEvent("fourth", len(mycollection)-1)
 	})
+
+Add handlers for authentication:
+
+	s.Handle("myauth",
+		res.Auth("login", func(r res.AuthRequest) {
+			var p struct {
+				Password string `json:"password"`
+			}
+			r.ParseParams(&p)
+			if p.Password != "mysecret" {
+				r.InvalidParams("Wrong password")
+			} else {
+				r.TokenEvent(map[string]string{"user": "admin"})
+				r.OK(nil)
+			}
+		}),
+	)
+
+Add handlers for access control:
+
+s.Handle("mymodel",
+	res.Access(func(r res.AccessRequest) {
+		var t struct {
+			User string `json:"user"`
+		}
+		r.ParseToken(&t)
+		if t.User == "admin" {
+			r.AccessGranted()
+		} else {
+			r.AccessDenied()
+		}
+	}),
+	res.GetModel(func(r res.ModelRequest) {
+		r.Model(mymodel)
+	}),
+)
 
 Start service:
 

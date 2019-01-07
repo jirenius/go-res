@@ -2,6 +2,7 @@
 This is an example of a simple Hello World RES service written in Go.
 * It exposes a single resource: "example.mymodel".
 * It allows setting the resource's Message property through the "set" method.
+* It resets the model on server restart.
 * It serves a web client at http://localhost:8081
 */
 package main
@@ -13,6 +14,7 @@ import (
 	"github.com/jirenius/go-res"
 )
 
+// Model is the structure for our model resource
 type Model struct {
 	Message string `json:"message"`
 }
@@ -30,16 +32,16 @@ func main() {
 		res.Access(res.AccessGranted),
 
 		// Respond to get requests with the model
-		res.GetModel(func(w res.GetModelResponse, r *res.Request) {
-			w.Model(mymodel)
+		res.GetModel(func(r res.ModelRequest) {
+			r.Model(mymodel)
 		}),
 
 		// Handle setting of the message
-		res.Set(func(w res.CallResponse, r *res.Request) {
+		res.Set(func(r res.CallRequest) {
 			var p struct {
 				Message *string `json:"message,omitempty"`
 			}
-			r.UnmarshalParams(&p)
+			r.ParseParams(&p)
 
 			// Check if the message property was changed
 			if p.Message != nil && *p.Message != mymodel.Message {
@@ -50,7 +52,7 @@ func main() {
 			}
 
 			// Send success response
-			w.OK(nil)
+			r.OK(nil)
 		}),
 	)
 

@@ -2,6 +2,8 @@ package res
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -18,100 +20,108 @@ const (
 
 // Request represent a RES request
 type Request struct {
-	// Resource embedded. Value field is nil for get and access requests.
-	Resource
-
-	// Request type. May be "access", "get", "call", or "auth".
-	Type string
-
-	// Resource method.
-	// For access and get requests it is unused.
-	Method string
-
-	// Connection ID of the requesting client connection.
-	// For get requests it is unused.
-	CID string `json:"cid"`
-
-	// JSON encoded method parameters, or nil if the request had no parameters.
-	// For access and get requests it is unused.
-	RawParams json.RawMessage `json:"params"`
-
-	// JSON encoded access token, or nil if the request had no token.
-	// For get requests it is unused.
-	RawToken json.RawMessage `json:"token"`
-
-	// HTTP headers sent by client on connect.
-	// This field is only populated for auth requests.
-	Header map[string][]string `json:"header"`
-
-	// The host on which the URL is sought by the client. Per RFC 2616,
-	// this is either the value of the "Host" header or the host name given
-	// in the URL itself.
-	// This field is only populated for auth requests.
-	Host string `json:"host"`
-
-	// The network address of the client sent on connect.
-	// The format is not specified.
-	// This field is only populated for auth requests.
-	RemoteAddr string `json:"remoteAddr"`
-
-	// The unmodified Request-URI of the Request-Line (RFC 2616, Section 5.1)
-	// as sent by the client when on connect.
-	// This field is only populated for auth requests.
-	URI string `json:"uri"`
-
+	resource
+	rtype   string
+	method  string
 	msg     *nats.Msg
 	replied bool // Flag telling if a reply has been made
+
+	// Fields from the request data
+	cid        string
+	params     json.RawMessage
+	token      json.RawMessage
+	header     map[string][]string
+	host       string
+	remoteAddr string
+	uri        string
 }
 
-type response Request
-
-// AccessResponse has methods for responding to access requests.
-type AccessResponse interface {
+// AccessRequest has methods for responding to access requests.
+type AccessRequest interface {
+	Resource
 	Access(get bool, call string)
 	AccessDenied()
+	AccessGranted()
 	NotFound()
+	Error(err *Error)
+	RawToken() json.RawMessage
+	ParseToken(interface{})
+	Timeout(d time.Duration)
 }
 
-// GetModelResponse has methods for responding to model get requests.
-type GetModelResponse interface {
+// ModelRequest has methods for responding to model get requests.
+type ModelRequest interface {
+	Resource
 	Model(model interface{})
 	QueryModel(model interface{}, query string)
 	NotFound()
+	Error(err *Error)
+	Timeout(d time.Duration)
 }
 
-// GetCollectionResponse has methods for responding to collection get requests.
-type GetCollectionResponse interface {
+// CollectionRequest has methods for responding to collection get requests.
+type CollectionRequest interface {
+	Resource
 	Collection(collection interface{})
 	QueryCollection(collection interface{}, query string)
 	NotFound()
+	Error(err *Error)
+	Timeout(d time.Duration)
 }
 
-// CallResponse has methods for responding to call requests.
-type CallResponse interface {
+// CallRequest has methods for responding to call requests.
+type CallRequest interface {
+	Resource
+	Method() string
+	CID() string
+	RawParams() json.RawMessage
+	RawToken() json.RawMessage
+	ParseParams(interface{})
+	ParseToken(interface{})
 	OK(result interface{})
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
 	Error(err *Error)
+	Timeout(d time.Duration)
 }
 
-// NewResponse has methods for responding to new call requests.
-type NewResponse interface {
+// NewRequest has methods for responding to new call requests.
+type NewRequest interface {
+	Resource
+	CID() string
+	RawParams() json.RawMessage
+	RawToken() json.RawMessage
+	ParseParams(interface{})
+	ParseToken(interface{})
 	New(rid Ref)
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
 	Error(err *Error)
+	Timeout(d time.Duration)
 }
 
-// AuthResponse has methods for responding to auth requests.
-type AuthResponse interface {
+// AuthRequest has methods for responding to auth requests.
+type AuthRequest interface {
+	Resource
+	Method() string
+	CID() string
+	RawParams() json.RawMessage
+	RawToken() json.RawMessage
+	ParseParams(interface{})
+	ParseToken(interface{})
+	Header() map[string][]string
+	Host() string
+	RemoteAddr() string
+	URI() string
 	OK(result interface{})
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
 	Error(err *Error)
+	Timeout(d time.Duration)
+	TokenEvent(t interface{})
 }
 
 // Static responses and events
@@ -128,15 +138,218 @@ var (
 // Predefined handlers
 var (
 	// Access handler that provides full get and call access.
-	AccessGranted AccessHandler = func(w AccessResponse, r *Request) {
-		r.reply(responseAccessGranted)
+	AccessGranted AccessHandler = func(r AccessRequest) {
+		r.AccessGranted()
 	}
 
 	// Access handler that sends a system.accessDenied error response.
-	AccessDenied AccessHandler = func(w AccessResponse, r *Request) {
-		r.reply(responseAccessDenied)
+	AccessDenied AccessHandler = func(r AccessRequest) {
+		r.AccessDenied()
 	}
 )
+
+// Type returns the request type. May be "access", "get", "call", or "auth".
+func (r *Request) Type() string {
+	return r.rtype
+}
+
+// Method returns the resource method.
+// Empty string for access and get requests.
+func (r *Request) Method() string {
+	return r.method
+}
+
+// CID returns the connection ID of the requesting client connection.
+// Empty string for get requests.
+func (r *Request) CID() string {
+	return r.cid
+}
+
+// RawParams returns the JSON encoded method parameters, or nil if the request had no parameters.
+// Always returns nil for access and get requests.
+func (r *Request) RawParams() json.RawMessage {
+	return r.params
+}
+
+// RawToken returns the JSON encoded access token, or nil if the request had no token.
+// Always returns nil for get requests.
+func (r *Request) RawToken() json.RawMessage {
+	return r.token
+}
+
+// Header returns the HTTP headers sent by client on connect.
+// Only set for auth requests.
+func (r *Request) Header() map[string][]string {
+	return r.header
+}
+
+// Host returns the host on which the URL is sought by the client.
+// Per RFC 2616, this is either the value of the "Host" header or the host name
+// given in the URL itself.
+// Only set for auth requests.
+func (r *Request) Host() string {
+	return r.host
+}
+
+// RemoteAddr returns the network address of the client sent on connect.
+// The format is not specified.
+// Only set for auth requests.
+func (r *Request) RemoteAddr() string {
+	return r.remoteAddr
+}
+
+// URI returns the unmodified Request-URI of the Request-Line
+// (RFC 2616, Section 5.1) as sent by the client on connect.
+// Only set for auth requests.
+func (r *Request) URI() string {
+	return r.uri
+}
+
+// OK sends a successful response for the request.
+// For get requests, the Model or Collection methods is usually used instead.
+// For access requests, the Access or AccessGranted methods is usually used instead.
+// The result may be nil.
+func (r *Request) OK(result interface{}) {
+	r.success(result)
+}
+
+// Error sends a custom error response for the request.
+func (r *Request) Error(err *Error) {
+	r.error(err)
+}
+
+// NotFound sends a system.notFound response for the request.
+func (r *Request) NotFound() {
+	r.reply(responseNotFound)
+}
+
+// MethodNotFound sends a system.methodNotFound response for the request.
+// Only valid for call and auth requests.
+func (r *Request) MethodNotFound() {
+	r.reply(responseMethodNotFound)
+}
+
+// InvalidParams sends a system.invalidParams response.
+// An empty message will default to "Invalid parameters".
+// Only valid for call and auth requests.
+func (r *Request) InvalidParams(message string) {
+	if message == "" {
+		r.reply(responseInvalidParams)
+	} else {
+		r.error(&Error{Code: CodeInvalidParams, Message: message})
+	}
+}
+
+// Access sends a successful response.
+// The get flag tells if the client has access to get (read) the resource.
+// The call string is a comma separated list of methods that the client can
+// call. Eg. "set,foo,bar". A single asterisk character ("*") means the client
+// is allowed to call any method. Empty string means no calls are allowed.
+// Only valid for access requests.
+func (r *Request) Access(get bool, call string) {
+	if !get && call == "" {
+		r.reply(responseAccessDenied)
+	} else {
+		r.success(accessResponse{Get: get, Call: call})
+	}
+}
+
+// AccessDenied sends a system.accessDenied response.
+// Only valid for access requests.
+func (r *Request) AccessDenied() {
+	r.reply(responseAccessDenied)
+}
+
+// AccessGranted a successful response granting full access to the resource.
+// Same as calling Access(true, "*");
+// Only valid for access requests.
+func (r *Request) AccessGranted() {
+	r.reply(responseAccessGranted)
+}
+
+// Model sends a successful model response for the get request.
+// The model must marshal into a JSON object.
+// Only valid for get requests for a model resource.
+func (r *Request) Model(model interface{}) {
+	r.model(model, "")
+}
+
+// QueryModel sends a successful query model response for the get request.
+// The model must marshal into a JSON object.
+// Only valid for get requests for a model query resource.
+func (r *Request) QueryModel(model interface{}, query string) {
+	r.model(model, query)
+}
+
+// model sends a successful model response for the get request.
+func (r *Request) model(model interface{}, query string) {
+	if query != "" && r.query == "" {
+		panic("res: query model response on non-query request")
+	}
+	// [TODO] Marshal model to a json.RawMessage to see if it is a JSON object
+	r.success(modelResponse{Model: model, Query: query})
+}
+
+// Collection sends a successful collection response for the get request.
+// The collection must marshal into a JSON array.
+// Only valid for get requests for a collection resource.
+func (r *Request) Collection(collection interface{}) {
+	r.collection(collection, "")
+}
+
+// QueryCollection sends a successful query collection response for the get request.
+// The collection must marshal into a JSON array.
+// Only valid for get requests for a collection query resource.
+func (r *Request) QueryCollection(collection interface{}, query string) {
+	r.collection(collection, query)
+}
+
+// collection sends a successful collection response for the get request.
+func (r *Request) collection(collection interface{}, query string) {
+	if query != "" && r.query == "" {
+		panic("res: query collection response on non-query request")
+	}
+	// [TODO] Marshal collection to a json.RawMessage to see if it is a JSON array
+	r.success(collectionResponse{Collection: collection, Query: query})
+}
+
+// New sends a successful response for the new call request.
+// Panics if rid is invalid.
+// Only valid for new call requests.
+func (r *Request) New(rid Ref) {
+	if !rid.IsValid() {
+		panic("res: invalid reference RID: " + rid)
+	}
+	r.success(rid)
+}
+
+// ParseParams unmarshals the JSON encoded parameters and stores the result in p.
+// If the request has no parameters, ParseParams does nothing.
+// On any error, ParseParams panics with a system.invalidParams *Error.
+// Only valid for call and auth requests.
+func (r *Request) ParseParams(p interface{}) {
+	if len(r.params) == 0 {
+		return
+	}
+	err := json.Unmarshal(r.params, p)
+	if err != nil {
+		panic(&Error{Code: CodeInvalidParams, Message: err.Error()})
+	}
+}
+
+// ParseToken unmarshals the JSON encoded token and stores the result in t.
+// If the request has no token, ParseToken does nothing.
+// On any error, ParseToken panics with a system.internalError *Error.
+// Not valid for get requests.
+func (r *Request) ParseToken(t interface{}) {
+	if len(r.token) == 0 {
+		return
+	}
+	err := json.Unmarshal(r.token, t)
+	if err != nil {
+		panic(InternalError(err))
+	}
+}
 
 // Timeout attempts to set the timeout duration of the request.
 // The call has no effect if the requester has already timed out the request.
@@ -145,17 +358,21 @@ func (r *Request) Timeout(d time.Duration) {
 		panic("res: negative timeout duration")
 	}
 	out := []byte(`timeout:"` + strconv.FormatInt(d.Nanoseconds()/1000000, 10) + `"`)
-	r.s.Tracef("<-- %s: %s", r.msg.Subject, out)
+	r.s.rawEvent(r.msg.Reply, out)
+}
 
-	r.send(r.msg.Reply, out)
+// TokenEvent sends a connection token event that sets the requester's connection access token,
+// discarding any previously set token.
+// A change of token will invalidate any previous access response received using the old token.
+// A nil token clears any previously set token.
+// To set the connection token for a different connection ID, use Service.TokenEvent.
+// Only valid for auth requests.
+func (r *Request) TokenEvent(token interface{}) {
+	r.s.event("conn."+r.cid+".token", tokenEvent{Token: token})
 }
 
 // success sends a successful response as a reply.
 func (r *Request) success(result interface{}) {
-	type successResponse struct {
-		Result interface{} `json:"result"`
-	}
-
 	data, err := json.Marshal(successResponse{Result: result})
 	if err != nil {
 		r.error(ToError(err))
@@ -167,10 +384,6 @@ func (r *Request) success(result interface{}) {
 
 // error sends an error response as a reply.
 func (r *Request) error(e *Error) {
-	type errorResponse struct {
-		Error *Error `json:"error"`
-	}
-
 	data, err := json.Marshal(errorResponse{Error: e})
 	if err != nil {
 		data = responseInternalError
@@ -181,141 +394,111 @@ func (r *Request) error(e *Error) {
 
 // reply sends an encoded payload to as a reply.
 // If a reply is already sent, reply will panic.
-func (r *Request) reply(data []byte) {
+func (r *Request) reply(payload []byte) {
 	if r.replied {
 		panic("res: response already sent on request")
 	}
 	r.replied = true
-	r.s.Tracef("<== %s: %s", r.msg.Subject, data)
-	r.send(r.msg.Reply, data)
-}
-
-// send publishes an encoded data payload on a subject.
-func (r *Request) send(subj string, data []byte) {
-	err := r.s.nc.Publish(subj, data)
+	r.s.Tracef("<== %s: %s", r.msg.Subject, payload)
+	err := r.s.nc.Publish(r.msg.Reply, payload)
 	if err != nil {
-		panic(err)
+		r.s.Logf("error sending reply %s: %s", r.msg.Subject, err)
 	}
 }
 
-// Access sends a successful response for the access request.
-// The get flag tells if the client has access to get (read) the resource.
-// The call string is a comma separated list of methods that the client can
-// call. Eg. "set,foo,bar". A single asterisk character ("*") means the client
-// is allowed to call any method. Empty string means no calls are allowed.
-func (w *response) Access(get bool, call string) {
-	type okResponse struct {
-		Get  bool   `json:"get,omitempty"`
-		Call string `json:"call,omitempty"`
+func (r *Request) executeHandler() {
+	// Recover from panics inside handlers
+	defer func() {
+		v := recover()
+		if v == nil {
+			return
+		}
+
+		var str string
+
+		switch e := v.(type) {
+		case *Error:
+			if !r.replied {
+				r.error(e)
+				// Return without logging as panicing with a *Error is considered
+				// a valid way of sending an error response.
+				return
+			}
+			str = e.Message
+		case error:
+			str = e.Error()
+			if !r.replied {
+				r.error(ToError(e))
+			}
+		case string:
+			str = e
+			if !r.replied {
+				r.error(ToError(errors.New(e)))
+			}
+		default:
+			str = fmt.Sprintf("%v", e)
+			if !r.replied {
+				r.error(ToError(errors.New(str)))
+			}
+		}
+
+		r.s.Logf("error handling request %s: %s", r.msg.Subject, str)
+	}()
+
+	hs := r.hs
+
+	switch r.rtype {
+	case "access":
+		if hs.Access == nil {
+			// No handling. Assume the access requests is handled by other services.
+			return
+		}
+		hs.Access(r)
+	case "get":
+		switch hs.typ {
+		case rtypeUnset:
+			r.reply(responseNotFound)
+			return
+		case rtypeModel:
+			hs.GetModel(r)
+		case rtypeCollection:
+			hs.GetCollection(r)
+		}
+	case "call":
+		if r.method == "new" {
+			h := hs.New
+			if h == nil {
+				r.reply(responseMethodNotFound)
+				return
+			}
+			h(r)
+		} else {
+			var h CallHandler
+			if hs.Call != nil {
+				h = hs.Call[r.method]
+			}
+			if h == nil {
+				r.reply(responseMethodNotFound)
+				return
+			}
+			h(r)
+		}
+	case "auth":
+		var h AuthHandler
+		if hs.Auth != nil {
+			h = hs.Auth[r.method]
+		}
+		if h == nil {
+			r.reply(responseMethodNotFound)
+			return
+		}
+		h(r)
+	default:
+		r.s.Logf("unknown request type: %s", r.Type())
+		return
 	}
 
-	if !get && call == "" {
-		(*Request)(w).reply(responseAccessDenied)
-	} else {
-		(*Request)(w).success(okResponse{Get: get, Call: call})
-	}
-}
-
-// AccessDenied sends a system.accessDenied response for the access request.
-func (w *response) AccessDenied() {
-	(*Request)(w).reply(responseAccessDenied)
-}
-
-// NotFound sends a system.notFound response for the access request.
-func (w *response) NotFound() {
-	(*Request)(w).reply(responseNotFound)
-}
-
-// Model sends a successful model response for the get request.
-// The model must marshal into a JSON object.
-func (w *response) Model(model interface{}) {
-	w.model(model, "")
-}
-
-// QueryModel sends a successful query model response for the get request.
-// The model must marshal into a JSON object.
-func (w *response) QueryModel(model interface{}, query string) {
-	w.model(model, query)
-}
-
-// model sends a successful model response for the get request.
-func (w *response) model(model interface{}, query string) {
-	type modelResponse struct {
-		Model interface{} `json:"model"`
-		Query string      `json:"query,omitempty"`
-	}
-
-	r := (*Request)(w)
-	if query != "" && r.RawQuery == "" {
-		panic("res: query model response on non-query request")
-	}
-	// [TODO] Marshal model to a json.RawMessage to see if it is a JSON object
-	(*Request)(w).success(modelResponse{Model: model, Query: query})
-}
-
-// Collection sends a successful collection response for the get request.
-// The collection must marshal into a JSON array.
-func (w *response) Collection(collection interface{}) {
-	w.collection(collection, "")
-}
-
-// QueryCollection sends a successful query collection response for the get request.
-// The collection must marshal into a JSON array.
-func (w *response) QueryCollection(collection interface{}, query string) {
-	w.collection(collection, query)
-}
-
-// collection sends a successful collection response for the get request.
-func (w *response) collection(collection interface{}, query string) {
-	type collectionResponse struct {
-		Collection interface{} `json:"collection"`
-		Query      string      `json:"query,omitempty"`
-	}
-
-	r := (*Request)(w)
-	if query != "" && r.RawQuery == "" {
-		panic("res: query collection response on non-query request")
-	}
-	// [TODO] Marshal collection to a json.RawMessage to see if it is a JSON array
-	(*Request)(w).success(collectionResponse{Collection: collection, Query: query})
-}
-
-// OK sends a successful response for the call request.
-// The result may be nil.
-func (w *response) OK(result interface{}) {
-	(*Request)(w).success(result)
-}
-
-// MethodNotFound sends a system.methodNotFound response for the call request.
-func (w *response) MethodNotFound() {
-	(*Request)(w).reply(responseMethodNotFound)
-}
-
-// InvalidParams sends a system.invalidParams response for the call request.
-// An empty message will be replaced will default to "Invalid parameters".
-func (w *response) InvalidParams(message string) {
-	if message == "" {
-		(*Request)(w).reply(responseInvalidParams)
-	} else {
-		(*Request)(w).error(&Error{Code: CodeInvalidParams, Message: message})
-	}
-}
-
-// Error sends a custom error response for the call request.
-func (w *response) Error(err *Error) {
-	(*Request)(w).error(err)
-}
-
-// New sends a successful response for the new call request.
-func (w *response) New(rid Ref) {
-	(*Request)(w).success(rid)
-}
-
-// UnmarshalParams parses the encoded parameters and stores the result in params.
-// On any error, Unmarshal panics with a system.invalidParams *Error.
-func (r *Request) UnmarshalParams(params interface{}) {
-	err := json.Unmarshal(r.RawParams, params)
-	if err != nil {
-		panic(&Error{Code: CodeInvalidParams, Message: err.Error()})
+	if !r.replied {
+		r.reply(responseMissingResponse)
 	}
 }
