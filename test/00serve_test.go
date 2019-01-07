@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	res "github.com/jirenius/go-res"
-	"github.com/jirenius/resgate/logger"
 )
 
 // Test that the service can be served without error
@@ -20,7 +19,7 @@ func TestWithoutLogger(t *testing.T) {
 
 // Test that Logger returns the logger set with SetLogger
 func TestServiceLogger(t *testing.T) {
-	l := logger.NewMemLogger(true, true)
+	l := newMemLogger(true, true)
 	runTestWithLogger(t, l, func(s *Session) {
 		if s.Logger() != l {
 			t.Errorf("expected Logger to return the logger passed to SetLogger, but it didn't")
@@ -44,7 +43,7 @@ func TestServiceSetReset(t *testing.T) {
 	access := []string{"test.zoo.>", "test.baz.>"}
 
 	var s *Session
-	l := logger.NewMemLogger(true, true)
+	l := newMemLogger(true, true)
 	c := NewTestConn()
 	r := res.NewService("test")
 	r.SetLogger(l)

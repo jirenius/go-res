@@ -59,7 +59,7 @@ func setup(t *testing.T, l logger.Logger, precb func(s *Session)) *Session {
 }
 
 func runTest(t *testing.T, precb func(s *Session), cb func(s *Session)) {
-	runTestWithLogger(t, logger.NewMemLogger(true, true), precb, cb)
+	runTestWithLogger(t, newMemLogger(true, true), precb, cb)
 }
 
 func runTestWithLogger(t *testing.T, l logger.Logger, precb func(s *Session), cb func(s *Session)) {
@@ -95,7 +95,7 @@ func runTestWithLogger(t *testing.T, l logger.Logger, precb func(s *Session), cb
 }
 
 func runTestAsync(t *testing.T, precb func(s *Session), cb func(s *Session, done func())) {
-	s := setup(t, logger.NewMemLogger(true, true), precb)
+	s := setup(t, newMemLogger(true, true), precb)
 
 	panicked := true
 	defer func() {
