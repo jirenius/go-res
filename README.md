@@ -192,7 +192,7 @@ If you find any issues, feel free to [report them](https://github.com/jirenius/g
 [License-Image]: https://img.shields.io/badge/License-MIT-blue.svg
 [ReportCard-Url]: http://goreportcard.com/report/jirenius/go-res
 [ReportCard-Image]: http://goreportcard.com/badge/github.com/jirenius/go-res
-[Build-Status-Url]: https://travis-ci.org/jirenius/go-res
-[Build-Status-Image]: https://travis-ci.org/jirenius/go-res.svg?branch=master
+[Build-Status-Url]: https://travis-ci.com/jirenius/go-res
+[Build-Status-Image]: https://travis-ci.com/jirenius/go-res.svg?branch=master
 [Coverage-Status-Url]: https://coveralls.io/github/jirenius/go-res?branch=master
 [Coverage-Status-Image]: https://coveralls.io/repos/github/jirenius/go-res/badge.svg?branch=master
