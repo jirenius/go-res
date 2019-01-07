@@ -5,9 +5,9 @@
 A [Go](http://golang.org) package implementing the RES-Service protocol for [Resgate - Real-time API Gateway](https://github.com/jirenius/resgate).  
 When you want to create stateless REST API services but need to have all your resources updated in real time on your reactive web clients.
 
-All resources and methods served by RES services are made accessible through [Resgate](https://github.com/jirenius/resgate) in two ways:
-* Ordinary HTTP requests
-* Over WebSocket using [ResClient](https://www.npmjs.com/package/resclient)
+All resources and methods served by RES services are made accessible through [Resgate](https://github.com/jirenius/resgate) through both:
+* Ordinary HTTP REST requests
+* WebSocket using [ResClient](https://www.npmjs.com/package/resclient)
 
 With ResClient, all resources will be updated in real time, without having to write a single line of client code to handle specific events. It just works.
 
@@ -30,14 +30,14 @@ package main
 import res "github.com/jirenius/go-res"
 
 func main() {
-    s := res.NewService("hello")
-    s.Handle("world",
-        res.Access(res.AccessGranted),
-        res.GetModel(func(w res.GetModelResponse, r *res.Request) {
-            w.Model(map[string]string{"greeting": "welcome"})
-        }),
-    )
-    s.ListenAndServe("nats://localhost:4222")
+	s := res.NewService("myservice")
+	s.Handle("mymodel",
+		res.Access(res.AccessGranted),
+		res.GetModel(func(r res.ModelRequest) {
+			r.Model(map[string]string{"greeting": "welcome"})
+		}),
+	)
+	s.ListenAndServe("nats://localhost:4222")
 }
 ```
 
@@ -47,29 +47,31 @@ While a RES service communicates over a message broker (NATS Server), instead of
 
 #### Create a new service
 
-    serv := res.NewService("myservice")
+```go
+s := res.NewService("myservice")
+```
 
-#### Add model handlers
+#### Add handlers for a model resource
 
 ```go
 mymodel := map[string]interface{}{"name": "foo", "value": 42}
 s.Handle("mymodel",
-    res.Access(res.AccessGranted),
-    res.GetModel(func(w res.GetModelResponse, r *res.Request) {
-        w.Model(mymodel)
-    }),
+	res.Access(res.AccessGranted),
+	res.GetModel(func(r res.ModelRequest) {
+		r.Model(mymodel)
+	}),
 )
 ```
 
-#### Add collection handlers
+#### Add handlers for a collection resource
 
 ```go
 mycollection := []string{"first", "second", "third"}
 s.Handle("mycollection",
-    res.Access(res.AccessGranted),
-    res.GetCollection(func(w res.GetCollectionResponse, r *res.Request) {
-        w.Collection(mycollection)
-    }),
+	res.Access(res.AccessGranted),
+	res.GetCollection(func(r res.CollectionRequest) {
+		r.Collection(mycollection)
+	}),
 )
 ```
 
@@ -77,15 +79,15 @@ s.Handle("mycollection",
 
 ```go
 s.Handle("article.$id",
-    res.Access(res.AccessGranted),
-    res.GetModel(func(w res.GetModelResponse, r *res.Request) {
-        article := getArticle(r.PathParams["id"])
-        if article == nil {
-            w.NotFound()
-        } else {
-            w.Model(article)
-        }
-    }),
+	res.Access(res.AccessGranted),
+	res.GetModel(func(r res.ModelRequest) {
+		article := getArticle(r.PathParam("id"))
+		if article == nil {
+			r.NotFound()
+		} else {
+			r.Model(article)
+		}
+	}),
 )
 ```
 
@@ -93,23 +95,24 @@ s.Handle("article.$id",
 
 ```go
 s.Handle("math",
-    res.Access(res.AccessGranted),
-    res.Call("double", func(w res.CallResponse, r *res.Request) {
-        var p struct {
-            Value int `json:"value"`
-        }
-        r.UnmarshalParams(&p)
-        w.OK(p.Value * 2)
-    }),
+	res.Access(res.AccessGranted),
+	res.Call("double", func(r res.CallRequest) {
+		var p struct {
+			Value int `json:"value"`
+		}
+		r.ParseParams(&p)
+		r.OK(p.Value * 2)
+	}),
 )
 ```
 
 #### Send change event on model update
 A change event will update the model on all subscribing clients.
+
 ```go
-s.Get("myservice.mymodel", func(r *res.Resource) {
-    mymodel["name"] = "bar"
-    r.ChangeEvent(map[string]interface{}{"name": "bar"})
+s.With("myservice.mymodel", func(r res.Resource) {
+	mymodel["name"] = "bar"
+	r.ChangeEvent(map[string]interface{}{"name": "bar"})
 })
 ```
 
@@ -117,10 +120,50 @@ s.Get("myservice.mymodel", func(r *res.Resource) {
 An add event will update the collection on all subscribing clients.
 
 ```go
-s.Get("myservice.mycollection", func(r *res.Resource) {
-    mycollection = append(mycollection, "fourth")
-    r.AddEvent("fourth", len(mycollection)-1)
+s.With("myservice.mycollection", func(r res.Resource) {
+	mycollection = append(mycollection, "fourth")
+	r.AddEvent("fourth", len(mycollection)-1)
 })
+```
+
+#### Add handlers for authentication
+
+```go
+s.Handle("myauth",
+	res.Auth("login", func(r res.AuthRequest) {
+		var p struct {
+			Password string `json:"password"`
+		}
+		r.ParseParams(&p)
+		if p.Password != "mysecret" {
+			r.InvalidParams("Wrong password")
+		} else {
+			r.TokenEvent(map[string]string{"user": "admin"})
+			r.OK(nil)
+		}
+	}),
+)
+```
+
+#### Add handlers for access control
+
+```go
+s.Handle("mymodel",
+	res.Access(func(r res.AccessRequest) {
+		var t struct {
+			User string `json:"user"`
+		}
+		r.ParseToken(&t)
+		if t.User == "admin" {
+			r.AccessGranted()
+		} else {
+			r.AccessDenied()
+		}
+    }),
+	res.GetModel(func(r res.ModelRequest) {
+		r.Model(mymodel)
+	}),
+)
 ```
 
 #### Start service

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"testing"
 
 	res "github.com/jirenius/go-res"
@@ -69,4 +70,34 @@ func TestServiceSetReset(t *testing.T) {
 		})
 
 	teardown(s)
+}
+
+// Test that TokenEvent sends a connection token event.
+func TestServiceTokenEvent(t *testing.T) {
+	token := `{"id":42,"user":"foo","role":"admin"}`
+	runTest(t, nil, func(s *Session) {
+		s.TokenEvent(defaultCID, json.RawMessage(token))
+		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
+	})
+}
+
+// Test that TokenEvent with nil sends a connection token event with a nil token.
+func TestServiceNilTokenEvent(t *testing.T) {
+	runTest(t, nil, func(s *Session) {
+		s.TokenEvent(defaultCID, nil)
+		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":null}`))
+	})
+}
+
+// Test that TokenEvent with an invalid cid causes panic.
+func TestServiceTokenEventWithInvalidCID(t *testing.T) {
+	runTest(t, nil, func(s *Session) {
+		defer func() {
+			v := recover()
+			if v == nil {
+				t.Fatalf("expected a panic, but nothing happened")
+			}
+		}()
+		s.TokenEvent("invalid.*.cid", nil)
+	})
 }

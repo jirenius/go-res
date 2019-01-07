@@ -40,3 +40,7 @@ type resetEvent struct {
 	Resources []string `json:"resources,omitempty"`
 	Access    []string `json:"access,omitempty"`
 }
+
+type tokenEvent struct {
+	Token interface{} `json:"token"`
+}

@@ -121,6 +121,7 @@ type AuthRequest interface {
 	InvalidParams(message string)
 	Error(err *Error)
 	Timeout(d time.Duration)
+	TokenEvent(t interface{})
 }
 
 // Static responses and events
@@ -358,6 +359,16 @@ func (r *Request) Timeout(d time.Duration) {
 	}
 	out := []byte(`timeout:"` + strconv.FormatInt(d.Nanoseconds()/1000000, 10) + `"`)
 	r.s.rawEvent(r.msg.Reply, out)
+}
+
+// TokenEvent sends a connection token event that sets the requester's connection access token,
+// discarding any previously set token.
+// A change of token will invalidate any previous access response received using the old token.
+// A nil token clears any previously set token.
+// To set the connection token for a different connection ID, use Service.TokenEvent.
+// Only valid for auth requests.
+func (r *Request) TokenEvent(token interface{}) {
+	r.s.event("conn."+r.cid+".token", tokenEvent{Token: token})
 }
 
 // success sends a successful response as a reply.

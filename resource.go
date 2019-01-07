@@ -15,6 +15,9 @@ type Resource interface {
 	// PathParams returns parameters that are derived from the resource name.
 	PathParams() map[string]string
 
+	// PathParam returns the key placeholder parameter value derived from the resource name.
+	PathParam(string) string
+
 	// Query returns the query part of the resource ID without the question mark separator.
 	Query() string
 
@@ -93,6 +96,11 @@ func (r *resource) PathParams() map[string]string {
 	return r.pathParams
 }
 
+// PathParam returns the parameter derived from the resource name for the key placeholder.
+func (r *resource) PathParam(key string) string {
+	return r.pathParams[key]
+}
+
 // Query returns the query part of the resource ID without the question mark separator.
 func (r *resource) Query() string {
 	return r.query
@@ -114,8 +122,8 @@ func (r *resource) Value() (interface{}, error) {
 	panic("not implemented")
 }
 
-func isValidEvent(ev string) bool {
-	for _, r := range ev {
+func isValidPart(p string) bool {
+	for _, r := range p {
 		if r == '?' {
 			return false
 		}
@@ -152,7 +160,7 @@ func (r *resource) Event(event string, payload interface{}) {
 		panic(`res: "unsubscribe" is a reserved event name`)
 	}
 
-	if !isValidEvent(event) {
+	if !isValidPart(event) {
 		panic(`res: invalid event name`)
 	}
 

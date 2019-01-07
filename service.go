@@ -414,6 +414,17 @@ func (s *Service) ResetAll() {
 	s.event("system.reset", ev)
 }
 
+// TokenEvent sends a connection token event that sets the connection's access token,
+// discarding any previously set token.
+// A change of token will invalidate any previous access response received using the old token.
+// A nil token clears any previously set token.
+func (s *Service) TokenEvent(cid string, token interface{}) {
+	if !isValidPart(cid) {
+		panic(`res: invalid connection ID`)
+	}
+	s.event("conn."+cid+".token", tokenEvent{Token: token})
+}
+
 // subscribe makes a nats subscription for each required request type.
 func (s *Service) subscribe() error {
 	s.subs = make(map[string]*nats.Subscription, 4)

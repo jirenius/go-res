@@ -17,9 +17,9 @@ Usage
 
 Create a new service:
 
-	serv := res.NewService("myservice")
+	s := res.NewService("myservice")
 
-Add handlers for a single model resource:
+Add handlers for a model resource:
 
 	mymodel := map[string]interface{}{"name": "foo", "value": 42}
 	s.Handle("mymodel",
@@ -29,7 +29,7 @@ Add handlers for a single model resource:
 		}),
 	)
 
-Add handlers for a single collection resource:
+Add handlers for a collection resource:
 
 	mycollection := []string{"first", "second", "third"}
 	s.Handle("mycollection",
@@ -44,7 +44,7 @@ Add handlers for parameterized resources:
 	s.Handle("article.$id",
 		res.Access(res.AccessGranted),
 		res.GetModel(func(r res.ModelRequest) {
-			article := getArticle(r.PathParams["id"]) // Returns nil if not found
+			article := getArticle(r.PathParam("id"))
 			if article == nil {
 				r.NotFound()
 			} else {
@@ -68,17 +68,53 @@ Add handlers for method calls:
 
 Send change event on model update:
 
-	s.Get("myservice.mymodel", func(r *res.Resource) {
+	s.With("myservice.mymodel", func(r res.Resource) {
 		mymodel["name"] = "bar"
 		r.ChangeEvent(map[string]interface{}{"name": "bar"})
 	})
 
 Send add event on collection update:
 
-	s.Get("myservice.mycollection", func(r *res.Resource) {
+	s.With("myservice.mycollection", func(r res.Resource) {
 		mycollection = append(mycollection, "fourth")
 		r.AddEvent("fourth", len(mycollection)-1)
 	})
+
+Add handlers for authentication:
+
+	s.Handle("myauth",
+		res.Auth("login", func(r res.AuthRequest) {
+			var p struct {
+				Password string `json:"password"`
+			}
+			r.ParseParams(&p)
+			if p.Password != "mysecret" {
+				r.InvalidParams("Wrong password")
+			} else {
+				r.TokenEvent(map[string]string{"user": "admin"})
+				r.OK(nil)
+			}
+		}),
+	)
+
+Add handlers for access control:
+
+s.Handle("mymodel",
+	res.Access(func(r res.AccessRequest) {
+		var t struct {
+			User string `json:"user"`
+		}
+		r.ParseToken(&t)
+		if t.User == "admin" {
+			r.AccessGranted()
+		} else {
+			r.AccessDenied()
+		}
+	}),
+	res.GetModel(func(r res.ModelRequest) {
+		r.Model(mymodel)
+	}),
+)
 
 Start service:
 

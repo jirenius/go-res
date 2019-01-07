@@ -348,3 +348,32 @@ func TestAuthRequestTimeoutWithDurationLessThanZero(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
 	})
 }
+
+// Test that TokenEvent sends a connection token event.
+func TestAuthRequestTokenEvent(t *testing.T) {
+	token := `{"id":42,"user":"foo","role":"admin"}`
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			r.TokenEvent(json.RawMessage(token))
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", newAuthRequest())
+		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
+	})
+}
+
+// Test that TokenEvent with nil sends a connection token event with a nil token.
+func TestAuthRequestNilTokenEvent(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			r.TokenEvent(nil)
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", newAuthRequest())
+		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":null}`))
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
+	})
+}
