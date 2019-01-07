@@ -1,0 +1,18 @@
+language: go
+go:
+- 1.9.x
+- 1.10.x
+- 1.11.x
+install:
+- go get -t ./...
+- go get github.com/mattn/goveralls
+- go get honnef.co/go/tools/cmd/megacheck
+- go get github.com/client9/misspell/cmd/misspell
+before_script:
+- $(exit $(go fmt ./... | wc -l))
+- go vet ./...
+- misspell -error -locale US .
+- megacheck ./...
+script:
+- go test -i $PACKAGES
+- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.11\. ]]; then ./scripts/cover.sh TRAVIS; else go test -race ./...; fi

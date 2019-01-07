@@ -1,6 +1,10 @@
 # RES service package
 
-[![GoDoc](https://godoc.org/github.com/jirenius/go-res?status.svg)](http://godoc.org/github.com/jirenius/go-res)
+[![License][License-Image]][License-Url]
+[![ReportCard][ReportCard-Image]][ReportCard-Url]
+[![Build Status][Build-Status-Image]][Build-Status-Url]
+[![Coverage Status][Coverage-Status-Image]][Coverage-Status-Url]
+[![GoDoc][GoDoc-Image]][GoDoc-Url]
 
 A [Go](http://golang.org) package implementing the RES-Service protocol for [Resgate - Real-time API Gateway](https://github.com/jirenius/resgate).  
 When you want to create stateless REST API services but need to have all your resources updated in real time on your reactive web clients.
@@ -182,3 +186,13 @@ The go-res package is still under development, and commits may still contain bre
 
 If you find any issues, feel free to [report them](https://github.com/jirenius/go-res/issues/new) as an Issue.
 
+[GoDoc-Url]: http://godoc.org/github.com/jirenius/go-res
+[GoDoc-Image]: https://godoc.org/github.com/jirenius/go-res?status.svg
+[License-Url]: http://opensource.org/licenses/MIT
+[License-Image]: https://img.shields.io/badge/License-MIT-blue.svg
+[ReportCard-Url]: http://goreportcard.com/report/jirenius/go-res
+[ReportCard-Image]: http://goreportcard.com/badge/github.com/jirenius/go-res
+[Build-Status-Url]: https://travis-ci.org/jirenius/go-res
+[Build-Status-Image]: https://travis-ci.org/jirenius/go-res.svg?branch=master
+[Coverage-Status-Url]: https://coveralls.io/github/jirenius/go-res?branch=master
+[Coverage-Status-Image]: https://coveralls.io/repos/github/jirenius/go-res/badge.svg?branch=master

@@ -54,9 +54,3 @@ func newAuthRequest() *request {
 		URI:        defaultURI,
 	}
 }
-
-// Call responses
-const (
-	requestTimeout uint64 = iota
-	noRequest
-)

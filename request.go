@@ -207,7 +207,7 @@ func (r *Request) URI() string {
 
 // OK sends a successful response for the request.
 // For get requests, the Model or Collection methods is usually used instead.
-// For access requests, the Access or AccessGranted methods is usally used instead.
+// For access requests, the Access or AccessGranted methods is usually used instead.
 // The result may be nil.
 func (r *Request) OK(result interface{}) {
 	r.success(result)

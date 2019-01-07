@@ -23,8 +23,6 @@ type TestConn struct {
 	mu   sync.Mutex
 	ch   chan *nats.Msg
 	subs map[string]struct{}
-
-	rcount int
 }
 
 // Msg represent a message sent to NATS
