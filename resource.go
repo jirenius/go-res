@@ -112,16 +112,6 @@ func (r *resource) ParseQuery() url.Values {
 // defined, it returns a nil interface and a *Error type error.
 func (r *resource) Value() (interface{}, error) {
 	panic("not implemented")
-	return nil, ErrNotFound
-
-	// switch r.hs.typ {
-
-	// default:
-	// 	return nil, ErrNotFound
-	// }
-
-	// req := &Request{}
-	// r.hs.GetModel()
 }
 
 func isValidEvent(ev string) bool {
@@ -133,7 +123,6 @@ func isValidEvent(ev string) bool {
 			return false
 		}
 	}
-
 	return true
 }
 
