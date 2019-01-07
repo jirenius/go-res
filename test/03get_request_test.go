@@ -67,8 +67,8 @@ func TestGetModelNotFound(t *testing.T) {
 	isCalled := false
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.NotFound()
 			isCalled = true
+			r.NotFound()
 		}))
 	}, func(s *Session) {
 		inb := s.Request("get.test.model", newRequest())
@@ -87,8 +87,8 @@ func TestGetCollectionNotFound(t *testing.T) {
 	isCalled := false
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			r.NotFound()
 			isCalled = true
+			r.NotFound()
 		}))
 	}, func(s *Session) {
 		inb := s.Request("get.test.collection", newRequest())

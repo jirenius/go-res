@@ -494,7 +494,7 @@ func (r *Request) executeHandler() {
 		}
 		h(r)
 	default:
-		r.s.Logf("unknown request type: %s", r.Type)
+		r.s.Logf("unknown request type: %s", r.Type())
 		return
 	}
 
