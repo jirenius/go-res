@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/jirenius/go-res"
@@ -63,7 +64,7 @@ func TestAccessError(t *testing.T) {
 func TestPanicOnAccess(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Access(func(r res.AccessRequest) {
-			panic("Panic!")
+			panic("panic")
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
@@ -75,7 +76,7 @@ func TestPanicOnAccess(t *testing.T) {
 	})
 }
 
-// Test that panicing with an Error in am access request results in the given error
+// Test that panicing with an Error in an access request results in the given error
 func TestPanicWithErrorOnAccess(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Access(func(r res.AccessRequest) {
@@ -86,6 +87,34 @@ func TestPanicWithErrorOnAccess(t *testing.T) {
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrMethodNotFound)
+	})
+}
+
+// Test that panicing with generic value in an access request results in the given error
+func TestPanicWithGenericValueOnAccess(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			panic(42)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", nil)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, "system.internalError")
+	})
+}
+
+// Test that panicing with an error in an access request results in system.internalError
+func TestPanicWithOsErrorOnAccess(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			panic(errors.New("panic"))
+		}))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", nil)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, "system.internalError")
 	})
 }
 
