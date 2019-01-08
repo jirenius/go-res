@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -138,27 +139,11 @@ func TestGetCollectionError(t *testing.T) {
 func TestPanicOnGetModel(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			panic("Panic!")
+			panic("panic")
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
 			inb := s.Request("get.test.model", newRequest())
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertErrorCode(t, "system.internalError")
-		}
-	})
-}
-
-// Test that panicing in a collection get request results in system.internalError
-func TestPanicOnGetCollection(t *testing.T) {
-	runTest(t, func(s *Session) {
-		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			panic("Panic!")
-		}))
-	}, func(s *Session) {
-		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.collection", newRequest())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertErrorCode(t, "system.internalError")
@@ -180,6 +165,52 @@ func TestPanicWithErrorOnGetModel(t *testing.T) {
 	})
 }
 
+// Test that panicing with an error in a model get request results in the given error
+func TestPanicWithOsErrorOnGetModel(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			panic(errors.New("panic"))
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model", newRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
+	})
+}
+
+// Test that panicing with a generic value in a model get request results in system.internalError
+func TestPanicWithGenericValueOnGetModel(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			panic(42)
+		}))
+	}, func(s *Session) {
+		for i := 0; i < 10; i++ {
+			inb := s.Request("get.test.model", newRequest())
+			s.GetMsg(t).
+				AssertSubject(t, inb).
+				AssertErrorCode(t, "system.internalError")
+		}
+	})
+}
+
+// Test that panicing in a collection get request results in system.internalError
+func TestPanicOnGetCollection(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			panic("panic")
+		}))
+	}, func(s *Session) {
+		for i := 0; i < 10; i++ {
+			inb := s.Request("get.test.collection", newRequest())
+			s.GetMsg(t).
+				AssertSubject(t, inb).
+				AssertErrorCode(t, "system.internalError")
+		}
+	})
+}
+
 // Test that panicing with an Error in a collection get request results in the given error
 func TestPanicWithErrorOnGetCollection(t *testing.T) {
 	runTest(t, func(s *Session) {
@@ -191,6 +222,34 @@ func TestPanicWithErrorOnGetCollection(t *testing.T) {
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrMethodNotFound)
+	})
+}
+
+// Test that panicing with an error in a collection get request results in the given error
+func TestPanicWithOsErrorOnGetCollection(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			panic(errors.New("panic"))
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection", newRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
+	})
+}
+
+// Test that panicing with a generic value in a collection get request results in the given error
+func TestPanicWithGenericValueOnGetCollection(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			panic(42)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection", newRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
 	})
 }
 

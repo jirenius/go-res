@@ -77,6 +77,7 @@ type resource struct {
 	rname      string
 	pathParams map[string]string
 	query      string
+	inGet      bool
 	s          *Service
 	hs         *regHandler
 }
@@ -118,8 +119,16 @@ func (r *resource) ParseQuery() url.Values {
 // GetCollection resource handlers.
 // If it fails to get the resource value, or no get handler is
 // defined, it returns a nil interface and a *Error type error.
+// Panics if called from within GetModel or GetCollection handler.
 func (r *resource) Value() (interface{}, error) {
-	panic("not implemented")
+	// Panic if the getRequest is called within GetModel or GetCollection handler.
+	if r.inGet {
+		panic("Value() called from within get handler")
+	}
+
+	gr := &getRequest{resource: r}
+	gr.executeHandler()
+	return gr.value, gr.err
 }
 
 func isValidPart(p string) bool {

@@ -409,6 +409,7 @@ func (r *Request) reply(payload []byte) {
 func (r *Request) executeHandler() {
 	// Recover from panics inside handlers
 	defer func() {
+		r.inGet = false
 		v := recover()
 		if v == nil {
 			return
@@ -455,14 +456,16 @@ func (r *Request) executeHandler() {
 		}
 		hs.Access(r)
 	case "get":
+		r.inGet = true
 		switch hs.typ {
-		case rtypeUnset:
-			r.reply(responseNotFound)
-			return
 		case rtypeModel:
 			hs.GetModel(r)
 		case rtypeCollection:
+
 			hs.GetCollection(r)
+		default:
+			r.reply(responseNotFound)
+			return
 		}
 	case "call":
 		if r.method == "new" {

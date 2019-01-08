@@ -34,14 +34,14 @@ package main
 import res "github.com/jirenius/go-res"
 
 func main() {
-	s := res.NewService("myservice")
-	s.Handle("mymodel",
-		res.Access(res.AccessGranted),
-		res.GetModel(func(r res.ModelRequest) {
-			r.Model(map[string]string{"greeting": "welcome"})
-		}),
-	)
-	s.ListenAndServe("nats://localhost:4222")
+    s := res.NewService("myservice")
+    s.Handle("mymodel",
+        res.Access(res.AccessGranted),
+        res.GetModel(func(r res.ModelRequest) {
+            r.Model(map[string]string{"greeting": "welcome"})
+        }),
+    )
+    s.ListenAndServe("nats://localhost:4222")
 }
 ```
 
@@ -60,10 +60,10 @@ s := res.NewService("myservice")
 ```go
 mymodel := map[string]interface{}{"name": "foo", "value": 42}
 s.Handle("mymodel",
-	res.Access(res.AccessGranted),
-	res.GetModel(func(r res.ModelRequest) {
-		r.Model(mymodel)
-	}),
+    res.Access(res.AccessGranted),
+    res.GetModel(func(r res.ModelRequest) {
+        r.Model(mymodel)
+    }),
 )
 ```
 
@@ -72,10 +72,10 @@ s.Handle("mymodel",
 ```go
 mycollection := []string{"first", "second", "third"}
 s.Handle("mycollection",
-	res.Access(res.AccessGranted),
-	res.GetCollection(func(r res.CollectionRequest) {
-		r.Collection(mycollection)
-	}),
+    res.Access(res.AccessGranted),
+    res.GetCollection(func(r res.CollectionRequest) {
+        r.Collection(mycollection)
+    }),
 )
 ```
 
@@ -83,15 +83,15 @@ s.Handle("mycollection",
 
 ```go
 s.Handle("article.$id",
-	res.Access(res.AccessGranted),
-	res.GetModel(func(r res.ModelRequest) {
-		article := getArticle(r.PathParam("id"))
-		if article == nil {
-			r.NotFound()
-		} else {
-			r.Model(article)
-		}
-	}),
+    res.Access(res.AccessGranted),
+    res.GetModel(func(r res.ModelRequest) {
+        article := getArticle(r.PathParam("id"))
+        if article == nil {
+            r.NotFound()
+        } else {
+            r.Model(article)
+        }
+    }),
 )
 ```
 
@@ -99,14 +99,14 @@ s.Handle("article.$id",
 
 ```go
 s.Handle("math",
-	res.Access(res.AccessGranted),
-	res.Call("double", func(r res.CallRequest) {
-		var p struct {
-			Value int `json:"value"`
-		}
-		r.ParseParams(&p)
-		r.OK(p.Value * 2)
-	}),
+    res.Access(res.AccessGranted),
+    res.Call("double", func(r res.CallRequest) {
+        var p struct {
+            Value int `json:"value"`
+        }
+        r.ParseParams(&p)
+        r.OK(p.Value * 2)
+    }),
 )
 ```
 
@@ -115,8 +115,8 @@ A change event will update the model on all subscribing clients.
 
 ```go
 s.With("myservice.mymodel", func(r res.Resource) {
-	mymodel["name"] = "bar"
-	r.ChangeEvent(map[string]interface{}{"name": "bar"})
+    mymodel["name"] = "bar"
+    r.ChangeEvent(map[string]interface{}{"name": "bar"})
 })
 ```
 
@@ -125,8 +125,8 @@ An add event will update the collection on all subscribing clients.
 
 ```go
 s.With("myservice.mycollection", func(r res.Resource) {
-	mycollection = append(mycollection, "fourth")
-	r.AddEvent("fourth", len(mycollection)-1)
+    mycollection = append(mycollection, "fourth")
+    r.AddEvent("fourth", len(mycollection)-1)
 })
 ```
 
@@ -134,18 +134,18 @@ s.With("myservice.mycollection", func(r res.Resource) {
 
 ```go
 s.Handle("myauth",
-	res.Auth("login", func(r res.AuthRequest) {
-		var p struct {
-			Password string `json:"password"`
-		}
-		r.ParseParams(&p)
-		if p.Password != "mysecret" {
-			r.InvalidParams("Wrong password")
-		} else {
-			r.TokenEvent(map[string]string{"user": "admin"})
-			r.OK(nil)
-		}
-	}),
+    res.Auth("login", func(r res.AuthRequest) {
+        var p struct {
+            Password string `json:"password"`
+        }
+        r.ParseParams(&p)
+        if p.Password != "mysecret" {
+            r.InvalidParams("Wrong password")
+        } else {
+            r.TokenEvent(map[string]string{"user": "admin"})
+            r.OK(nil)
+        }
+    }),
 )
 ```
 
@@ -153,20 +153,20 @@ s.Handle("myauth",
 
 ```go
 s.Handle("mymodel",
-	res.Access(func(r res.AccessRequest) {
-		var t struct {
-			User string `json:"user"`
-		}
-		r.ParseToken(&t)
-		if t.User == "admin" {
-			r.AccessGranted()
-		} else {
-			r.AccessDenied()
-		}
+    res.Access(func(r res.AccessRequest) {
+        var t struct {
+            User string `json:"user"`
+        }
+        r.ParseToken(&t)
+        if t.User == "admin" {
+            r.AccessGranted()
+        } else {
+            r.AccessDenied()
+        }
     }),
-	res.GetModel(func(r res.ModelRequest) {
-		r.Model(mymodel)
-	}),
+    res.GetModel(func(r res.ModelRequest) {
+        r.Model(mymodel)
+    }),
 )
 ```
 
@@ -189,7 +189,7 @@ If you find any issues, feel free to [report them](https://github.com/jirenius/g
 [GoDoc-Url]: http://godoc.org/github.com/jirenius/go-res
 [GoDoc-Image]: https://godoc.org/github.com/jirenius/go-res?status.svg
 [License-Url]: http://opensource.org/licenses/MIT
-[License-Image]: https://img.shields.io/badge/License-MIT-blue.svg
+[License-Image]: https://img.shields.io/badge/license-MIT-blue.svg
 [ReportCard-Url]: http://goreportcard.com/report/jirenius/go-res
 [ReportCard-Image]: http://goreportcard.com/badge/github.com/jirenius/go-res
 [Build-Status-Url]: https://travis-ci.com/jirenius/go-res
