@@ -279,20 +279,22 @@ func (s *Service) SetReset(resources, access []string) {
 //
 // ListenAndServe returns an error if failes to connect or subscribe.
 // Otherwise, nil is returned once the connection is closed using Close.
-func (s *Service) ListenAndServe(url string) error {
+func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 	if !atomic.CompareAndSwapInt32(&s.state, stateStopped, stateStarting) {
 		return errNotStopped
 	}
 
-	opts := nats.Options{
-		Url:            url,
-		Name:           s.Name,
-		AllowReconnect: true,
-		MaxReconnect:   -1,
+	opts := []nats.Option{
+		nats.Name(s.Name),
+		nats.MaxReconnects(-1),
+		nats.ReconnectHandler(s.handleReconnect),
+		nats.DisconnectHandler(s.handleDisconnect),
+		nats.ClosedHandler(s.handleClosed),
 	}
+	opts = append(opts, options...)
 
 	s.Logf("Connecting to NATS server")
-	nc, err := opts.Connect()
+	nc, err := nats.Connect(url, opts...)
 	if err != nil {
 		s.Logf("Failed to connect to NATS server: %s", err)
 		return err
