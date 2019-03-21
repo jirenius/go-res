@@ -44,3 +44,16 @@ type resetEvent struct {
 type tokenEvent struct {
 	Token interface{} `json:"token"`
 }
+
+type changeEvent struct {
+	Values map[string]interface{} `json:"values"`
+}
+
+type addEvent struct {
+	Value interface{} `json:"value"`
+	Idx   int         `json:"idx"`
+}
+
+type removeEvent struct {
+	Idx int `json:"idx"`
+}
