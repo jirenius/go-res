@@ -186,7 +186,7 @@ func (r *resource) ChangeEvent(ev map[string]interface{}) {
 	if len(ev) == 0 {
 		return
 	}
-	r.s.event("event."+r.rname+".change", ev)
+	r.s.event("event."+r.rname+".change", changeEvent{Values: ev})
 }
 
 // AddEvent sends an add event, adding the value v at index idx.

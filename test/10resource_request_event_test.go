@@ -140,7 +140,9 @@ func TestChangeEvent(t *testing.T) {
 			)
 		}, func(s *Session) {
 			inb := s.Request("call.test.model.method", nil)
-			s.GetMsg(t).AssertPayload(t, l.Payload).AssertSubject(t, "event.test.model.change")
+			s.GetMsg(t).AssertPayload(t, struct {
+				Values map[string]interface{} `json:"values"`
+			}{Values: l.Payload}).AssertSubject(t, "event.test.model.change")
 			s.GetMsg(t).AssertSubject(t, inb)
 		})
 	}
@@ -176,7 +178,9 @@ func TestChangeEventUsingWith(t *testing.T) {
 			AssertNoError(t, s.With("test.model", func(r res.Resource) {
 				r.ChangeEvent(l.Payload)
 			}))
-			s.GetMsg(t).AssertPayload(t, l.Payload).AssertSubject(t, "event.test.model.change")
+			s.GetMsg(t).AssertPayload(t, struct {
+				Values map[string]interface{} `json:"values"`
+			}{Values: l.Payload}).AssertSubject(t, "event.test.model.change")
 		})
 	}
 }
