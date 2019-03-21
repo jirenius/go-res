@@ -6,7 +6,7 @@ go:
 install:
 - go get -t ./...
 - go get github.com/mattn/goveralls
-- go get github.com/golang/lint/golint
+- go get golang.org/x/lint/golint
 - go get github.com/client9/misspell/cmd/misspell
 before_script:
 - $(exit $(go fmt ./... | wc -l))
