@@ -1,19 +1,18 @@
-# RES service package
+<p align="center"><a href="https://resgate.io" target="_blank" rel="noopener noreferrer"><img width="100" src="https://resgate.io/img/resgate-logo.png" alt="Resgate logo"></a></p>
+<h2 align="center"><b>RES Service for Go</b><br/>Synchronize Your Clients</h2>
+<p align="center">
+<a href="http://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+<a href="http://goreportcard.com/report/jirenius/go-res"><img src="http://goreportcard.com/badge/github.com/jirenius/go-res" alt="Report Card"></a>
+<a href="https://travis-ci.com/jirenius/go-res"><img src="https://travis-ci.com/jirenius/go-res.svg?branch=master" alt="Build Status"></a>
+<a href="https://coveralls.io/github/jirenius/go-res?branch=master"><img src="https://coveralls.io/repos/github/jirenius/go-res/badge.svg?branch=master" alt="Coverage"></a>
+<a href="http://godoc.org/github.com/jirenius/go-res"><img src="https://godoc.org/github.com/jirenius/go-res?status.svg" alt="GoDoc"></a>
+</p>
 
-[![License][License-Image]][License-Url]
-[![ReportCard][ReportCard-Image]][ReportCard-Url]
-[![Build Status][Build-Status-Image]][Build-Status-Url]
-[![Coverage Status][Coverage-Status-Image]][Coverage-Status-Url]
-[![GoDoc][GoDoc-Image]][GoDoc-Url]
+---
 
-A [Go](http://golang.org) package implementing the RES-Service protocol for [Resgate - Real-time API Gateway](https://github.com/jirenius/resgate).  
-When you want to create stateless REST API services but need to have all your resources updated in real time on your reactive web clients.
+[Go](http://golang.org) package implementing the RES-Service Protocol. Used to create REST, real time, and RPC APIs, where all your reactive web clients are synchronized seamlessly through [Resgate](https://github.com/jirenius/resgate).
 
-All resources and methods served by RES services are made accessible through [Resgate](https://github.com/jirenius/resgate) through both:
-* Ordinary HTTP REST requests
-* WebSocket using [ResClient](https://www.npmjs.com/package/resclient)
-
-With ResClient, all resources will be updated in real time, without having to write a single line of client code to handle specific events. It just works.
+Visit [Resgate.io](https://resgate.io) for more information.
 
 ## Installation
 
@@ -21,12 +20,7 @@ With ResClient, all resources will be updated in real time, without having to wr
 go get github.com/jirenius/go-res
 ```
 
-## Examples
-
-* [Hello World](examples/hello-world/) - Single model updated in real time
-* [Book Collection](examples/book-collection/) - List of books, added, edited, and updated in real time
-
-### As easy as
+## As easy as
 
 ```go
 package main
@@ -34,20 +28,32 @@ package main
 import res "github.com/jirenius/go-res"
 
 func main() {
-    s := res.NewService("myservice")
-    s.Handle("mymodel",
-        res.Access(res.AccessGranted),
-        res.GetModel(func(r res.ModelRequest) {
-            r.Model(map[string]string{"greeting": "welcome"})
-        }),
-    )
-    s.ListenAndServe("nats://localhost:4222")
+   s := res.NewService("example")
+   s.Handle("model",
+      res.Access(res.AccessGranted),
+      res.GetModel(func(r res.ModelRequest) {
+         r.Model(map[string]string{
+            "message": "Hello, World!",
+         })
+      }),
+   )
+   s.ListenAndServe("nats://localhost:4222")
 }
 ```
 
-### Usage
+## Examples
 
-While a RES service communicates over a message broker (NATS Server), instead of listening to HTTP request, the pattern of requests and responses are similar.
+| Example | Description
+| --- | ---
+| [Hello World](examples/hello-world/) | Single text field that is updated in real time.
+| [Book Collection](examples/book-collection/) | List of book titles & authors that can be edited by many.
+
+> **Note**
+>
+> Above examples are complete with both service and client.
+
+
+## Usage
 
 #### Create a new service
 
@@ -60,10 +66,10 @@ s := res.NewService("myservice")
 ```go
 mymodel := map[string]interface{}{"name": "foo", "value": 42}
 s.Handle("mymodel",
-    res.Access(res.AccessGranted),
-    res.GetModel(func(r res.ModelRequest) {
-        r.Model(mymodel)
-    }),
+   res.Access(res.AccessGranted),
+   res.GetModel(func(r res.ModelRequest) {
+      r.Model(mymodel)
+   }),
 )
 ```
 
@@ -72,10 +78,10 @@ s.Handle("mymodel",
 ```go
 mycollection := []string{"first", "second", "third"}
 s.Handle("mycollection",
-    res.Access(res.AccessGranted),
-    res.GetCollection(func(r res.CollectionRequest) {
-        r.Collection(mycollection)
-    }),
+   res.Access(res.AccessGranted),
+   res.GetCollection(func(r res.CollectionRequest) {
+      r.Collection(mycollection)
+   }),
 )
 ```
 
@@ -83,15 +89,15 @@ s.Handle("mycollection",
 
 ```go
 s.Handle("article.$id",
-    res.Access(res.AccessGranted),
-    res.GetModel(func(r res.ModelRequest) {
-        article := getArticle(r.PathParam("id"))
-        if article == nil {
-            r.NotFound()
-        } else {
-            r.Model(article)
-        }
-    }),
+   res.Access(res.AccessGranted),
+   res.GetModel(func(r res.ModelRequest) {
+      article := getArticle(r.PathParam("id"))
+      if article == nil {
+         r.NotFound()
+      } else {
+         r.Model(article)
+      }
+   }),
 )
 ```
 
@@ -99,14 +105,14 @@ s.Handle("article.$id",
 
 ```go
 s.Handle("math",
-    res.Access(res.AccessGranted),
-    res.Call("double", func(r res.CallRequest) {
-        var p struct {
-            Value int `json:"value"`
-        }
-        r.ParseParams(&p)
-        r.OK(p.Value * 2)
-    }),
+   res.Access(res.AccessGranted),
+   res.Call("double", func(r res.CallRequest) {
+      var p struct {
+         Value int `json:"value"`
+      }
+      r.ParseParams(&p)
+      r.OK(p.Value * 2)
+   }),
 )
 ```
 
@@ -115,8 +121,8 @@ A change event will update the model on all subscribing clients.
 
 ```go
 s.With("myservice.mymodel", func(r res.Resource) {
-    mymodel["name"] = "bar"
-    r.ChangeEvent(map[string]interface{}{"name": "bar"})
+   mymodel["name"] = "bar"
+   r.ChangeEvent(map[string]interface{}{"name": "bar"})
 })
 ```
 
@@ -125,8 +131,8 @@ An add event will update the collection on all subscribing clients.
 
 ```go
 s.With("myservice.mycollection", func(r res.Resource) {
-    mycollection = append(mycollection, "fourth")
-    r.AddEvent("fourth", len(mycollection)-1)
+   mycollection = append(mycollection, "fourth")
+   r.AddEvent("fourth", len(mycollection)-1)
 })
 ```
 
@@ -134,18 +140,18 @@ s.With("myservice.mycollection", func(r res.Resource) {
 
 ```go
 s.Handle("myauth",
-    res.Auth("login", func(r res.AuthRequest) {
-        var p struct {
-            Password string `json:"password"`
-        }
-        r.ParseParams(&p)
-        if p.Password != "mysecret" {
-            r.InvalidParams("Wrong password")
-        } else {
-            r.TokenEvent(map[string]string{"user": "admin"})
-            r.OK(nil)
-        }
-    }),
+   res.Auth("login", func(r res.AuthRequest) {
+      var p struct {
+         Password string `json:"password"`
+      }
+      r.ParseParams(&p)
+      if p.Password != "mysecret" {
+         r.InvalidParams("Wrong password")
+      } else {
+         r.TokenEvent(map[string]string{"user": "admin"})
+         r.OK(nil)
+      }
+   }),
 )
 ```
 
@@ -153,20 +159,20 @@ s.Handle("myauth",
 
 ```go
 s.Handle("mymodel",
-    res.Access(func(r res.AccessRequest) {
-        var t struct {
-            User string `json:"user"`
-        }
-        r.ParseToken(&t)
-        if t.User == "admin" {
-            r.AccessGranted()
-        } else {
-            r.AccessDenied()
-        }
-    }),
-    res.GetModel(func(r res.ModelRequest) {
-        r.Model(mymodel)
-    }),
+   res.Access(func(r res.AccessRequest) {
+      var t struct {
+         User string `json:"user"`
+      }
+      r.ParseToken(&t)
+      if t.User == "admin" {
+         r.AccessGranted()
+      } else {
+         r.AccessDenied()
+      }
+   }),
+   res.GetModel(func(r res.ModelRequest) {
+      r.Model(mymodel)
+   }),
 )
 ```
 
@@ -184,15 +190,4 @@ Inspiration on the go-res API has been taken from [github.com/go-chi/chi](https:
 
 The go-res package is still under development, and commits may still contain breaking changes. It should only be used for educational purpose. Any feedback on the package API or its implementation is highly appreciated!
 
-If you find any issues, feel free to [report them](https://github.com/jirenius/go-res/issues/new) as an Issue.
-
-[GoDoc-Url]: http://godoc.org/github.com/jirenius/go-res
-[GoDoc-Image]: https://godoc.org/github.com/jirenius/go-res?status.svg
-[License-Url]: http://opensource.org/licenses/MIT
-[License-Image]: https://img.shields.io/badge/license-MIT-blue.svg
-[ReportCard-Url]: http://goreportcard.com/report/jirenius/go-res
-[ReportCard-Image]: http://goreportcard.com/badge/github.com/jirenius/go-res
-[Build-Status-Url]: https://travis-ci.com/jirenius/go-res
-[Build-Status-Image]: https://travis-ci.com/jirenius/go-res.svg?branch=master
-[Coverage-Status-Url]: https://coveralls.io/github/jirenius/go-res?branch=master
-[Coverage-Status-Image]: https://coveralls.io/repos/github/jirenius/go-res/badge.svg?branch=master
+If you find any issues, feel free to [report them](https://github.com/jirenius/go-res/issues/new) as an issue.
