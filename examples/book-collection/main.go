@@ -116,37 +116,38 @@ func setBookHandler(r res.CallRequest) {
 	}
 	r.ParseParams(&p)
 
-	changed := make(map[string]interface{}, 2)
-
-	// Check if the title property was changed
+	// Validate title param
 	if p.Title != nil {
-		// Verify it is not empty
-		title := strings.TrimSpace(*p.Title)
-		if title == "" {
+		*p.Title = strings.TrimSpace(*p.Title)
+		if *p.Title == "" {
 			r.InvalidParams("Title must not be empty")
 			return
 		}
-
-		if title != book.Title {
-			// Update the model.
-			book.Title = title
-			changed["title"] = title
-		}
 	}
 
-	// Check if the author property was changed
+	// Validate author param
 	if p.Author != nil {
-		// Verify it is not empty
-		author := strings.TrimSpace(*p.Author)
-		if author == "" {
+		*p.Author = strings.TrimSpace(*p.Author)
+		if *p.Author == "" {
 			r.InvalidParams("Author must not be empty")
 			return
 		}
-		if author != book.Author {
-			// Update the model.
-			book.Author = author
-			changed["author"] = author
-		}
+	}
+
+	changed := make(map[string]interface{}, 2)
+
+	// Check if the title property was changed
+	if p.Title != nil && *p.Title != book.Title {
+		// Update the model.
+		book.Title = *p.Title
+		changed["title"] = book.Title
+	}
+
+	// Check if the author property was changed
+	if p.Author != nil && *p.Author != book.Author {
+		// Update the model.
+		book.Author = *p.Author
+		changed["author"] = book.Author
 	}
 
 	// Send a change event with updated fields

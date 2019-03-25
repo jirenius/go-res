@@ -23,17 +23,6 @@ const refSuffix = '}'
 // DeleteAction is used for deleted properties in "change" events
 var DeleteAction = json.RawMessage(`{"action":"delete"}`)
 
-// addEvent is used as event payload on "add" events
-type addEvent struct {
-	Value interface{} `json:"value"`
-	Idx   int         `json:"idx"`
-}
-
-// removeEvent is used as event payload on "remove" events
-type removeEvent struct {
-	Idx int `json:"idx"`
-}
-
 // MarshalJSON makes Ref implement the json.Marshaler interface.
 func (r Ref) MarshalJSON() ([]byte, error) {
 	rid, err := json.Marshal(string(r))
