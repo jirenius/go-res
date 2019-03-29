@@ -77,7 +77,15 @@ func NewTestConn(useGnatsd bool) *MockConn {
 	if err != nil {
 		panic(err)
 	}
+	err = nc.Flush()
+	if err != nil {
+		panic(err)
+	}
 	rc, err := nats.Connect(fmt.Sprintf("nats://%s:%d", opts.Host, opts.Port), nats.NoEcho())
+	if err != nil {
+		panic(err)
+	}
+	err = rc.Flush()
 	if err != nil {
 		panic(err)
 	}
@@ -245,7 +253,6 @@ func (c *MockConn) GetMsg(t *testing.T) *Msg {
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			panic("expected a message but found none")
 		} else {
-			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			t.Fatal("expected a message but found none")
 		}
 	}
