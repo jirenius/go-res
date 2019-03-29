@@ -245,6 +245,7 @@ func (c *MockConn) GetMsg(t *testing.T) *Msg {
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			panic("expected a message but found none")
 		} else {
+			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			t.Fatal("expected a message but found none")
 		}
 	}

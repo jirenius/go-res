@@ -9,13 +9,6 @@ import (
 	res "github.com/jirenius/go-res"
 )
 
-func TestTest(t *testing.T) {
-	runTestWithGnatsd(t, func(s *Session) {
-	}, func(s *Session) {
-		s.GetMsg(t)
-	})
-}
-
 // Test QueryEvent sends a query event with a inbox subject
 func TestQueryEvent(t *testing.T) {
 	model := resource["test.model"]
