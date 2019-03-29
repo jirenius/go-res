@@ -116,13 +116,13 @@ func TestAuthInvalidParams(t *testing.T) {
 func TestAuthError(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
-			r.Error(res.ErrDisposing)
+			r.Error(res.ErrTimeout)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("auth.test.model.method", nil)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
-			AssertError(t, res.ErrDisposing)
+			AssertError(t, res.ErrTimeout)
 	})
 }
 
@@ -295,23 +295,19 @@ func TestAuthParseTokenWithNilToken(t *testing.T) {
 // Test that registering auth methods with duplicate names causes panic
 func TestRegisteringDuplicateAuthMethodPanics(t *testing.T) {
 	runTest(t, func(s *Session) {
-		defer func() {
-			v := recover()
-			if v == nil {
-				t.Errorf(`expected test to panic, but nothing happened`)
-			}
-		}()
-		s.Handle("model",
-			res.Auth("foo", func(r res.AuthRequest) {
-				r.OK(nil)
-			}),
-			res.Auth("bar", func(r res.AuthRequest) {
-				r.OK(nil)
-			}),
-			res.Auth("foo", func(r res.AuthRequest) {
-				r.OK(nil)
-			}),
-		)
+		AssertPanic(t, func() {
+			s.Handle("model",
+				res.Auth("foo", func(r res.AuthRequest) {
+					r.OK(nil)
+				}),
+				res.Auth("bar", func(r res.AuthRequest) {
+					r.OK(nil)
+				}),
+				res.Auth("foo", func(r res.AuthRequest) {
+					r.OK(nil)
+				}),
+			)
+		})
 	}, nil)
 }
 

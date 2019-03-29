@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"sync"
 )
 
 // MemLogger writes log messages to os.Stderr
@@ -12,6 +13,7 @@ type MemLogger struct {
 	b     *bytes.Buffer
 	debug bool
 	trace bool
+	mu    sync.Mutex
 }
 
 // newMemLogger returns a new logger that writes to a bytes buffer
@@ -33,11 +35,15 @@ func newMemLogger(debug bool, trace bool) *MemLogger {
 
 // Logf writes a log entry
 func (l *MemLogger) Logf(prefix string, format string, v ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.log.Print(prefix, fmt.Sprintf(format, v...))
 }
 
 // Debugf writes a debug entry
 func (l *MemLogger) Debugf(prefix string, format string, v ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if l.debug {
 		l.log.Print(prefix, fmt.Sprintf(format, v...))
 	}
@@ -45,6 +51,8 @@ func (l *MemLogger) Debugf(prefix string, format string, v ...interface{}) {
 
 // Tracef writes a trace entry
 func (l *MemLogger) Tracef(prefix string, format string, v ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if l.trace {
 		l.log.Print(prefix, fmt.Sprintf(format, v...))
 	}
@@ -52,5 +60,7 @@ func (l *MemLogger) Tracef(prefix string, format string, v ...interface{}) {
 
 // String returns the log
 func (l *MemLogger) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	return l.b.String()
 }

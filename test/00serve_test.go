@@ -28,7 +28,7 @@ func TestServiceLogger(t *testing.T) {
 }
 
 // Test that With returns an error if there is no registered pattern matching the resource
-func TestServiceWithWithNoMatchingPattern(t *testing.T) {
+func TestServiceWithWithoutMatchingPattern(t *testing.T) {
 	runTest(t, nil, func(s *Session) {
 		err := s.With("test.model", func(r res.Resource) {})
 		if err == nil {
@@ -44,7 +44,7 @@ func TestServiceSetReset(t *testing.T) {
 
 	var s *Session
 	l := newMemLogger(true, true)
-	c := NewTestConn()
+	c := NewTestConn(false)
 	r := res.NewService("test")
 	r.SetLogger(l)
 	r.SetReset(resources, access)
@@ -56,6 +56,7 @@ func TestServiceSetReset(t *testing.T) {
 	}
 
 	go func() {
+		defer s.StopServer()
 		defer close(s.cl)
 		if err := r.Serve(c); err != nil {
 			panic("test: failed to start service: " + err.Error())

@@ -6,8 +6,10 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/jirenius/resgate/logger"
+	"github.com/jirenius/timerqueue"
 	nats "github.com/nats-io/go-nats"
 )
 
@@ -16,6 +18,8 @@ const inChannelSize = 256
 
 // The number of default workers handling resource requests.
 const workerCount = 32
+
+const defaultQueryEventDuration = time.Second * 3
 
 var (
 	errNotStopped      = errors.New("res: service is not stopped")
@@ -67,7 +71,7 @@ type Handler struct {
 	// Group is the identifier of the group the resource belongs to.
 	// All resources of the same group will be handled on the same
 	// goroutine.
-	// If empty, the registered resource pattern will be used as
+	// If empty, the resource name will be used as identifier.
 	Group string
 }
 
@@ -104,6 +108,9 @@ type Service struct {
 	withAccess     bool                          // Flag that is true if there are patterns with Access handlers
 	resetResources []string                      // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
 	resetAccess    []string                      // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
+	queryTQ        *timerqueue.Queue             // Timer queue for query events duration
+	queryDuration  time.Duration                 // Duration to listen for query requests on a query event
+
 }
 
 // NewService creates a new Service given a service name.
@@ -111,9 +118,10 @@ type Service struct {
 func NewService(name string) *Service {
 	// [TODO] panic on invalid name
 	return &Service{
-		Name:     name,
-		patterns: patterns{root: &node{}},
-		logger:   logger.NewStdLogger(false, false),
+		Name:          name,
+		patterns:      patterns{root: &node{}},
+		logger:        logger.NewStdLogger(false, false),
+		queryDuration: defaultQueryEventDuration,
 	}
 }
 
@@ -123,8 +131,18 @@ func (s *Service) SetLogger(l logger.Logger) *Service {
 	if s.nc != nil {
 		panic("res: service already started")
 	}
-
 	s.logger = l
+	return s
+}
+
+// SetQueryEventDuration sets the duration for which the service
+// will listen for query requests sent on a query event.
+// Default is 3 seconds
+func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
+	if s.nc != nil {
+		panic("res: service already started")
+	}
+	s.queryDuration = d
 	return s
 }
 
@@ -331,6 +349,7 @@ func (s *Service) serve(nc Conn) error {
 	s.inCh = inCh
 	s.workCh = workCh
 	s.rwork = make(map[string]*work)
+	s.queryTQ = timerqueue.New(s.queryEventExpire, s.queryDuration)
 
 	// Start workers
 	s.wg.Add(workerCount)
@@ -660,4 +679,12 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *r
 	r.query = rc.Query
 
 	r.executeHandler()
+}
+
+func (s *Service) queryEventExpire(v interface{}) {
+	qe := v.(*queryEvent)
+	qe.sub.Drain()
+	s.runWith(qe.r.hs, qe.r.rname, func() {
+		qe.cb(nil)
+	})
 }

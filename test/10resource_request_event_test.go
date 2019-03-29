@@ -111,14 +111,10 @@ func TestEventPanicsOnInvalid(t *testing.T) {
 			s.Handle("model")
 		}, func(s *Session, done func()) {
 			AssertNoError(t, s.With("test.model", func(r res.Resource) {
-				defer func() {
-					v := recover()
-					if v == nil {
-						t.Errorf("expected event %#v to panic, but nothing happened", l.Event)
-					}
-					done()
-				}()
-				r.Event(l.Event, nil)
+				AssertPanic(t, func() {
+					r.Event(l.Event, nil)
+				})
+				done()
 			}))
 		})
 	}
@@ -213,14 +209,10 @@ func TestChangeEventPanicsOnUntypedResourceUsingWith(t *testing.T) {
 		s.Handle("bar")
 	}, func(s *Session, done func()) {
 		s.With("test.bar", func(r res.Resource) {
-			defer func() {
-				v := recover()
-				if v == nil {
-					t.Errorf("expected ChangeEvent to panic, but nothing happened")
-				}
-				done()
-			}()
-			r.ChangeEvent(map[string]interface{}{"foo": 42})
+			AssertPanic(t, func() {
+				r.ChangeEvent(map[string]interface{}{"foo": 42})
+			})
+			done()
 		})
 	})
 }
@@ -258,14 +250,10 @@ func TestChangeEventPanicsOnCollectionUsingWith(t *testing.T) {
 		}))
 	}, func(s *Session, done func()) {
 		s.With("test.collection", func(r res.Resource) {
-			defer func() {
-				v := recover()
-				if v == nil {
-					t.Errorf("expected ChangeEvent to panic, but nothing happened")
-				}
-				done()
-			}()
-			r.ChangeEvent(map[string]interface{}{"foo": 42})
+			AssertPanic(t, func() {
+				r.ChangeEvent(map[string]interface{}{"foo": 42})
+			})
+			done()
 		})
 	})
 }
@@ -335,14 +323,10 @@ func TestAddEventPanicsOnUntypedResourceUsingWith(t *testing.T) {
 		s.Handle("bar")
 	}, func(s *Session, done func()) {
 		s.With("test.bar", func(r res.Resource) {
-			defer func() {
-				v := recover()
-				if v == nil {
-					t.Errorf("expected AddEvent to panic, but nothing happened")
-				}
-				done()
-			}()
-			r.AddEvent("foo", 0)
+			AssertPanic(t, func() {
+				r.AddEvent("foo", 0)
+			})
+			done()
 		})
 	})
 }
@@ -380,14 +364,10 @@ func TestAddEventPanicsOnModelUsingWith(t *testing.T) {
 		}))
 	}, func(s *Session, done func()) {
 		s.With("test.model", func(r res.Resource) {
-			defer func() {
-				v := recover()
-				if v == nil {
-					t.Errorf("expected AddEvent to panic, but nothing happened")
-				}
-				done()
-			}()
-			r.AddEvent("foo", 0)
+			AssertPanic(t, func() {
+				r.AddEvent("foo", 0)
+			})
+			done()
 		})
 	})
 }
@@ -400,14 +380,10 @@ func TestAddEventPanicsOnIdxLessThanZero(t *testing.T) {
 		}))
 	}, func(s *Session, done func()) {
 		s.With("test.collection", func(r res.Resource) {
-			defer func() {
-				v := recover()
-				if v == nil {
-					t.Errorf("expected AddEvent to panic, but nothing happened")
-				}
-				done()
-			}()
-			r.AddEvent("foo", -1)
+			AssertPanic(t, func() {
+				r.AddEvent("foo", -1)
+			})
+			done()
 		})
 	})
 }
@@ -477,14 +453,10 @@ func TestRemoveEventPanicsOnUntypedResourceUsingWith(t *testing.T) {
 		s.Handle("bar")
 	}, func(s *Session, done func()) {
 		s.With("test.bar", func(r res.Resource) {
-			defer func() {
-				v := recover()
-				if v == nil {
-					t.Errorf("expected RemoveEvent to panic, but nothing happened")
-				}
-				done()
-			}()
-			r.RemoveEvent(0)
+			AssertPanic(t, func() {
+				r.RemoveEvent(0)
+			})
+			done()
 		})
 	})
 }
@@ -522,14 +494,10 @@ func TestRemoveEventPanicsOnModelUsingWith(t *testing.T) {
 		}))
 	}, func(s *Session, done func()) {
 		s.With("test.model", func(r res.Resource) {
-			defer func() {
-				v := recover()
-				if v == nil {
-					t.Errorf("expected RemoveEvent to panic, but nothing happened")
-				}
-				done()
-			}()
-			r.RemoveEvent(0)
+			AssertPanic(t, func() {
+				r.RemoveEvent(0)
+			})
+			done()
 		})
 	})
 }
@@ -542,14 +510,10 @@ func TestRemoveEventPanicsOnIdxLessThanZero(t *testing.T) {
 		}))
 	}, func(s *Session, done func()) {
 		s.With("test.collection", func(r res.Resource) {
-			defer func() {
-				v := recover()
-				if v == nil {
-					t.Errorf("expected RemoveEvent to panic, but nothing happened")
-				}
-				done()
-			}()
-			r.RemoveEvent(-1)
+			AssertPanic(t, func() {
+				r.RemoveEvent(-1)
+			})
+			done()
 		})
 	})
 }

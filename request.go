@@ -132,7 +132,9 @@ var (
 	responseMethodNotFound  = []byte(`{"error":{"code":"system.methodNotFound","message":"Method not found"}}`)
 	responseInvalidParams   = []byte(`{"error":{"code":"system.invalidParams","message":"Invalid parameters"}}`)
 	responseMissingResponse = []byte(`{"error":{"code":"system.internalError","message":"Internal error: missing response"}}`)
+	responseMissingQuery    = []byte(`{"error":{"code":"system.internalError","message":"Internal error: missing query"}}`)
 	responseAccessGranted   = []byte(`{"result":{"get":true,"call":"*"}}`)
+	responseNoQueryEvents   = []byte(`{"result":{"events":[]}}`)
 )
 
 // Predefined handlers
