@@ -8,7 +8,7 @@ import (
 	"github.com/jirenius/resgate/logger"
 )
 
-const timeoutDuration = 100 * time.Second
+const timeoutDuration = 4 * time.Second
 
 // Session represents a test session with a res server
 type Session struct {
@@ -31,9 +31,9 @@ func teardown(s *Session) {
 	}
 }
 
-func setup(t *testing.T, l logger.Logger, precb func(s *Session)) *Session {
+func setup(t *testing.T, l logger.Logger, precb func(s *Session), useGnatsd bool) *Session {
 	var s *Session
-	c := NewTestConn()
+	c := NewTestConn(useGnatsd)
 	r := res.NewService("test")
 	r.SetLogger(l)
 
@@ -48,6 +48,7 @@ func setup(t *testing.T, l logger.Logger, precb func(s *Session)) *Session {
 	}
 
 	go func() {
+		defer s.StopServer()
 		defer close(s.cl)
 		if err := r.Serve(c); err != nil {
 			panic("test: failed to start service: " + err.Error())
@@ -58,48 +59,41 @@ func setup(t *testing.T, l logger.Logger, precb func(s *Session)) *Session {
 	return s
 }
 
-func runTest(t *testing.T, precb func(s *Session), cb func(s *Session)) {
-	runTestWithLogger(t, newMemLogger(true, true), precb, cb)
+func syncCallback(cb func(*Session)) func(s *Session, done func()) {
+	return func(s *Session, done func()) {
+		if cb != nil {
+			cb(s)
+		}
+		done()
+	}
 }
 
-func runTestWithLogger(t *testing.T, l logger.Logger, precb func(s *Session), cb func(s *Session)) {
-	s := setup(t, l, precb)
+func runTest(t *testing.T, precb func(*Session), cb func(*Session)) {
+	runTestInternal(t, newMemLogger(true, true), precb, syncCallback(cb), false)
+}
 
-	panicked := true
-	defer func() {
-		if panicked {
-			l := s.Logger()
-			if l != nil {
-				t.Logf("Trace log:\n%s", l)
-			}
-		}
-	}()
+func runTestWithGnatsd(t *testing.T, precb func(*Session), cb func(*Session)) {
+	runTestInternal(t, newMemLogger(true, true), precb, syncCallback(cb), true)
+}
 
-	if cb != nil {
-		cb(s)
-	}
-
-	err := s.Shutdown()
-
-	// Check error, as an error means that server hasn't had
-	// time to start. We can then ignore waiting for the closing
-	if err == nil {
-		select {
-		case <-s.cl:
-		case <-time.After(timeoutDuration):
-			panic("test: failed to shutdown service: timeout")
-		}
-	}
-
-	panicked = false
+func runTestWithLogger(t *testing.T, l logger.Logger, precb func(*Session), cb func(*Session)) {
+	runTestInternal(t, l, precb, syncCallback(cb), false)
 }
 
 func runTestAsync(t *testing.T, precb func(s *Session), cb func(s *Session, done func())) {
-	s := setup(t, newMemLogger(true, true), precb)
+	runTestInternal(t, newMemLogger(true, true), precb, cb, false)
+}
+
+func runTestAsyncWithGnatsd(t *testing.T, precb func(s *Session), cb func(s *Session, done func())) {
+	runTestInternal(t, newMemLogger(true, true), precb, cb, true)
+}
+
+func runTestInternal(t *testing.T, l logger.Logger, precb func(s *Session), cb func(s *Session, done func()), useGnatsd bool) {
+	s := setup(t, l, precb, useGnatsd)
 
 	panicked := true
 	defer func() {
-		if panicked {
+		if panicked || t.Failed() {
 			l := s.Logger()
 			if l != nil {
 				t.Logf("Trace log:\n%s", l)
@@ -112,6 +106,8 @@ func runTestAsync(t *testing.T, precb func(s *Session), cb func(s *Session, done
 		cb(s, func() {
 			close(acl)
 		})
+	} else {
+		close(acl)
 	}
 
 	select {

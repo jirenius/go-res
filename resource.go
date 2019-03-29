@@ -2,6 +2,8 @@ package res
 
 import (
 	"net/url"
+
+	nats "github.com/nats-io/go-nats"
 )
 
 // Resource represents a resource
@@ -70,6 +72,8 @@ type Resource interface {
 	// See the protocol specification for more information:
 	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
 	ReaccessEvent()
+
+	QueryEvent(func(QueryRequest))
 }
 
 // resource is the internal implementation of the Resource interface
@@ -145,7 +149,7 @@ func isValidPart(p string) bool {
 
 // Event sends a custom event on the resource.
 // Will panic if the event is one of the pre-defined or reserved events,
-// "change", "delete", "add", "remove", "patch", "reaccess", or "unsubscribe".
+// "change", "delete", "add", "remove", "patch", "reaccess", "unsubscribe", or "query".
 // For pre-defined events, the matching method, ChangeEvent, AddEvent,
 // RemoveEvent, or ReaccessEvent should be used instead.
 //
@@ -167,6 +171,8 @@ func (r *resource) Event(event string, payload interface{}) {
 		panic("res: use ReaccessEvent to send a reaccess event")
 	case "unsubscribe":
 		panic(`res: "unsubscribe" is a reserved event name`)
+	case "query":
+		panic(`res: "query" is a reserved event name`)
 	}
 
 	if !isValidPart(event) {
@@ -216,4 +222,32 @@ func (r *resource) RemoveEvent(idx int) {
 // ReaccessEvent sends a reaccess event.
 func (r *resource) ReaccessEvent() {
 	r.s.rawEvent("event."+r.rname+".reaccess", nil)
+}
+
+// QueryEvent sends a query event on the resource, calling the
+// provided callback on any query request.
+// The last call to the callback will always be with nil, indicating
+// that the query event duration has expired.
+func (r *resource) QueryEvent(cb func(QueryRequest)) {
+	qsubj := nats.NewInbox()
+	ch := make(chan *nats.Msg, queryEventChannelSize)
+	sub, err := r.s.nc.ChanSubscribe(qsubj, ch)
+	if err != nil {
+		cb(nil)
+		r.s.Logf("Failed to subscribe to query event: %s", err)
+		return
+	}
+
+	qe := &queryEvent{
+		r:   *r,
+		sub: sub,
+		ch:  ch,
+		cb:  cb,
+	}
+
+	r.s.event("event."+r.rname+".query", resQueryEvent{Subject: qsubj})
+
+	go qe.startQueryListener()
+
+	r.s.queryTQ.Add(qe)
 }

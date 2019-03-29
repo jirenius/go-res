@@ -113,13 +113,13 @@ func TestNewInvalidParams(t *testing.T) {
 func TestNewError(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			r.Error(res.ErrDisposing)
+			r.Error(res.ErrTimeout)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("call.test.collection.new", nil)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
-			AssertError(t, res.ErrDisposing)
+			AssertError(t, res.ErrTimeout)
 	})
 }
 
@@ -292,35 +292,27 @@ func TestNewParseTokenWithNilToken(t *testing.T) {
 // Test registering a new handler using the Call method causes panic
 func TestRegisteringNewCallPanics(t *testing.T) {
 	runTest(t, func(s *Session) {
-		defer func() {
-			v := recover()
-			if v == nil {
-				t.Errorf(`expected test to panic, but nothing happened`)
-			}
-		}()
-		s.Handle("model", res.Call("new", func(r res.CallRequest) {
-			r.OK(nil)
-		}))
+		AssertPanic(t, func() {
+			s.Handle("model", res.Call("new", func(r res.CallRequest) {
+				r.OK(nil)
+			}))
+		})
 	}, nil)
 }
 
 // Test registering multiple new handlers causes panic
 func TestRegisteringMultipleNewHandlersPanics(t *testing.T) {
 	runTest(t, func(s *Session) {
-		defer func() {
-			v := recover()
-			if v == nil {
-				t.Errorf(`expected test to panic, but nothing happened`)
-			}
-		}()
-		s.Handle("model",
-			res.New(func(r res.NewRequest) {
-				r.NotFound()
-			}),
-			res.New(func(r res.NewRequest) {
-				r.NotFound()
-			}),
-		)
+		AssertPanic(t, func() {
+			s.Handle("model",
+				res.New(func(r res.NewRequest) {
+					r.NotFound()
+				}),
+				res.New(func(r res.NewRequest) {
+					r.NotFound()
+				}),
+			)
+		})
 	}, nil)
 }
 

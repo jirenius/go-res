@@ -57,3 +57,20 @@ type addEvent struct {
 type removeEvent struct {
 	Idx int `json:"idx"`
 }
+
+type resQueryEvent struct {
+	Subject string `json:"subject"`
+}
+
+type resQueryRequest struct {
+	Query string `json:"query"`
+}
+
+type resEvent struct {
+	Event string      `json:"event"`
+	Data  interface{} `json:"data"`
+}
+
+type queryResponse struct {
+	Events []resEvent `json:"events"`
+}

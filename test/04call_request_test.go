@@ -112,13 +112,13 @@ func TestCallInvalidParams(t *testing.T) {
 func TestCallError(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			r.Error(res.ErrDisposing)
+			r.Error(res.ErrTimeout)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("call.test.model.method", nil)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
-			AssertError(t, res.ErrDisposing)
+			AssertError(t, res.ErrTimeout)
 	})
 }
 
@@ -305,23 +305,19 @@ func TestSetCall(t *testing.T) {
 // Test that registering call methods with duplicate names causes panic
 func TestRegisteringDuplicateCallMethodPanics(t *testing.T) {
 	runTest(t, func(s *Session) {
-		defer func() {
-			v := recover()
-			if v == nil {
-				t.Errorf(`expected test to panic, but nothing happened`)
-			}
-		}()
-		s.Handle("model",
-			res.Call("foo", func(r res.CallRequest) {
-				r.OK(nil)
-			}),
-			res.Call("bar", func(r res.CallRequest) {
-				r.OK(nil)
-			}),
-			res.Call("foo", func(r res.CallRequest) {
-				r.OK(nil)
-			}),
-		)
+		AssertPanic(t, func() {
+			s.Handle("model",
+				res.Call("foo", func(r res.CallRequest) {
+					r.OK(nil)
+				}),
+				res.Call("bar", func(r res.CallRequest) {
+					r.OK(nil)
+				}),
+				res.Call("foo", func(r res.CallRequest) {
+					r.OK(nil)
+				}),
+			)
+		})
 	}, nil)
 }
 
