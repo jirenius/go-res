@@ -93,7 +93,7 @@ func runTestInternal(t *testing.T, l logger.Logger, precb func(s *Session), cb f
 
 	panicked := true
 	defer func() {
-		if panicked {
+		if panicked || t.Failed() {
 			l := s.Logger()
 			if l != nil {
 				t.Logf("Trace log:\n%s", l)
