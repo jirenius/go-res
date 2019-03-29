@@ -38,6 +38,7 @@ func TestQueryEvent(t *testing.T) {
 func TestQueryEventExpiration(t *testing.T) {
 	model := resource["test.model"]
 	var done func()
+	ch := make(chan struct{})
 
 	runTestAsyncWithGnatsd(t, func(s *Session) {
 		s.SetQueryEventDuration(time.Millisecond)
@@ -50,7 +51,7 @@ func TestQueryEventExpiration(t *testing.T) {
 					if r != nil {
 						t.Errorf("expected query event callback to be called with nil")
 					}
-					done()
+					close(ch)
 				})
 				r.OK(nil)
 			}),
@@ -60,6 +61,8 @@ func TestQueryEventExpiration(t *testing.T) {
 		inb := s.Request("call.test.model.method", nil)
 		s.GetMsg(t)
 		s.GetMsg(t).AssertSubject(t, inb)
+		<-ch
+		done()
 	})
 }
 
@@ -413,13 +416,18 @@ func TestInvalidQueryRequest(t *testing.T) {
 			}),
 		)
 	}, func(s *Session) {
-		for _, l := range tbl {
+		for i, l := range tbl {
 			inb := s.Request("call.test.model.method", newDefaultRequest())
 			subj := s.GetMsg(t).PathPayload(t, "subject").(string)
 
 			s.GetMsg(t).AssertSubject(t, inb)
 			inb = s.RequestRaw(subj, l.Payload)
 			s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, res.CodeInternalError)
+
+			if t.Failed() {
+				t.Logf("failed on test idx %d", i)
+				break
+			}
 		}
 	})
 }
