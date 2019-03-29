@@ -71,7 +71,7 @@ type Handler struct {
 	// Group is the identifier of the group the resource belongs to.
 	// All resources of the same group will be handled on the same
 	// goroutine.
-	// If empty, the registered resource pattern will be used as
+	// If empty, the resource name will be used as identifier.
 	Group string
 }
 
