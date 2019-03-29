@@ -28,7 +28,7 @@ func TestServiceLogger(t *testing.T) {
 }
 
 // Test that With returns an error if there is no registered pattern matching the resource
-func TestServiceWithWithNoMatchingPattern(t *testing.T) {
+func TestServiceWithWithoutMatchingPattern(t *testing.T) {
 	runTest(t, nil, func(s *Session) {
 		err := s.With("test.model", func(r res.Resource) {})
 		if err == nil {

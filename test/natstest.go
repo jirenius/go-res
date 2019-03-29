@@ -77,20 +77,16 @@ func NewTestConn(useGnatsd bool) *MockConn {
 	if err != nil {
 		panic(err)
 	}
-	err = nc.Flush()
-	if err != nil {
-		panic(err)
-	}
 	rc, err := nats.Connect(fmt.Sprintf("nats://%s:%d", opts.Host, opts.Port), nats.NoEcho())
-	if err != nil {
-		panic(err)
-	}
-	err = rc.Flush()
 	if err != nil {
 		panic(err)
 	}
 	rch := make(chan *nats.Msg, 256)
 	_, err = rc.ChanSubscribe(">", rch)
+	if err != nil {
+		panic(err)
+	}
+	err = rc.Flush()
 	if err != nil {
 		panic(err)
 	}
