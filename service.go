@@ -409,27 +409,53 @@ func (s *Service) close() {
 	close(s.inCh)
 }
 
-// ResetAll will send a system.reset to trigger any gateway to update their cache
-// for all resources owned by the service
-func (s *Service) ResetAll() {
+// Reset sends a system reset for the provided resource patterns.
+func (s *Service) Reset(resources []string, access []string) {
 	if atomic.LoadInt32(&s.state) != stateStarted {
 		s.Logf("failed to reset: service not started")
 		return
 	}
-	var ev resetEvent
+
+	lr := len(resources)
+	la := len(access)
+
+	// Quick escape
+	if lr == 0 && la == 0 {
+		return
+	}
+
+	if lr == 0 {
+		resources = nil
+	}
+
+	if la == 0 {
+		access = nil
+	}
+
+	s.event("system.reset", resetEvent{
+		Resources: resources,
+		Access:    access,
+	})
+}
+
+// ResetAll will send a system.reset to trigger any gateway to update their cache
+// for all resources owned by the service
+func (s *Service) ResetAll() {
+	var resources []string
+	var access []string
 	if s.resetResources == nil {
-		ev.Resources = []string{s.Name + ".>"}
+		resources = []string{s.Name + ".>"}
 	} else {
-		ev.Resources = s.resetResources
+		resources = s.resetResources
 	}
 
 	// Only reset access if there are access handlers
 	if s.resetAccess == nil && s.withAccess {
-		ev.Access = []string{s.Name + ".>"}
+		access = []string{s.Name + ".>"}
 	} else {
-		ev.Access = s.resetAccess
+		access = s.resetAccess
 	}
-	s.event("system.reset", ev)
+	s.Reset(resources, access)
 }
 
 // TokenEvent sends a connection token event that sets the connection's access token,
