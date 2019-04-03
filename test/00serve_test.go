@@ -101,3 +101,40 @@ func TestServiceTokenEventWithInvalidCID(t *testing.T) {
 		s.TokenEvent("invalid.*.cid", nil)
 	})
 }
+
+// Test that Reset sends a system.reset event.
+func TestServiceReset(t *testing.T) {
+	tbl := []struct {
+		Resources []string
+		Access    []string
+		Expected  interface{}
+	}{
+		{nil, nil, nil},
+		{[]string{}, nil, nil},
+		{nil, []string{}, nil},
+		{[]string{}, []string{}, nil},
+
+		{[]string{"test.foo.>"}, nil, json.RawMessage(`{"resources":["test.foo.>"]}`)},
+		{nil, []string{"test.foo.>"}, json.RawMessage(`{"access":["test.foo.>"]}`)},
+		{[]string{"test.foo.>"}, []string{"test.bar.>"}, json.RawMessage(`{"resources":["test.foo.>"],"access":["test.bar.>"]}`)},
+
+		{[]string{"test.foo.>"}, []string{}, json.RawMessage(`{"resources":["test.foo.>"]}`)},
+		{[]string{}, []string{"test.foo.>"}, json.RawMessage(`{"access":["test.foo.>"]}`)},
+	}
+
+	for _, l := range tbl {
+		runTest(t, func(s *Session) {}, func(s *Session) {
+			s.Reset(l.Resources, l.Access)
+			// Send token event to flush any system.reset event
+			s.TokenEvent(defaultCID, nil)
+
+			if l.Expected != nil {
+				s.GetMsg(t).
+					AssertSubject(t, "system.reset").
+					AssertPayload(t, l.Expected)
+			}
+
+			s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token")
+		})
+	}
+}
