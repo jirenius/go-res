@@ -9,23 +9,29 @@ import (
 )
 
 var resourceRequestTestTbl = []struct {
-	Pattern              string
-	ResourceName         string
-	Query                string
-	ExpectedResourceName string
-	ExpectedQuery        string
+	Pattern      string
+	ResourceName string
+	Query        string
 }{
 	// Simple RID
-	{"model", "test.model", "", "test.model", ""},
-	{"model.foo", "test.model.foo", "", "test.model.foo", ""},
-	{"model.foo.bar", "test.model.foo.bar", "", "test.model.foo.bar", ""},
+	{"model", "test.model", ""},
+	{"model.foo", "test.model.foo", ""},
+	{"model.foo.bar", "test.model.foo.bar", ""},
 	// Pattern with placeholders
-	{"model.$id", "test.model.42", "", "test.model.42", ""},
-	{"model.$id.bar", "test.model.foo.bar", "", "test.model.foo.bar", ""},
+	{"model.$id", "test.model.42", ""},
+	{"model.$id.bar", "test.model.foo.bar", ""},
+	{"model.$id.bar.$type", "test.model.foo.bar.baz", ""},
+	// Pattern with full wild card
+	{"model.>", "test.model.42", ""},
+	{"model.>", "test.model.foo.42", ""},
+	{"model.$id.>", "test.model.foo.bar", ""},
+	{"model.$id.>", "test.model.foo.bar.42", ""},
+	{"model.foo.>", "test.model.foo.bar", ""},
+	{"model.foo.>", "test.model.foo.bar.42", ""},
 	// RID with query
-	{"model", "test.model", "foo=bar", "test.model", "foo=bar"},
-	{"model.foo", "test.model.foo", "bar.baz=zoo.42", "test.model.foo", "bar.baz=zoo.42"},
-	{"model.foo.bar", "test.model.foo.bar", "foo=?bar*.>zoo", "test.model.foo.bar", "foo=?bar*.>zoo"},
+	{"model", "test.model", "foo=bar"},
+	{"model.foo", "test.model.foo", "bar.baz=zoo.42"},
+	{"model.foo.bar", "test.model.foo.bar", "foo=?bar*.>zoo"},
 }
 
 var resourceRequestQueryTestTbl = []struct {
@@ -83,12 +89,12 @@ func TestResourceNameAndQuery(t *testing.T) {
 					rid += "?" + l.Query
 				}
 				rname := r.ResourceName()
-				if rname != l.ExpectedResourceName {
-					t.Errorf("expected ResourceName for RID %#v to be %#v, but got %#v", rid, l.ExpectedResourceName, rname)
+				if rname != l.ResourceName {
+					t.Errorf("expected ResourceName for RID %#v to be %#v, but got %#v", rid, l.ResourceName, rname)
 				}
 				q := r.Query()
-				if q != l.ExpectedQuery {
-					t.Errorf("expected Query for RID %#v to be %#v, but got %#v", rid, l.ExpectedQuery, q)
+				if q != l.Query {
+					t.Errorf("expected Query for RID %#v to be %#v, but got %#v", rid, l.Query, q)
 				}
 				r.NotFound()
 			}))
@@ -113,12 +119,12 @@ func TestResourceNameAndQueryUsingWith(t *testing.T) {
 			}
 			AssertNoError(t, s.With(rid, func(r res.Resource) {
 				rname := r.ResourceName()
-				if rname != l.ExpectedResourceName {
-					t.Errorf("expected ResourceName for RID %#v to be %#v, but got %#v", rid, l.ExpectedResourceName, rname)
+				if rname != l.ResourceName {
+					t.Errorf("expected ResourceName for RID %#v to be %#v, but got %#v", rid, l.ResourceName, rname)
 				}
 				q := r.Query()
-				if q != l.ExpectedQuery {
-					t.Errorf("expected Query for RID %#v to be %#v, but got %#v", rid, l.ExpectedQuery, q)
+				if q != l.Query {
+					t.Errorf("expected Query for RID %#v to be %#v, but got %#v", rid, l.Query, q)
 				}
 				done()
 			}))

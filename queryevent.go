@@ -91,7 +91,7 @@ func (qe *queryEvent) startQueryListener() {
 	}
 }
 
-// handleRequest is called by the query listener on incoming query requests.
+// handleQueryRequest is called by the query listener on incoming query requests.
 func (qe *queryEvent) handleQueryRequest(m *nats.Msg) {
 	s := qe.r.s
 	s.Tracef("Q=> %s: %s", qe.r.rname, m.Data)

@@ -39,6 +39,9 @@ type ModelHandler func(ModelRequest)
 // CollectionHandler is a function called on collection get requests
 type CollectionHandler func(CollectionRequest)
 
+// GetHandler is a function called on untyped get requests
+type GetHandler func(GetRequest)
+
 // CallHandler is a function called on resource call requests
 type CallHandler func(CallRequest)
 
@@ -58,6 +61,9 @@ type Handler struct {
 
 	// Get handler for collections. If not nil, all other Get handlers must be nil.
 	GetCollection CollectionHandler
+
+	// Get handler for untyped resources. If not nil, all other Get handlers must be nil.
+	GetResource GetHandler
 
 	// Call handlers for call requests
 	Call map[string]CallHandler
@@ -180,7 +186,9 @@ func (s *Service) Tracef(format string, v ...interface{}) {
 // A pattern may contain placeholders that acts as wildcards, and will be
 // parsed and stored in the request.PathParams map.
 // A placeholder is a resource name part starting with a dollar ($) character:
-//  s.Handle("user.$id", handlers) // Will match "user.10", "user.foo", etc.
+//  s.Handle("user.$id", handler) // Will match "user.10", "user.foo", etc.
+// A full wildcard can be used as last part using a greather than (>) character:
+//  s.Handle("data.>", handler) // Will match "data.foo", "data.foo.bar", etc.
 //
 // If the pattern is already registered, or if there are conflicts among
 // the handlers, Handle panics.
@@ -227,6 +235,14 @@ func GetModel(h ModelHandler) HandlerOption {
 func GetCollection(h CollectionHandler) HandlerOption {
 	return func(hs *Handler) {
 		hs.GetCollection = h
+		validateGetHandlers(*hs)
+	}
+}
+
+// GetResource sets a handler for untyped resource get requests
+func GetResource(h GetHandler) HandlerOption {
+	return func(hs *Handler) {
+		hs.GetResource = h
 		validateGetHandlers(*hs)
 	}
 }
@@ -648,6 +664,9 @@ func validateGetHandlers(h Handler) rtype {
 	if h.GetCollection != nil {
 		c++
 		rtype = rtypeCollection
+	}
+	if h.GetResource != nil {
+		c++
 	}
 	if c > 1 {
 		panic("res: multiple get handlers")

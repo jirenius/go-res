@@ -6,6 +6,7 @@ package res
 // Common byte variables for wildcards and token separator.
 const (
 	pmark = '$'
+	fwild = '>'
 	btsep = '.'
 )
 
@@ -24,6 +25,7 @@ type node struct {
 	params []pathParam // path parameters for the handlers
 	nodes  map[string]*node
 	param  *node
+	wild   *node // Wild card node
 }
 
 // A pathParam represent a parameter part of the resource name.
@@ -39,7 +41,7 @@ type nodeMatch struct {
 }
 
 // add inserts new handlers to the pattern store.
-// An invalid pattern, or a pattern already registered will make add panic.
+// An invalid pattern, or a pattern already registered will cause panic.
 func (ls *patterns) add(pattern string, hs *regHandler) {
 	var tokens []string
 	if len(pattern) > 0 {
@@ -81,6 +83,15 @@ func (ls *patterns) add(pattern string, hs *regHandler) {
 				l.param = &node{}
 			}
 			n = l.param
+		} else if t[0] == fwild {
+			// Validate the full wildcard is last
+			if lt > 1 || i < len(tokens)-1 {
+				panic(invalidPattern)
+			}
+			if l.wild == nil {
+				l.wild = &node{}
+			}
+			n = l.wild
 		} else {
 			if l.nodes == nil {
 				l.nodes = make(map[string]*node)
@@ -164,6 +175,19 @@ func matchNode(l *node, toks []string, i int, m *nodeMatch) bool {
 		// and run it all again.
 		n = l.param
 		c--
+	}
+
+	// Check full wild card
+	if l.wild != nil {
+		n = l.wild
+		m.hs = n.hs
+		if len(n.params) > 0 {
+			// Create a map with path parameter values
+			m.params = make(map[string]string, len(n.params))
+			for _, pp := range n.params {
+				m.params[pp.name] = toks[pp.idx]
+			}
+		}
 	}
 
 	return false
