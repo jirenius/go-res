@@ -181,42 +181,6 @@ func TestChangeEventUsingWith(t *testing.T) {
 	}
 }
 
-// Test ChangeEvent panics if the resource is an untyped resource.
-func TestChangeEventPanicsOnUntypedResource(t *testing.T) {
-	runTest(t, func(s *Session) {
-		s.Handle("bar",
-			res.Call("method", func(r res.CallRequest) {
-				panicked := true
-				defer func() {
-					if !panicked {
-						t.Errorf("expected ChangeEvent to panic, but nothing happened")
-					}
-				}()
-				r.ChangeEvent(map[string]interface{}{"foo": 42})
-				panicked = false
-				r.OK(nil)
-			}),
-		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.bar.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
-	})
-}
-
-// Test ChangeEvent panics if the resource is an untyped resource, using With
-func TestChangeEventPanicsOnUntypedResourceUsingWith(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("bar")
-	}, func(s *Session, done func()) {
-		s.With("test.bar", func(r res.Resource) {
-			AssertPanic(t, func() {
-				r.ChangeEvent(map[string]interface{}{"foo": 42})
-			})
-			done()
-		})
-	})
-}
-
 // Test ChangeEvent panics if the resource is a collection
 func TestChangeEventPanicsOnCollection(t *testing.T) {
 	runTest(t, func(s *Session) {
@@ -293,42 +257,6 @@ func TestAddEventUsingWith(t *testing.T) {
 			s.GetMsg(t).AssertPayload(t, l.Expected).AssertSubject(t, "event.test.collection.add")
 		})
 	}
-}
-
-// Test AddEvent panics if the resource is an untyped resource.
-func TestAddEventPanicsOnUntypedResource(t *testing.T) {
-	runTest(t, func(s *Session) {
-		s.Handle("bar",
-			res.Call("method", func(r res.CallRequest) {
-				panicked := true
-				defer func() {
-					if !panicked {
-						t.Errorf("expected AddEvent to panic, but nothing happened")
-					}
-				}()
-				r.AddEvent("foo", 0)
-				panicked = false
-				r.OK(nil)
-			}),
-		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.bar.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
-	})
-}
-
-// Test AddEvent panics if the resource is an untyped resource, using With
-func TestAddEventPanicsOnUntypedResourceUsingWith(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("bar")
-	}, func(s *Session, done func()) {
-		s.With("test.bar", func(r res.Resource) {
-			AssertPanic(t, func() {
-				r.AddEvent("foo", 0)
-			})
-			done()
-		})
-	})
 }
 
 // Test AddEvent panics if the resource is a model
@@ -423,42 +351,6 @@ func TestRemoveEventUsingWith(t *testing.T) {
 			s.GetMsg(t).AssertPayload(t, l.Expected).AssertSubject(t, "event.test.collection.remove")
 		})
 	}
-}
-
-// Test RemoveEvent panics if the resource is an untyped resource.
-func TestRemoveEventPanicsOnUntypedResource(t *testing.T) {
-	runTest(t, func(s *Session) {
-		s.Handle("bar",
-			res.Call("method", func(r res.CallRequest) {
-				panicked := true
-				defer func() {
-					if !panicked {
-						t.Errorf("expected RemoveEvent to panic, but nothing happened")
-					}
-				}()
-				r.RemoveEvent(0)
-				panicked = false
-				r.OK(nil)
-			}),
-		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.bar.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
-	})
-}
-
-// Test RemoveEvent panics if the resource is an untyped resource, using With
-func TestRemoveEventPanicsOnUntypedResourceUsingWith(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("bar")
-	}, func(s *Session, done func()) {
-		s.With("test.bar", func(r res.Resource) {
-			AssertPanic(t, func() {
-				r.RemoveEvent(0)
-			})
-			done()
-		})
-	})
 }
 
 // Test RemoveEvent panics if the resource is a model

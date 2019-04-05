@@ -63,6 +63,20 @@ func TestGetCollection(t *testing.T) {
 	})
 }
 
+// Test that the model is sent on get request
+func TestGetResource(t *testing.T) {
+	model := resource["test.model"]
+
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo", res.GetResource(func(r res.GetRequest) {
+			r.Model(json.RawMessage(model))
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model.foo", newRequest())
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+	})
+}
+
 // Test that calling NotFound on a model get request results in system.notFound
 func TestGetModelNotFound(t *testing.T) {
 	isCalled := false

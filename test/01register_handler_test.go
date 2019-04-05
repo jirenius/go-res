@@ -53,17 +53,32 @@ func TestPanicOnMultipleGetHandlers(t *testing.T) {
 	}, nil)
 }
 
-// Test that registering both a model and collection handler results
-// in a panic
-func TestPanicOnSameParamPlaceholder(t *testing.T) {
-	defer func() {
-		v := recover()
-		if v == nil {
-			t.Fatalf("expected a panic, but nothing happened")
-		}
-	}()
+// Test that making invalid pattern registration causes panic
+func TestPanicOnInvalidPatternRegistration(t *testing.T) {
 
-	runTest(t, func(s *Session) {
-		s.Handle("model.$id.type.$id")
-	}, nil)
+	tbl := [][]string{
+		{"model.$id.type.$id"},
+		{"model.foo", "model.foo"},
+		{"model..foo"},
+		{"model.$"},
+		{"model.$.foo"},
+		{"model.>.foo"},
+		{"model.foo.>bar"},
+		{"model.>.foo"},
+	}
+
+	for _, l := range tbl {
+		runTest(t, func(s *Session) {
+			defer func() {
+				v := recover()
+				if v == nil {
+					t.Fatalf("expected a panic, but nothing happened")
+				}
+			}()
+
+			for _, p := range l {
+				s.Handle(p)
+			}
+		}, nil)
+	}
 }
