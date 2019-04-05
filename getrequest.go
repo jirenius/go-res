@@ -111,8 +111,11 @@ func (r *getRequest) executeHandler() {
 	case rtypeCollection:
 		hs.GetCollection(r)
 	default:
-		r.Error(ErrNotFound)
-		return
+		if hs.GetResource == nil {
+			r.Error(ErrNotFound)
+			return
+		}
+		hs.GetResource(r)
 	}
 
 	if !r.replied {

@@ -69,6 +69,18 @@ type CollectionRequest interface {
 	Timeout(d time.Duration)
 }
 
+// GetRequest has methods for responding to resource get requests.
+type GetRequest interface {
+	Resource
+	Model(model interface{})
+	QueryModel(model interface{}, query string)
+	Collection(collection interface{})
+	QueryCollection(collection interface{}, query string)
+	NotFound()
+	Error(err *Error)
+	Timeout(d time.Duration)
+}
+
 // CallRequest has methods for responding to call requests.
 type CallRequest interface {
 	Resource
@@ -463,11 +475,13 @@ func (r *Request) executeHandler() {
 		case rtypeModel:
 			hs.GetModel(r)
 		case rtypeCollection:
-
 			hs.GetCollection(r)
 		default:
-			r.reply(responseNotFound)
-			return
+			if hs.GetResource == nil {
+				r.reply(responseNotFound)
+				return
+			}
+			hs.GetResource(r)
 		}
 	case "call":
 		if r.method == "new" {
