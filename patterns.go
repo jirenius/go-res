@@ -43,18 +43,8 @@ type nodeMatch struct {
 // add inserts new handlers to the pattern store.
 // An invalid pattern, or a pattern already registered will cause panic.
 func (ls *patterns) add(pattern string, hs *regHandler) {
-	var tokens []string
-	if len(pattern) > 0 {
-		tokens = make([]string, 0, 32)
-		start := 0
-		for i := 0; i < len(pattern); i++ {
-			if pattern[i] == btsep {
-				tokens = append(tokens, pattern[start:i])
-				start = i + 1
-			}
-		}
-		tokens = append(tokens, pattern[start:])
-	}
+	tokens := splitPattern(pattern)
+
 	var params []pathParam
 
 	l := ls.root
@@ -191,4 +181,20 @@ func matchNode(l *node, toks []string, i int, m *nodeMatch) bool {
 	}
 
 	return false
+}
+
+func splitPattern(p string) []string {
+	if len(p) == 0 {
+		return nil
+	}
+	tokens := make([]string, 0, 32)
+	start := 0
+	for i := 0; i < len(p); i++ {
+		if p[i] == btsep {
+			tokens = append(tokens, p[start:i])
+			start = i + 1
+		}
+	}
+	tokens = append(tokens, p[start:])
+	return tokens
 }

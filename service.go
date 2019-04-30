@@ -77,13 +77,16 @@ type Handler struct {
 	// Group is the identifier of the group the resource belongs to.
 	// All resources of the same group will be handled on the same
 	// goroutine.
+	// The group may contain tags, ${tagName}, where the tag name matches
+	// a parameter placeholder name in the resource pattern.
 	// If empty, the resource name will be used as identifier.
 	Group string
 }
 
 type regHandler struct {
 	Handler
-	typ rtype
+	group group
+	typ   rtype
 }
 
 const (
@@ -206,8 +209,10 @@ func (s *Service) AddHandler(pattern string, hs Handler) {
 	if hs.Access != nil {
 		s.withAccess = true
 	}
+
 	h := regHandler{
 		Handler: hs,
+		group:   parseGroup(hs.Group, pattern),
 		typ:     validateGetHandlers(hs),
 	}
 	s.patterns.add(s.Name+"."+pattern, &h)
@@ -292,6 +297,16 @@ func Auth(method string, h AuthHandler) HandlerOption {
 			panic("res: multiple auth handlers for method " + method)
 		}
 		hs.Auth[method] = h
+	}
+}
+
+// Group sets a group ID. All resources of the same group will be handled
+// on the same goroutine.
+// The group may contain tags, ${tagName}, where the tag name matches
+// a parameter placeholder name in the resource pattern.
+func Group(group string) HandlerOption {
+	return func(hs *Handler) {
+		hs.Group = group
 	}
 }
 
@@ -558,8 +573,8 @@ func (s *Service) runWith(hs *regHandler, rname string, cb func()) {
 	}
 
 	wid := rname
-	if hs != nil && hs.Group != "" {
-		wid = hs.Group
+	if hs != nil {
+		wid = hs.group.toString(rname)
 	}
 
 	s.mu.Lock()
