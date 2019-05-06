@@ -559,22 +559,27 @@ func (s *Service) handleRequest(m *nats.Msg) {
 
 	hs, params := s.patterns.get(rname)
 
-	s.runWith(hs, rname, func() {
+	s.runWithHandler(hs, rname, func() {
 		s.processRequest(m, rtype, rname, method, hs, params)
 	})
 }
 
-// runWith enqueues the callback, cb, to be called by the worker goroutine.
+// runWithHandler enqueues the callback, cb, to be called by the worker goroutine.
 // The worker ID of the worker is the hs.wid value, if one is set.
 // Otherwise the worker ID will fall back to rname.
-func (s *Service) runWith(hs *regHandler, rname string, cb func()) {
-	if atomic.LoadInt32(&s.state) != stateStarted {
-		return
-	}
-
+func (s *Service) runWithHandler(hs *regHandler, rname string, cb func()) {
 	wid := rname
 	if hs != nil {
 		wid = hs.group.toString(rname)
+	}
+	s.runWith(wid, cb)
+}
+
+// runWith enqueues the callback, cb, to be called by the worker goroutine
+// defined by the worker ID (wid).
+func (s *Service) runWith(wid string, cb func()) {
+	if atomic.LoadInt32(&s.state) != stateStarted {
+		return
 	}
 
 	s.mu.Lock()
@@ -599,9 +604,9 @@ func (s *Service) runWith(hs *regHandler, rname string, cb func()) {
 
 // With matches the resource ID, rid, with the registered Handlers
 // before calling the callback, cb, on the worker goroutine for the
-// resource name.
-// With will return an error and not call the callback if there are no
-// no matching handlers found.
+// resource name or group.
+// With will return an error and not call the callback if there is
+// no matching handler found.
 func (s *Service) With(rid string, cb func(r Resource)) error {
 	rname, q := parseRID(rid)
 	hs, params := s.patterns.get(rname)
@@ -617,11 +622,37 @@ func (s *Service) With(rid string, cb func(r Resource)) error {
 		hs:         hs,
 	}
 
-	s.runWith(hs, rname, func() {
+	s.runWithHandler(hs, rname, func() {
 		cb(r)
 	})
 
 	return nil
+}
+
+// WithGroup calls the callback, cb, on the group's worker goroutine.
+func (s *Service) WithGroup(group string, cb func(s *Service)) {
+	s.runWith(group, func() { cb(s) })
+}
+
+// Resource matches the resource ID, rid, with the registered Handlers
+// and returns the resource, or an error if there is no matching handler
+// found.
+// Should only be called from within the resource's group goroutine.
+// Using the returned value from another goroutine may cause race conditions.
+func (s *Service) Resource(rid string) (Resource, error) {
+	rname, q := parseRID(rid)
+	hs, params := s.patterns.get(rname)
+	if hs == nil {
+		return nil, errHandlerNotFound
+	}
+
+	return &resource{
+		rname:      rname,
+		pathParams: params,
+		query:      q,
+		s:          s,
+		hs:         hs,
+	}, nil
 }
 
 // event marshals the data and publishes it on a subject,
@@ -744,7 +775,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *r
 func (s *Service) queryEventExpire(v interface{}) {
 	qe := v.(*queryEvent)
 	qe.sub.Drain()
-	s.runWith(qe.r.hs, qe.r.rname, func() {
+	s.runWithHandler(qe.r.hs, qe.r.rname, func() {
 		qe.cb(nil)
 	})
 }
