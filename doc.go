@@ -1,7 +1,7 @@
 /*
 Package res provides RES service implementations for realtime API's through Resgate:
 
-https://github.com/jirenius/resgate
+https://github.com/resgateio/resgate
 
 The implementation provides low level methods to listen to and handle incoming
 requests, and to send events.

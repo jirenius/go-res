@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jirenius/resgate/logger"
 	"github.com/jirenius/timerqueue"
 	nats "github.com/nats-io/go-nats"
+	"github.com/resgateio/resgate/logger"
 )
 
 // The size of the in channel receiving messages from NATS Server.
@@ -312,7 +312,7 @@ func Group(group string) HandlerOption {
 
 // SetReset sets the patterns used for resources and access when a reset is made.¨
 // For more details on system reset, see:
-// https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#system-reset-event
+// https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#system-reset-event
 func (s *Service) SetReset(resources, access []string) {
 	s.resetResources = resources
 	s.resetAccess = access
