@@ -10,7 +10,7 @@
 
 ---
 
-[Go](http://golang.org) package implementing the RES-Service Protocol. Used to create REST, real time, and RPC APIs, where all your reactive web clients are synchronized seamlessly through [Resgate](https://github.com/jirenius/resgate).
+[Go](http://golang.org) package implementing the RES-Service Protocol. Used to create REST, real time, and RPC APIs, where all your reactive web clients are synchronized seamlessly through [Resgate](https://github.com/resgateio/resgate).
 
 Visit [Resgate.io](https://resgate.io) for more information.
 
