@@ -1,7 +1,7 @@
 package res
 
-// Code inspired, and partly borrowed, from SubList in gnatsd
-// https://github.com/nats-io/gnatsd/blob/master/server/sublist.go
+// Code inspired, and partly borrowed, from SubList in nats-server
+// https://github.com/nats-io/nats-server/blob/master/server/sublist.go
 
 // Common byte variables for wildcards and token separator.
 const (

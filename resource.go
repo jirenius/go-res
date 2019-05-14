@@ -41,7 +41,7 @@ type Resource interface {
 	// RemoveEvent, or ReaccessEvent should be used instead.
 	//
 	// See the protocol specification for more information:
-	// https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#events
+	// https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#events
 	Event(event string, payload interface{})
 
 	// ChangeEvents sends a change event with properties that has been changed
@@ -51,26 +51,26 @@ type Resource interface {
 	// The values must be serializable into JSON primitives, resource references,
 	// or a delete action objects.
 	// See the protocol specification for more information:
-	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#model-change-event
+	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#model-change-event
 	ChangeEvent(props map[string]interface{})
 
 	// AddEvent sends an add event, adding the value at index idx.
 	// Panics if the resource is not a Collection, or if idx is less than 0.
 	// The value must be serializable into a JSON primitive or resource reference.
 	// See the protocol specification for more information:
-	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#collection-add-event
+	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#collection-add-event
 	AddEvent(value interface{}, idx int)
 
 	// RemoveEvent sends a remove event, removing the value at index idx.
 	// Panics if the resource is not a Collection, or if idx is less than 0.
 	// See the protocol specification for more information:
-	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#collection-remove-event
+	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#collection-remove-event
 	RemoveEvent(idx int)
 
 	// ReaccessEvent sends a reaccess event to signal that the resource's access permissions has changed.
 	// It will invalidate any previous access response sent for the resource.
 	// See the protocol specification for more information:
-	//    https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
+	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
 	ReaccessEvent()
 
 	QueryEvent(func(QueryRequest))
@@ -154,7 +154,7 @@ func isValidPart(p string) bool {
 // RemoveEvent, or ReaccessEvent should be used instead.
 //
 // This is to ensure compliance with the specifications:
-// https://github.com/jirenius/resgate/blob/master/docs/res-service-protocol.md#events
+// https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#events
 func (r *resource) Event(event string, payload interface{}) {
 	switch event {
 	case "change":

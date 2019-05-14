@@ -5,7 +5,7 @@ import (
 	"time"
 
 	res "github.com/jirenius/go-res"
-	"github.com/jirenius/resgate/logger"
+	"github.com/resgateio/resgate/logger"
 )
 
 const timeoutDuration = 4 * time.Second
