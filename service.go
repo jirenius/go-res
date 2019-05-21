@@ -51,15 +51,38 @@ type NewHandler func(NewRequest)
 // AuthHandler is a function called on resource auth requests
 type AuthHandler func(AuthRequest)
 
+// ApplyChangeHandler is a function called to apply a model change event.
+// Must return a map with the values to apply to revert the changes, or error.
+type ApplyChangeHandler func(Resource, map[string]interface{}) (map[string]interface{}, error)
+
+// ApplyAddHandler is a function called to apply a collection add event.
+// Must return an error if the add event couldn't be applied to the resource.
+type ApplyAddHandler func(Resource, value interface{}, idx int) error
+
+// ApplyRemoveHandler is a function called to apply a collection remove event.
+// Must return the value being removed, or error.
+type ApplyRemoveHandler func(Resource, idx int) (interface{}, error)
+
+// ApplyCreateHandler is a function called to apply a resource create event.
+// Must return an error if the resource couldn't be created.
+type ApplyCreateHandler func(Resource, data interface{}) error
+
+// ApplyDeleteHandler is a function called to apply a resource delete event.
+// Must return the resource data being removed, or error.
+type ApplyDeleteHandler func(Resource) (interface{}, error)
+
 // Handler contains handler functions for a given resource pattern.
 type Handler struct {
+	// Resource type
+	Type ResourceType
+
 	// Access handler for access requests
 	Access AccessHandler
 
-	// Get handler for models. If not nil, all other Get handlers must be nil.
+	// Get handler for models. If not nil, all other Get handlers must be nil, and Type must be TypeModel or TypeUnset.
 	GetModel ModelHandler
 
-	// Get handler for collections. If not nil, all other Get handlers must be nil.
+	// Get handler for collections. If not nil, all other Get handlers must be nil, and Type must be TypeCollection or TypeUnset.
 	GetCollection CollectionHandler
 
 	// Get handler for untyped resources. If not nil, all other Get handlers must be nil.
@@ -74,6 +97,21 @@ type Handler struct {
 	// Auth handler for auth requests
 	Auth map[string]AuthHandler
 
+	// ApplyChange handler for applying change event mutations
+	ApplyChange ApplyChangeHandler
+
+	// ApplyAdd handler for applying add event mutations
+	ApplyAdd ApplyAddHandler
+
+	// ApplyRemove handler for applying remove event mutations
+	ApplyRemove ApplyRemoveHandler
+
+	// ApplyCreate handler for applying create event
+	ApplyCreate ApplyCreateHandler
+
+	// ApplyDelete handler for applying delete event
+	ApplyDelete ApplyDeleteHandler
+
 	// Group is the identifier of the group the resource belongs to.
 	// All resources of the same group will be handled on the same
 	// goroutine.
@@ -81,12 +119,6 @@ type Handler struct {
 	// a parameter placeholder name in the resource pattern.
 	// If empty, the resource name will be used as identifier.
 	Group string
-}
-
-type regHandler struct {
-	Handler
-	group group
-	typ   rtype
 }
 
 const (
@@ -99,36 +131,33 @@ const (
 // A Service handles incoming requests from NATS Server and calls the
 // appropriate callback on the resource handlers.
 type Service struct {
-	// Name of the service.
-	// Must be a non-empty alphanumeric string with no embedded whitespace.
-	Name string
+	*Mux
 
 	state int32
 
-	nc             Conn                          // NATS Server connection
-	subs           map[string]*nats.Subscription // Request type nats subscriptions
-	patterns       patterns                      // pattern store with all handlers
-	inCh           chan *nats.Msg                // Channel for incoming nats messages
-	rwork          map[string]*work              // map of resource work
-	workCh         chan *work                    // Resource work channel, listened to by the workers
-	wg             sync.WaitGroup                // WaitGroup for all workers
-	mu             sync.Mutex                    // Mutex to protect rwork map
-	logger         logger.Logger                 // Logger
-	withAccess     bool                          // Flag that is true if there are patterns with Access handlers
-	resetResources []string                      // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
-	resetAccess    []string                      // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
-	queryTQ        *timerqueue.Queue             // Timer queue for query events duration
-	queryDuration  time.Duration                 // Duration to listen for query requests on a query event
+	nc             Conn              // NATS Server connection
+	inCh           chan *nats.Msg    // Channel for incoming nats messages
+	rwork          map[string]*work  // map of resource work
+	workCh         chan *work        // Resource work channel, listened to by the workers
+	wg             sync.WaitGroup    // WaitGroup for all workers
+	mu             sync.Mutex        // Mutex to protect rwork map
+	logger         logger.Logger     // Logger
+	resetResources []string          // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
+	resetAccess    []string          // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
+	queryTQ        *timerqueue.Queue // Timer queue for query events duration
+	queryDuration  time.Duration     // Duration to listen for query requests on a query event
 
 }
 
-// NewService creates a new Service given a service name.
-// The name must be a non-empty alphanumeric string with no embedded whitespace.
+// NewService creates a new Service.
+//
+// The name is the service name which will be prefixed to all resources.
+// It must be an alphanumeric string with no embedded whitespace, or empty.
+// If name is an empty string, the Service will by default handle all resources
+// for all namespaces. Use SetReset to limit the namespace scope.
 func NewService(name string) *Service {
-	// [TODO] panic on invalid name
 	return &Service{
-		Name:          name,
-		patterns:      patterns{root: &node{}},
+		Mux:           NewMux(name),
 		logger:        logger.NewStdLogger(false, false),
 		queryDuration: defaultQueryEventDuration,
 	}
@@ -184,38 +213,22 @@ func (s *Service) Tracef(format string, v ...interface{}) {
 	s.logger.Tracef("[Service] ", format, v...)
 }
 
-// Handle registers the handler functions for the given resource pattern.
-//
-// A pattern may contain placeholders that acts as wildcards, and will be
-// parsed and stored in the request.PathParams map.
-// A placeholder is a resource name part starting with a dollar ($) character:
-//  s.Handle("user.$id", handler) // Will match "user.10", "user.foo", etc.
-// A full wildcard can be used as last part using a greather than (>) character:
-//  s.Handle("data.>", handler) // Will match "data.foo", "data.foo.bar", etc.
-//
-// If the pattern is already registered, or if there are conflicts among
-// the handlers, Handle panics.
-func (s *Service) Handle(pattern string, hf ...HandlerOption) {
-	var h Handler
-	for _, f := range hf {
-		f(&h)
+// Model sets handler type to model
+func Model(hs *Handler) {
+	if hs.Type != TypeUnset {
+		panic("res: resource type set multiple times")
 	}
-	s.AddHandler(pattern, h)
+	hs.Type = TypeModel
+	validateGetHandlers(*hs)
 }
 
-// AddHandler register a handler for the given resource pattern.
-// The pattern used is the same as described for Handle.
-func (s *Service) AddHandler(pattern string, hs Handler) {
-	if hs.Access != nil {
-		s.withAccess = true
+// Collection sets handler type to collection
+func Collection(hs *Handler) {
+	if hs.Type != TypeUnset {
+		panic("res: resource type set multiple times")
 	}
-
-	h := regHandler{
-		Handler: hs,
-		group:   parseGroup(hs.Group, pattern),
-		typ:     validateGetHandlers(hs),
-	}
-	s.patterns.add(s.Name+"."+pattern, &h)
+	hs.Type = TypeCollection
+	validateGetHandlers(*hs)
 }
 
 // Access sets a handler for resource access requests
@@ -300,6 +313,16 @@ func Auth(method string, h AuthHandler) HandlerOption {
 	}
 }
 
+// ApplyChange sets a handler for applying change events
+func ApplyChange(h ApplyChangeHandler) HandlerOption {
+	return func(hs *Handler) {
+		if hs.ApplyChange != nil {
+			panic("res: multiple apply change handlers")
+		}
+		hs.ApplyChange = h
+	}
+}
+
 // Group sets a group ID. All resources of the same group will be handled
 // on the same goroutine.
 // The group may contain tags, ${tagName}, where the tag name matches
@@ -310,7 +333,8 @@ func Group(group string) HandlerOption {
 	}
 }
 
-// SetReset sets the patterns used for resources and access when a reset is made.¨
+// SetReset sets the patterns used for resources and access when a ResetAll is made.
+// If set to nil (default), the patterns returned by ResourcePatterns and AccessPatterns is used.
 // For more details on system reset, see:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#system-reset-event
 func (s *Service) SetReset(resources, access []string) {
@@ -334,11 +358,13 @@ func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 	}
 
 	opts := []nats.Option{
-		nats.Name(s.Name),
 		nats.MaxReconnects(-1),
 		nats.ReconnectHandler(s.handleReconnect),
 		nats.DisconnectHandler(s.handleDisconnect),
 		nats.ClosedHandler(s.handleClosed),
+	}
+	if s.Mux.pattern != "" {
+		opts = append(opts, nats.Name(s.Mux.pattern))
 	}
 	opts = append(opts, options...)
 
@@ -371,7 +397,7 @@ func (s *Service) Serve(nc Conn) error {
 }
 
 func (s *Service) serve(nc Conn) error {
-	s.Logf("Starting service: %s", s.Name)
+	s.Logf("Starting service")
 
 	// Initialize fields
 	inCh := make(chan *nats.Msg, inChannelSize)
@@ -425,7 +451,6 @@ func (s *Service) Shutdown() error {
 
 	s.inCh = nil
 	s.nc = nil
-	s.subs = nil
 	s.workCh = nil
 
 	atomic.StoreInt32(&s.state, stateStopped)
@@ -447,6 +472,10 @@ func (s *Service) Reset(resources []string, access []string) {
 		return
 	}
 
+	s.reset(resources, access)
+}
+
+func (s *Service) reset(resources []string, access []string) {
 	lr := len(resources)
 	la := len(access)
 
@@ -470,23 +499,17 @@ func (s *Service) Reset(resources []string, access []string) {
 }
 
 // ResetAll will send a system.reset to trigger any gateway to update their cache
-// for all resources owned by the service
+// for all resources handled by the service.
+// The method is automatically called on server start and reconnects.
 func (s *Service) ResetAll() {
-	var resources []string
-	var access []string
-	if s.resetResources == nil {
-		resources = []string{s.Name + ".>"}
-	} else {
-		resources = s.resetResources
+	if atomic.LoadInt32(&s.state) != stateStarted {
+		s.Logf("failed to reset: service not started")
+		return
 	}
 
-	// Only reset access if there are access handlers
-	if s.resetAccess == nil && s.withAccess {
-		access = []string{s.Name + ".>"}
-	} else {
-		access = s.resetAccess
-	}
-	s.Reset(resources, access)
+	s.setResetDefault()
+
+	s.reset(s.resetResources, s.resetAccess)
 }
 
 // TokenEvent sends a connection token event that sets the connection's access token,
@@ -494,24 +517,55 @@ func (s *Service) ResetAll() {
 // A change of token will invalidate any previous access response received using the old token.
 // A nil token clears any previously set token.
 func (s *Service) TokenEvent(cid string, token interface{}) {
+	if atomic.LoadInt32(&s.state) != stateStarted {
+		s.Logf("failed to send token event: service not started")
+		return
+	}
+
 	if !isValidPart(cid) {
 		panic(`res: invalid connection ID`)
 	}
 	s.event("conn."+cid+".token", tokenEvent{Token: token})
 }
 
-// subscribe makes a nats subscription for each required request type.
-func (s *Service) subscribe() error {
-	s.subs = make(map[string]*nats.Subscription, 4)
-	for _, t := range []string{RequestTypeAccess, RequestTypeGet, RequestTypeCall, RequestTypeAuth} {
-		if t == RequestTypeAccess && !s.withAccess {
-			continue
+func (s *Service) setResetDefault() {
+	if s.resetResources == nil {
+		if s.hasResources() {
+			s.resetResources = []string{mergePattern(s.Mux.pattern, ">")}
+		} else {
+			s.resetResources = []string{}
 		}
-		sub, err := s.nc.ChanSubscribe(t+"."+s.Name+".>", s.inCh)
+	}
+
+	if s.resetAccess == nil {
+		if s.hasAccess() {
+			s.resetAccess = []string{mergePattern(s.Mux.pattern, ">")}
+		} else {
+			s.resetAccess = []string{}
+		}
+	}
+}
+
+// subscribe makes a nats subscription for each required request type, based
+// on the patterns used for ResetAll.
+func (s *Service) subscribe() error {
+	s.setResetDefault()
+	if len(s.resetResources) == 0 && len(s.resetAccess) == 0 {
+		return errors.New("res: no resources to serve")
+	}
+	for _, t := range []string{RequestTypeGet, RequestTypeCall, RequestTypeAuth} {
+		for _, p := range s.resetResources {
+			_, err := s.nc.ChanSubscribe(t+"."+p, s.inCh)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	for _, p := range s.resetAccess {
+		_, err := s.nc.ChanSubscribe("access."+p, s.inCh)
 		if err != nil {
 			return err
 		}
-		s.subs[t] = sub
 	}
 	return nil
 }
@@ -557,7 +611,7 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		rname = rname[:idx]
 	}
 
-	hs, params := s.patterns.get(rname)
+	hs, params := s.get(rname)
 
 	s.runWithHandler(hs, rname, func() {
 		s.processRequest(m, rtype, rname, method, hs, params)
@@ -609,7 +663,7 @@ func (s *Service) runWith(wid string, cb func()) {
 // no matching handler found.
 func (s *Service) With(rid string, cb func(r Resource)) error {
 	rname, q := parseRID(rid)
-	hs, params := s.patterns.get(rname)
+	hs, params := s.get(rname)
 	if hs == nil {
 		return errHandlerNotFound
 	}
@@ -641,7 +695,7 @@ func (s *Service) WithGroup(group string, cb func(s *Service)) {
 // Using the returned value from another goroutine may cause race conditions.
 func (s *Service) Resource(rid string) (Resource, error) {
 	rname, q := parseRID(rid)
-	hs, params := s.patterns.get(rname)
+	hs, params := s.get(rname)
 	if hs == nil {
 		return nil, errHandlerNotFound
 	}
@@ -700,16 +754,23 @@ func (s *Service) handleClosed(_ *nats.Conn) {
 	s.Shutdown()
 }
 
-func validateGetHandlers(h Handler) rtype {
+func validateGetHandlers(h Handler) ResourceType {
 	c := 0
-	rtype := rtypeUnset
+	rtype := h.Type
 	if h.GetModel != nil {
+
+		if rtype != TypeModel && rtype != TypeUnset {
+			panic("model get handler on non-model type")
+		}
 		c++
-		rtype = rtypeModel
+		rtype = TypeModel
 	}
 	if h.GetCollection != nil {
+		if rtype != TypeCollection && rtype != TypeUnset {
+			panic("collection get handler on non-collection type")
+		}
 		c++
-		rtype = rtypeCollection
+		rtype = TypeCollection
 	}
 	if h.GetResource != nil {
 		c++

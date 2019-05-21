@@ -8,12 +8,12 @@ import "encoding/json"
 type Ref string
 
 // Resource type enum
-type rtype byte
+type ResourceType byte
 
 const (
-	rtypeUnset rtype = iota
-	rtypeModel
-	rtypeCollection
+	TypeUnset ResourceType = iota
+	TypeModel
+	TypeCollection
 )
 
 var refPrefix = []byte(`{"rid":`)

@@ -186,7 +186,7 @@ func (r *resource) Event(event string, payload interface{}) {
 // If ev is empty, no event is sent.
 // Panics if the resource is not a Model.
 func (r *resource) ChangeEvent(ev map[string]interface{}) {
-	if r.hs.typ == rtypeCollection {
+	if r.hs.Type == TypeCollection {
 		panic("res: change event not allowed on Collections")
 	}
 	if len(ev) == 0 {
@@ -198,7 +198,7 @@ func (r *resource) ChangeEvent(ev map[string]interface{}) {
 // AddEvent sends an add event, adding the value v at index idx.
 // Panics if the resource is not a Collection.
 func (r *resource) AddEvent(v interface{}, idx int) {
-	if r.hs.typ == rtypeModel {
+	if r.hs.Type == TypeModel {
 		panic("res: add event not allowed on Models")
 	}
 	if idx < 0 {
@@ -210,7 +210,7 @@ func (r *resource) AddEvent(v interface{}, idx int) {
 // RemoveEvent sends an remove event, removing the value at index idx.
 // Panics if the resource is not a Collection.
 func (r *resource) RemoveEvent(idx int) {
-	if r.hs.typ == rtypeModel {
+	if r.hs.Type == TypeModel {
 		panic("res: remove event not allowed on Models")
 	}
 	if idx < 0 {

@@ -9,27 +9,34 @@ import (
 
 // Test that the service can be served without error
 func TestStart(t *testing.T) {
-	runTest(t, nil, nil)
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, nil)
 }
 
 // Test that service can be served without logger
 func TestWithoutLogger(t *testing.T) {
-	runTestWithLogger(t, nil, nil, nil)
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, nil, withLogger(nil))
 }
 
 // Test that Logger returns the logger set with SetLogger
 func TestServiceLogger(t *testing.T) {
 	l := newMemLogger(true, true)
-	runTestWithLogger(t, l, func(s *Session) {
+	runTest(t, func(s *Session) {
 		if s.Logger() != l {
 			t.Errorf("expected Logger to return the logger passed to SetLogger, but it didn't")
 		}
-	}, nil)
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, nil, withLogger(l))
 }
 
 // Test that With returns an error if there is no registered pattern matching the resource
 func TestServiceWithWithoutMatchingPattern(t *testing.T) {
-	runTest(t, nil, func(s *Session) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
 		err := s.With("test.model", func(r res.Resource) {})
 		if err == nil {
 			t.Errorf("expected With to return an error, but it didn't")
@@ -42,32 +49,14 @@ func TestServiceSetReset(t *testing.T) {
 	resources := []string{"test.foo.>", "test.bar.>"}
 	access := []string{"test.zoo.>", "test.baz.>"}
 
-	var s *Session
-	l := newMemLogger(true, true)
-	c := NewTestConn(false)
-	r := res.NewService("test")
-	r.SetLogger(l)
-	r.SetReset(resources, access)
-
-	s = &Session{
-		MockConn: c,
-		Service:  r,
-		cl:       make(chan struct{}),
-	}
-
-	go func() {
-		defer s.StopServer()
-		defer close(s.cl)
-		if err := r.Serve(c); err != nil {
-			panic("test: failed to start service: " + err.Error())
-		}
-	}()
-	s.GetMsg(t).
-		AssertSubject(t, "system.reset").
-		AssertPayload(t, map[string]interface{}{
-			"resources": resources,
-			"access":    access,
-		})
+	s := setup(t, &runConfig{
+		logger: newMemLogger(true, true),
+		preCallback: func(s *Session) {
+			s.SetReset(resources, access)
+		},
+		resetResources: resources,
+		resetAccess:    access,
+	})
 
 	teardown(s)
 }
@@ -75,7 +64,9 @@ func TestServiceSetReset(t *testing.T) {
 // Test that TokenEvent sends a connection token event.
 func TestServiceTokenEvent(t *testing.T) {
 	token := `{"id":42,"user":"foo","role":"admin"}`
-	runTest(t, nil, func(s *Session) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
 		s.TokenEvent(defaultCID, json.RawMessage(token))
 		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
 	})
@@ -83,7 +74,9 @@ func TestServiceTokenEvent(t *testing.T) {
 
 // Test that TokenEvent with nil sends a connection token event with a nil token.
 func TestServiceNilTokenEvent(t *testing.T) {
-	runTest(t, nil, func(s *Session) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
 		s.TokenEvent(defaultCID, nil)
 		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":null}`))
 	})
@@ -91,7 +84,9 @@ func TestServiceNilTokenEvent(t *testing.T) {
 
 // Test that TokenEvent with an invalid cid causes panic.
 func TestServiceTokenEventWithInvalidCID(t *testing.T) {
-	runTest(t, nil, func(s *Session) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
 		defer func() {
 			v := recover()
 			if v == nil {
@@ -123,7 +118,9 @@ func TestServiceReset(t *testing.T) {
 	}
 
 	for _, l := range tbl {
-		runTest(t, func(s *Session) {}, func(s *Session) {
+		runTest(t, func(s *Session) {
+			s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+		}, func(s *Session) {
 			s.Reset(l.Resources, l.Access)
 			// Send token event to flush any system.reset event
 			s.TokenEvent(defaultCID, nil)

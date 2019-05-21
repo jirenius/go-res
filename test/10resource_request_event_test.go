@@ -74,7 +74,7 @@ func TestEvent(t *testing.T) {
 func TestEventUsingWith(t *testing.T) {
 	for _, l := range eventTestTbl {
 		runTest(t, func(s *Session) {
-			s.Handle("model")
+			s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 		}, func(s *Session) {
 			AssertNoError(t, s.With("test.model", func(r res.Resource) {
 				r.Event(l.Event, l.Payload)
@@ -108,7 +108,7 @@ func TestEventPanicsOnInvalid(t *testing.T) {
 
 	for _, l := range tbl {
 		runTestAsync(t, func(s *Session) {
-			s.Handle("model")
+			s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 		}, func(s *Session, done func()) {
 			AssertNoError(t, s.With("test.model", func(r res.Resource) {
 				AssertPanic(t, func() {
@@ -427,7 +427,7 @@ func TestReaccessEvent(t *testing.T) {
 // Test ReaccessEvent sends a reaccess event, using With.
 func TestReaccessEventUsingWith(t *testing.T) {
 	runTest(t, func(s *Session) {
-		s.Handle("model")
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session) {
 		AssertNoError(t, s.With("test.model", func(r res.Resource) {
 			r.ReaccessEvent()

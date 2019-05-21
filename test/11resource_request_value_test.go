@@ -99,7 +99,7 @@ func TestCollectionValueUsingWith(t *testing.T) {
 // Test that Value returns an error on missing get handler.
 func TestValueWithoutHandler(t *testing.T) {
 	runTestAsync(t, func(s *Session) {
-		s.Handle("model")
+		s.Handle("model", res.Access(res.AccessGranted))
 	}, func(s *Session, done func()) {
 		AssertNoError(t, s.With("test.model", func(r res.Resource) {
 			v, err := r.Value()

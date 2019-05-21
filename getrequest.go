@@ -105,10 +105,10 @@ func (r *getRequest) executeHandler() {
 	}()
 
 	hs := r.hs
-	switch hs.typ {
-	case rtypeModel:
+	switch hs.Type {
+	case TypeModel:
 		hs.GetModel(r)
-	case rtypeCollection:
+	case TypeCollection:
 		hs.GetCollection(r)
 	default:
 		if hs.GetResource == nil {

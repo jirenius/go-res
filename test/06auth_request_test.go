@@ -308,7 +308,7 @@ func TestRegisteringDuplicateAuthMethodPanics(t *testing.T) {
 				}),
 			)
 		})
-	}, nil)
+	}, nil, withoutReset)
 }
 
 // Test that Timeout sends the pre-response with timeout

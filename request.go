@@ -471,10 +471,10 @@ func (r *Request) executeHandler() {
 		hs.Access(r)
 	case "get":
 		r.inGet = true
-		switch hs.typ {
-		case rtypeModel:
+		switch hs.Type {
+		case TypeModel:
 			hs.GetModel(r)
-		case rtypeCollection:
+		case TypeCollection:
 			hs.GetCollection(r)
 		default:
 			if hs.GetResource == nil {

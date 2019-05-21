@@ -6,29 +6,45 @@ import (
 	"github.com/jirenius/go-res"
 )
 
-// Test that the service can be served without error
-func TestRegisterHandler(t *testing.T) {
+// Test that the service can serve a handler without error
+func TestRegisterModelHandler(t *testing.T) {
 	runTest(t, func(s *Session) {
-		s.Handle("model")
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) { r.NotFound() }))
 	}, func(s *Session) {
 		s.AssertSubscription(t, "get.test.>")
 		s.AssertSubscription(t, "call.test.>")
 		s.AssertSubscription(t, "auth.test.>")
 		s.AssertNoSubscription(t, "access.test.>")
-	})
+	}, withResources([]string{"test.>"}))
 }
 
 // Test that the access methods are subscribed to when handler
 // with an access handler function is registered
-func TestRegisterHandlerWithAccess(t *testing.T) {
+func TestRegisterAccessHandler(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Access(res.AccessGranted))
+	}, func(s *Session) {
+		s.AssertNoSubscription(t, "get.test.>")
+		s.AssertNoSubscription(t, "call.test.>")
+		s.AssertNoSubscription(t, "auth.test.>")
+		s.AssertSubscription(t, "access.test.>")
+	}, withAccess([]string{"test.>"}))
+}
+
+// Test that the resource and access methods are subscribed to when
+// both resource and access handler function is registered
+func TestRegisterModelAndAccessHandler(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model",
+			res.GetModel(func(r res.ModelRequest) { r.NotFound() }),
+			res.Access(res.AccessGranted),
+		)
 	}, func(s *Session) {
 		s.AssertSubscription(t, "get.test.>")
 		s.AssertSubscription(t, "call.test.>")
 		s.AssertSubscription(t, "auth.test.>")
 		s.AssertSubscription(t, "access.test.>")
-	})
+	}, withResources([]string{"test.>"}), withAccess([]string{"test.>"}))
 }
 
 // Test that registering both a model and collection handler results
@@ -79,6 +95,6 @@ func TestPanicOnInvalidPatternRegistration(t *testing.T) {
 			for _, p := range l {
 				s.Handle(p)
 			}
-		}, nil)
+		}, nil, withoutReset)
 	}
 }
