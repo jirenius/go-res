@@ -21,7 +21,7 @@ var refPrefix = []byte(`{"rid":`)
 const refSuffix = '}'
 
 // DeleteAction is used for deleted properties in "change" events
-var DeleteAction = json.RawMessage(`{"action":"delete"}`)
+var DeleteAction = &struct{ json.RawMessage }{RawMessage: json.RawMessage(`{"action":"delete"}`)}
 
 // MarshalJSON makes Ref implement the json.Marshaler interface.
 func (r Ref) MarshalJSON() ([]byte, error) {
@@ -34,6 +34,19 @@ func (r Ref) MarshalJSON() ([]byte, error) {
 	copy(o[7:], rid)
 	o[len(o)-1] = refSuffix
 	return o, nil
+}
+
+// UnmarshalJSON makes Ref implement the json.Unmarshaler interface.
+func (r *Ref) UnmarshalJSON(b []byte) error {
+	var p struct {
+		RID string `json:"rid"`
+	}
+	err := json.Unmarshal(b, &p)
+	if err != nil {
+		return err
+	}
+	*r = Ref(p.RID)
+	return nil
 }
 
 // IsValid returns true if the reference RID is valid, otherwise false.

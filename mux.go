@@ -75,10 +75,10 @@ func NewMux(pattern string) *Mux {
 //
 // If the pattern is already registered, or if there are conflicts among
 // the handlers, Handle panics.
-func (m *Mux) Handle(subpattern string, hf ...HandlerOption) {
+func (m *Mux) Handle(subpattern string, hf ...Option) {
 	var h Handler
 	for _, f := range hf {
-		f(&h)
+		f.SetOption(&h)
 	}
 	m.AddHandler(subpattern, h)
 }
@@ -86,8 +86,6 @@ func (m *Mux) Handle(subpattern string, hf ...HandlerOption) {
 // AddHandler register a handler for the given resource subpattern.
 // The pattern used is the same as described for Handle.
 func (m *Mux) AddHandler(subpattern string, hs Handler) {
-	hs.Type = validateGetHandlers(hs)
-
 	h := regHandler{
 		Handler: hs,
 		group:   parseGroup(hs.Group, subpattern),
@@ -95,6 +93,10 @@ func (m *Mux) AddHandler(subpattern string, hs Handler) {
 	}
 
 	m.add(subpattern, &h)
+}
+
+func (m *Mux) Use(middlewares ...func(*Middlewares)) {
+
 }
 
 // Mount attaches another Mux at a given pattern.
@@ -337,7 +339,7 @@ func (m *Mux) hasResources() bool {
 		}
 		hs := n.hs
 		mw := hs.mw
-		return hs.GetModel != nil || hs.GetCollection != nil || hs.GetResource != nil || len(mw.GetResource) > 0 ||
+		return hs.Get != nil || len(mw.Get) > 0 ||
 			len(hs.Call) > 0 || len(hs.Auth) > 0 || hs.New != nil || len(mw.Call) > 0 || len(mw.Auth) > 0 || len(mw.New) > 0
 	})
 }

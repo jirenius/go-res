@@ -27,20 +27,28 @@ var (
 	errHandlerNotFound = errors.New("res: no matching handlers found")
 )
 
-// HandlerOption is a function that sets an option to a resource handler.
-type HandlerOption func(*Handler)
+// Option set one or more of the handler functions for a resource Handler.
+type Option interface{ SetOption(*Handler) }
+
+// The OptionFunc type is an adapter to allow the use of ordinary functions
+// as options. If f is a function with the appropriate signature,
+// OptionFunc(f) is an Option that calls f.
+type OptionFunc func(*Handler)
+
+// SetOption calls f(hs)
+func (f OptionFunc) SetOption(hs *Handler) { f(hs) }
 
 // AccessHandler is a function called on resource access requests
 type AccessHandler func(AccessRequest)
+
+// GetHandler is a function called on untyped get requests
+type GetHandler func(GetRequest)
 
 // ModelHandler is a function called on model get requests
 type ModelHandler func(ModelRequest)
 
 // CollectionHandler is a function called on collection get requests
 type CollectionHandler func(CollectionRequest)
-
-// GetHandler is a function called on untyped get requests
-type GetHandler func(GetRequest)
 
 // CallHandler is a function called on resource call requests
 type CallHandler func(CallRequest)
@@ -53,23 +61,23 @@ type AuthHandler func(AuthRequest)
 
 // ApplyChangeHandler is a function called to apply a model change event.
 // Must return a map with the values to apply to revert the changes, or error.
-type ApplyChangeHandler func(Resource, map[string]interface{}) (map[string]interface{}, error)
+type ApplyChangeHandler func(r Resource, changes map[string]interface{}) (map[string]interface{}, error)
 
 // ApplyAddHandler is a function called to apply a collection add event.
 // Must return an error if the add event couldn't be applied to the resource.
-type ApplyAddHandler func(Resource, value interface{}, idx int) error
+type ApplyAddHandler func(r Resource, value interface{}, idx int) error
 
 // ApplyRemoveHandler is a function called to apply a collection remove event.
 // Must return the value being removed, or error.
-type ApplyRemoveHandler func(Resource, idx int) (interface{}, error)
+type ApplyRemoveHandler func(r Resource, idx int) (interface{}, error)
 
 // ApplyCreateHandler is a function called to apply a resource create event.
 // Must return an error if the resource couldn't be created.
-type ApplyCreateHandler func(Resource, data interface{}) error
+type ApplyCreateHandler func(r Resource, data interface{}) error
 
 // ApplyDeleteHandler is a function called to apply a resource delete event.
 // Must return the resource data being removed, or error.
-type ApplyDeleteHandler func(Resource) (interface{}, error)
+type ApplyDeleteHandler func(r Resource) (interface{}, error)
 
 // Handler contains handler functions for a given resource pattern.
 type Handler struct {
@@ -79,14 +87,8 @@ type Handler struct {
 	// Access handler for access requests
 	Access AccessHandler
 
-	// Get handler for models. If not nil, all other Get handlers must be nil, and Type must be TypeModel or TypeUnset.
-	GetModel ModelHandler
-
-	// Get handler for collections. If not nil, all other Get handlers must be nil, and Type must be TypeCollection or TypeUnset.
-	GetCollection CollectionHandler
-
-	// Get handler for untyped resources. If not nil, all other Get handlers must be nil.
-	GetResource GetHandler
+	// Get handler for get requests.
+	Get GetHandler
 
 	// Call handlers for call requests
 	Call map[string]CallHandler
@@ -126,6 +128,24 @@ const (
 	stateStarting
 	stateStarted
 	stateStopping
+)
+
+var (
+	// Model sets handler type to model
+	Model = OptionFunc(func(hs *Handler) {
+		if hs.Type != TypeUnset {
+			panic("res: resource type set multiple times")
+		}
+		hs.Type = TypeModel
+	})
+
+	// Collection sets handler type to collection
+	Collection = OptionFunc(func(hs *Handler) {
+		if hs.Type != TypeUnset {
+			panic("res: resource type set multiple times")
+		}
+		hs.Type = TypeCollection
+	})
 )
 
 // A Service handles incoming requests from NATS Server and calls the
@@ -213,67 +233,51 @@ func (s *Service) Tracef(format string, v ...interface{}) {
 	s.logger.Tracef("[Service] ", format, v...)
 }
 
-// Model sets handler type to model
-func Model(hs *Handler) {
-	if hs.Type != TypeUnset {
-		panic("res: resource type set multiple times")
-	}
-	hs.Type = TypeModel
-	validateGetHandlers(*hs)
-}
-
-// Collection sets handler type to collection
-func Collection(hs *Handler) {
-	if hs.Type != TypeUnset {
-		panic("res: resource type set multiple times")
-	}
-	hs.Type = TypeCollection
-	validateGetHandlers(*hs)
-}
-
 // Access sets a handler for resource access requests
-func Access(h AccessHandler) HandlerOption {
-	return func(hs *Handler) {
+func Access(h AccessHandler) Option {
+	return OptionFunc(func(hs *Handler) {
 		if hs.Access != nil {
 			panic("res: multiple access handlers")
 		}
 		hs.Access = h
-	}
+	})
 }
 
 // GetModel sets a handler for model get requests
-func GetModel(h ModelHandler) HandlerOption {
-	return func(hs *Handler) {
-		hs.GetModel = h
-		validateGetHandlers(*hs)
-	}
+func GetModel(h ModelHandler) Option {
+	return OptionFunc(func(hs *Handler) {
+		Model(hs)
+		validateGetHandler(*hs)
+		hs.Get = func(r GetRequest) { h(ModelRequest(r)) }
+	})
 }
 
 // GetCollection sets a handler for collection get requests
-func GetCollection(h CollectionHandler) HandlerOption {
-	return func(hs *Handler) {
-		hs.GetCollection = h
-		validateGetHandlers(*hs)
-	}
+func GetCollection(h CollectionHandler) Option {
+	return OptionFunc(func(hs *Handler) {
+		Collection(hs)
+		validateGetHandler(*hs)
+		hs.Get = func(r GetRequest) { h(CollectionRequest(r)) }
+	})
 }
 
 // GetResource sets a handler for untyped resource get requests
-func GetResource(h GetHandler) HandlerOption {
-	return func(hs *Handler) {
-		hs.GetResource = h
-		validateGetHandlers(*hs)
-	}
+func GetResource(h GetHandler) Option {
+	return OptionFunc(func(hs *Handler) {
+		validateGetHandler(*hs)
+		hs.Get = h
+	})
 }
 
 // Call sets a handler for resource call requests.
 // Panics if the method is one of the pre-defined call methods, set, or new.
 // For pre-defined call methods, the matching handlers, Set, and New
 // should be used instead.
-func Call(method string, h CallHandler) HandlerOption {
+func Call(method string, h CallHandler) Option {
 	if method == "new" {
 		panic("res: new handler should be registered using the New method")
 	}
-	return func(hs *Handler) {
+	return OptionFunc(func(hs *Handler) {
 		if hs.Call == nil {
 			hs.Call = make(map[string]CallHandler)
 		}
@@ -281,28 +285,28 @@ func Call(method string, h CallHandler) HandlerOption {
 			panic("res: multiple call handlers for method " + method)
 		}
 		hs.Call[method] = h
-	}
+	})
 }
 
 // Set sets a handler for set resource requests.
 // Is a n alias for Call("set", h)
-func Set(h CallHandler) HandlerOption {
+func Set(h CallHandler) Option {
 	return Call("set", h)
 }
 
 // New sets a handler for new resource requests.
-func New(h NewHandler) HandlerOption {
-	return func(hs *Handler) {
+func New(h NewHandler) Option {
+	return OptionFunc(func(hs *Handler) {
 		if hs.New != nil {
 			panic("res: multiple new handlers")
 		}
 		hs.New = h
-	}
+	})
 }
 
 // Auth sets a handler for resource auth requests
-func Auth(method string, h AuthHandler) HandlerOption {
-	return func(hs *Handler) {
+func Auth(method string, h AuthHandler) Option {
+	return OptionFunc(func(hs *Handler) {
 		if hs.Auth == nil {
 			hs.Auth = make(map[string]AuthHandler)
 		}
@@ -310,27 +314,67 @@ func Auth(method string, h AuthHandler) HandlerOption {
 			panic("res: multiple auth handlers for method " + method)
 		}
 		hs.Auth[method] = h
-	}
+	})
 }
 
 // ApplyChange sets a handler for applying change events
-func ApplyChange(h ApplyChangeHandler) HandlerOption {
-	return func(hs *Handler) {
+func ApplyChange(h ApplyChangeHandler) Option {
+	return OptionFunc(func(hs *Handler) {
 		if hs.ApplyChange != nil {
 			panic("res: multiple apply change handlers")
 		}
 		hs.ApplyChange = h
-	}
+	})
+}
+
+// ApplyAdd sets a handler for applying add events
+func ApplyAdd(h ApplyAddHandler) Option {
+	return OptionFunc(func(hs *Handler) {
+		if hs.ApplyAdd != nil {
+			panic("res: multiple apply add handlers")
+		}
+		hs.ApplyAdd = h
+	})
+}
+
+// ApplyRemove sets a handler for applying remove events
+func ApplyRemove(h ApplyRemoveHandler) Option {
+	return OptionFunc(func(hs *Handler) {
+		if hs.ApplyRemove != nil {
+			panic("res: multiple apply remove handlers")
+		}
+		hs.ApplyRemove = h
+	})
+}
+
+// ApplyCreate sets a handler for applying create events
+func ApplyCreate(h ApplyCreateHandler) Option {
+	return OptionFunc(func(hs *Handler) {
+		if hs.ApplyCreate != nil {
+			panic("res: multiple apply create handlers")
+		}
+		hs.ApplyCreate = h
+	})
+}
+
+// ApplyDelete sets a handler for applying delete events
+func ApplyDelete(h ApplyDeleteHandler) Option {
+	return OptionFunc(func(hs *Handler) {
+		if hs.ApplyDelete != nil {
+			panic("res: multiple apply delete handlers")
+		}
+		hs.ApplyDelete = h
+	})
 }
 
 // Group sets a group ID. All resources of the same group will be handled
 // on the same goroutine.
 // The group may contain tags, ${tagName}, where the tag name matches
 // a parameter placeholder name in the resource pattern.
-func Group(group string) HandlerOption {
-	return func(hs *Handler) {
+func Group(group string) Option {
+	return OptionFunc(func(hs *Handler) {
 		hs.Group = group
-	}
+	})
 }
 
 // SetReset sets the patterns used for resources and access when a ResetAll is made.
@@ -754,31 +798,10 @@ func (s *Service) handleClosed(_ *nats.Conn) {
 	s.Shutdown()
 }
 
-func validateGetHandlers(h Handler) ResourceType {
-	c := 0
-	rtype := h.Type
-	if h.GetModel != nil {
-
-		if rtype != TypeModel && rtype != TypeUnset {
-			panic("model get handler on non-model type")
-		}
-		c++
-		rtype = TypeModel
-	}
-	if h.GetCollection != nil {
-		if rtype != TypeCollection && rtype != TypeUnset {
-			panic("collection get handler on non-collection type")
-		}
-		c++
-		rtype = TypeCollection
-	}
-	if h.GetResource != nil {
-		c++
-	}
-	if c > 1 {
+func validateGetHandler(h Handler) {
+	if h.Get != nil {
 		panic("res: multiple get handlers")
 	}
-	return rtype
 }
 
 // parseRID parses a resource ID, rid, and splits it into the resource name

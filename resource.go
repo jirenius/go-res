@@ -11,8 +11,11 @@ type Resource interface {
 	// Service returns the service instance
 	Service() *Service
 
-	/// Resource returns the resource name.
+	// Resource returns the resource name.
 	ResourceName() string
+
+	// ResourceType returns the resource type.
+	ResourceType() ResourceType
 
 	// PathParams returns parameters that are derived from the resource name.
 	PathParams() map[string]string
@@ -28,11 +31,14 @@ type Resource interface {
 	// To check errors use url.ParseQuery(Query()).
 	ParseQuery() url.Values
 
-	// Value gets the resource value as provided from the GetModel or
-	// GetCollection resource handlers.
+	// Value gets the resource value as provided from the Get resource handlers.
 	// If it fails to get the resource value, or no get handler is
 	// defined, it returns a nil interface and a *Error type error.
 	Value() (interface{}, error)
+
+	// RequireValue gets the resource value as provided from the Get resource handlers.
+	// Panics if it fails to get the resource value, or no get handler is defined.
+	RequireValue() interface{}
 
 	// Event sends a custom event on the resource.
 	// Will panic if the event is one of the pre-defined or reserved events,
@@ -73,7 +79,17 @@ type Resource interface {
 	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
 	ReaccessEvent()
 
+	// QueryEvent sends a query event to signal that the query resource's underlying data has been modified.
+	// See the protocol specification for more information:
+	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-event
 	QueryEvent(func(QueryRequest))
+
+	// CreateEvent sends a create event, to signal the resource has been created, with
+	// value being the resource value.
+	CreateEvent(value interface{})
+
+	// DeleteEvent sends a delete event, to signal the resource has been deleted.
+	DeleteEvent()
 }
 
 // resource is the internal implementation of the Resource interface
@@ -94,6 +110,11 @@ func (r *resource) Service() *Service {
 // ResourceName returns the resource name.
 func (r *resource) ResourceName() string {
 	return r.rname
+}
+
+// ResourceType returns the resource type.
+func (r *resource) ResourceType() ResourceType {
+	return r.hs.Type
 }
 
 // PathParams returns parameters that are derived from the resource name.
@@ -119,13 +140,12 @@ func (r *resource) ParseQuery() url.Values {
 	return v
 }
 
-// Value gets the resource value as provided from the GetModel or
-// GetCollection resource handlers.
+// Value gets the resource value as provided from the Get resource handlers.
 // If it fails to get the resource value, or no get handler is
 // defined, it returns a nil interface and a *Error type error.
-// Panics if called from within GetModel or GetCollection handler.
+// Panics if called from within a Get handler.
 func (r *resource) Value() (interface{}, error) {
-	// Panic if the getRequest is called within GetModel or GetCollection handler.
+	// Panic if the getRequest is called within Get handler.
 	if r.inGet {
 		panic("Value() called from within get handler")
 	}
@@ -133,6 +153,16 @@ func (r *resource) Value() (interface{}, error) {
 	gr := &getRequest{resource: r}
 	gr.executeHandler()
 	return gr.value, gr.err
+}
+
+// RequireValue uses Value to gets the resource value, provided from the Get resource handler.
+// It panics if the underlying call to Value return an error.
+func (r *resource) RequireValue() interface{} {
+	i, err := r.Value()
+	if err != nil {
+		panic(err)
+	}
+	return i
 }
 
 func isValidPart(p string) bool {
@@ -192,6 +222,15 @@ func (r *resource) ChangeEvent(ev map[string]interface{}) {
 	if len(ev) == 0 {
 		return
 	}
+	if r.hs.ApplyChange != nil {
+		rev, err := r.hs.ApplyChange(r, ev)
+		if err != nil {
+			panic(err)
+		}
+		if len(rev) == 0 {
+			return
+		}
+	}
 	r.s.event("event."+r.rname+".change", changeEvent{Values: ev})
 }
 
@@ -204,6 +243,12 @@ func (r *resource) AddEvent(v interface{}, idx int) {
 	if idx < 0 {
 		panic("res: add event idx less than zero")
 	}
+	if r.hs.ApplyAdd != nil {
+		err := r.hs.ApplyAdd(r, v, idx)
+		if err != nil {
+			panic(err)
+		}
+	}
 	r.s.event("event."+r.rname+".add", addEvent{Value: v, Idx: idx})
 }
 
@@ -215,6 +260,12 @@ func (r *resource) RemoveEvent(idx int) {
 	}
 	if idx < 0 {
 		panic("res: remove event idx less than zero")
+	}
+	if r.hs.ApplyRemove != nil {
+		err, _ := r.hs.ApplyRemove(r, idx)
+		if err != nil {
+			panic(err)
+		}
 	}
 	r.s.event("event."+r.rname+".remove", removeEvent{Idx: idx})
 }
@@ -250,4 +301,26 @@ func (r *resource) QueryEvent(cb func(QueryRequest)) {
 	go qe.startQueryListener()
 
 	r.s.queryTQ.Add(qe)
+}
+
+// CreateEvent sends a create event for the resource.
+func (r *resource) CreateEvent(value interface{}) {
+	if r.hs.ApplyCreate != nil {
+		err := r.hs.ApplyCreate(r, value)
+		if err != nil {
+			panic(err)
+		}
+	}
+	r.s.rawEvent("event."+r.rname+".create", nil)
+}
+
+// DeleteEvent sends a delete event.
+func (r *resource) DeleteEvent() {
+	if r.hs.ApplyDelete != nil {
+		_, err := r.hs.ApplyDelete(r)
+		if err != nil {
+			panic(err)
+		}
+	}
+	r.s.rawEvent("event."+r.rname+".delete", nil)
 }

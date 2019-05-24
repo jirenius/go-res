@@ -55,6 +55,10 @@ func (r *getRequest) Timeout(d time.Duration) {
 	// Implement once an internal timeout for requests is implemented
 }
 
+func (r *getRequest) ForValue() bool {
+	return true
+}
+
 func (r *getRequest) reply() {
 	if r.replied {
 		panic("res: response already sent on get request")
@@ -105,18 +109,11 @@ func (r *getRequest) executeHandler() {
 	}()
 
 	hs := r.hs
-	switch hs.Type {
-	case TypeModel:
-		hs.GetModel(r)
-	case TypeCollection:
-		hs.GetCollection(r)
-	default:
-		if hs.GetResource == nil {
-			r.Error(ErrNotFound)
-			return
-		}
-		hs.GetResource(r)
+	if hs.Get == nil {
+		r.Error(ErrNotFound)
+		return
 	}
+	hs.Get(r)
 
 	if !r.replied {
 		r.Error(InternalError(fmt.Errorf("missing response on get request for %#v", r.rname)))
