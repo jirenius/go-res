@@ -7,6 +7,7 @@ This is the book collection example with persistance to BadgerDB using its middl
 * It allows deleting existing books from the collection with the `delete` method.
 * It verifies that a *title* and *author* is always set.
 * It persists all events to the BadgerDB.
+* It bootstraps an empty/non-existing database with some default books.
 * It serves a web client at http://localhost:8083
 */
 package main
@@ -45,6 +46,7 @@ func main() {
 	}
 	defer db.Close()
 
+	// Create badgerDB middleware for res.Service
 	badgerDB := middleware.BadgerDB(db)
 
 	// Create a new RES Service
@@ -64,10 +66,13 @@ func main() {
 		"books",
 		res.Collection,
 		res.Access(res.AccessGranted),
-		badgerDB.SetDefault([]res.Ref{}).SetType([]res.Ref(nil)),
+		badgerDB.SetType([]res.Ref(nil)),
 		res.New(newBookHandler),
 		res.Call("delete", deleteBookHandler),
 	)
+
+	// Set on serve handler to bootstrap the data, if needed
+	s.SetOnServe(onServe)
 
 	// Start service in separate goroutine
 	stop := make(chan bool)
@@ -80,8 +85,8 @@ func main() {
 
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	go func() { log.Fatal(http.ListenAndServe(":8082", http.FileServer(http.Dir("./")))) }()
-	fmt.Println("Client at: http://localhost:8082/")
+	go func() { log.Fatal(http.ListenAndServe(":8083", http.FileServer(http.Dir("./")))) }()
+	fmt.Println("Client at: http://localhost:8083/")
 
 	// Wait for interrupt signal
 	c := make(chan os.Signal, 1)
@@ -215,4 +220,31 @@ func deleteBookHandler(r res.CallRequest) {
 	// should be idempotent or not. In this case we send success regardless
 	// if the book existed or not, making it idempotent.
 	r.OK(nil)
+}
+
+// onServe bootstraps an empty database with some initial books.
+func onServe(s *res.Service) {
+	s.With("library.books", func(r res.Resource) {
+		_, err := r.Value()
+		if err != res.ErrNotFound {
+			return
+		}
+
+		// Book models to bootstrap with
+		books := []*Book{
+			{ID: xid.New().String(), Title: "Animal Farm", Author: "George Orwell"},
+			{ID: xid.New().String(), Title: "Brave New World", Author: "Aldous Huxley"},
+			{ID: xid.New().String(), Title: "Coraline", Author: "Neil Gaiman"},
+		}
+
+		// Loop through the books and send appropriate events,
+		// which BadgerDB middleware will persist.
+		for i, book := range books {
+			rid := "library.book." + book.ID
+			r.Service().With(rid, func(r res.Resource) {
+				r.CreateEvent(book)
+			})
+			r.AddEvent(res.Ref(rid), i)
+		}
+	})
 }

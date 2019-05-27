@@ -152,9 +152,7 @@ var (
 // appropriate callback on the resource handlers.
 type Service struct {
 	*Mux
-
-	state int32
-
+	state          int32
 	nc             Conn              // NATS Server connection
 	inCh           chan *nats.Msg    // Channel for incoming nats messages
 	rwork          map[string]*work  // map of resource work
@@ -166,7 +164,7 @@ type Service struct {
 	resetAccess    []string          // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
 	queryTQ        *timerqueue.Queue // Timer queue for query events duration
 	queryDuration  time.Duration     // Duration to listen for query requests on a query event
-
+	onServe        func(*Service)    // Handler called after starting to serve prior to calling syste.reset
 }
 
 // NewService creates a new Service.
@@ -202,6 +200,12 @@ func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
 	}
 	s.queryDuration = d
 	return s
+}
+
+// SetOnServe sets a function to call when starting to serve,
+// after sending a system.reset.
+func (s *Service) SetOnServe(f func(*Service)) {
+	s.onServe = f
 }
 
 // Logger returns the logger.
@@ -465,8 +469,12 @@ func (s *Service) serve(nc Conn) error {
 		s.Logf("Failed to subscribe: %s", err)
 		s.close()
 	} else {
-		// Always start with a reset
+		// Send a system.reset
 		s.ResetAll()
+		// Call onServe callback
+		if s.onServe != nil {
+			s.onServe(s)
+		}
 
 		s.Logf("Listening for requests")
 		s.startListener(inCh)

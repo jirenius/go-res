@@ -254,9 +254,11 @@ func (b *badgerDB) applyAdd(r res.Resource, value interface{}, idx int) error {
 				return err
 			}
 			if b.rawDefault == nil {
-				return res.ErrNotFound
+				// Default to an empty collection on add
+				dta = []byte(`[]`)
+			} else {
+				dta = b.rawDefault
 			}
-			dta = b.rawDefault
 		} else {
 			dta, err = item.ValueCopy(nil)
 			if err != nil {
