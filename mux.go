@@ -18,7 +18,6 @@ type Mux struct {
 	pattern string
 	plen    int
 	root    *node
-	mw      *Middlewares
 	parent  *Mux
 }
 
@@ -26,7 +25,6 @@ type Mux struct {
 type regHandler struct {
 	Handler
 	group group
-	mw    *Middlewares
 }
 
 // A node represents one part of the path, and has pointers
@@ -58,7 +56,6 @@ func NewMux(pattern string) *Mux {
 		pattern: pattern,
 		plen:    len(splitPattern(pattern)),
 		root:    &node{},
-		mw:      &Middlewares{},
 	}
 }
 
@@ -89,14 +86,9 @@ func (m *Mux) AddHandler(subpattern string, hs Handler) {
 	h := regHandler{
 		Handler: hs,
 		group:   parseGroup(hs.Group, subpattern),
-		mw:      m.mw,
 	}
 
 	m.add(subpattern, &h)
-}
-
-func (m *Mux) Use(middlewares ...func(*Middlewares)) {
-
 }
 
 // Mount attaches another Mux at a given pattern.
@@ -338,9 +330,7 @@ func (m *Mux) hasResources() bool {
 			return false
 		}
 		hs := n.hs
-		mw := hs.mw
-		return hs.Get != nil || len(mw.Get) > 0 ||
-			len(hs.Call) > 0 || len(hs.Auth) > 0 || hs.New != nil || len(mw.Call) > 0 || len(mw.Auth) > 0 || len(mw.New) > 0
+		return hs.Get != nil || len(hs.Call) > 0 || len(hs.Auth) > 0 || hs.New != nil
 	})
 }
 
@@ -349,7 +339,7 @@ func (m *Mux) hasAccess() bool {
 		if n.hs == nil {
 			return false
 		}
-		return n.hs.Access != nil || len(n.hs.mw.Access) > 0
+		return n.hs.Access != nil
 	})
 }
 

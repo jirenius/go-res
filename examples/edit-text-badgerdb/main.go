@@ -35,9 +35,7 @@ func main() {
 		// Allow everone to access this resource
 		res.Access(res.AccessGranted),
 		// BadgerDB middleware adds a get handler
-		middleware.BadgerDB(db, middleware.BadgerDBCfg{
-			DefaultModel: map[string]interface{}{"message": "Resgate loves BadgerDB"},
-		}),
+		middleware.BadgerDB(db).SetDefault(map[string]interface{}{"message": "Resgate loves BadgerDB"}),
 
 		// Handle setting of the message
 		res.Set(func(r res.CallRequest) {
