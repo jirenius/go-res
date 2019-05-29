@@ -1,15 +1,17 @@
-# Book Collection Example
+# Book Collection BadgerDB Example 
 
-This is an example RES service that shows a lists of books, where book titles can be added,
-edited and deleted by multiple users simultaneously.
+This is the Book Collection example where all changes are persisted using the BadgerDB middleware.  
+By using the BadgerDB middleware, both clients and database can be updated with a single event.
 
 * It exposes a collection, `library.books`, containing book model references.
 * It exposes book models, `library.book.<BOOK_ID>`, of each book.
-* It allows setting the books' *title* and *author* property through the `set` method.
-* It allows creating new books that are added to the collection with the `new` method.
-* It allows deleting existing books from the collection with the `delete` method.
-* It verifies that a *title* and *author* is always set.
-* It resets the collection and models on server restart.
+* The middleware adds a GetResource handler that loads the resources from the database.
+* The middleware adds a ApplyChange handler that updates the books on change events.
+* The middleware adds a ApplyAdd handler that updates the list on add events.
+* The middleware adds a ApplyRemove handler that updates the list on remove events.
+* The middleware adds a ApplyCreate handler that stores new books on create events.
+* The middleware adds a ApplyDelete handler that deletes books on delete events.
+* It persists all changes to a local BadgerDB database under `./db`.
 
 ## Prerequisite
 
@@ -20,26 +22,19 @@ edited and deleted by multiple users simultaneously.
 Clone go-res repository and run example:
 ```bash
 git clone https://github.com/jirenius/go-res
-cd go-res/examples/book-collection
+cd go-res/examples/book-collection-badgerdb
 go run main.go
 ```
 
 Open the client
 ```
-http://localhost:8082
+http://localhost:8083
 ```
 
 ## Things to try out
 
-**Realtime updates**  
-Run the client in two separate tabs to observe realtime updates.
-
-**System reset**  
-Run the client and make some changes. Restart the node.js server to observe resetting of resources in clients.
-
-**Resynchronization**  
-Run the client on two separate devices. Disconnect one device, then make changes with the other. Reconnect the first device to observe resynchronization.
-
+**BadgerDB persistance**  
+Run the client and make changes to the list of books. Restart the service and observe that all changes are persisted.
 
 ## Web resources
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -57,6 +58,7 @@ type ModelRequest interface {
 	NotFound()
 	Error(err *Error)
 	Timeout(d time.Duration)
+	ForValue() bool
 }
 
 // CollectionRequest has methods for responding to collection get requests.
@@ -67,6 +69,7 @@ type CollectionRequest interface {
 	NotFound()
 	Error(err *Error)
 	Timeout(d time.Duration)
+	ForValue() bool
 }
 
 // GetRequest has methods for responding to resource get requests.
@@ -79,6 +82,7 @@ type GetRequest interface {
 	NotFound()
 	Error(err *Error)
 	Timeout(d time.Duration)
+	ForValue() bool
 }
 
 // CallRequest has methods for responding to call requests.
@@ -385,6 +389,13 @@ func (r *Request) TokenEvent(token interface{}) {
 	r.s.event("conn."+r.cid+".token", tokenEvent{Token: token})
 }
 
+// ForValue is used to tell whether a get request handler is called as a result of Value being
+// called from another handler.
+// Only valid for get requests.
+func (r *Request) ForValue() bool {
+	return false
+}
+
 // success sends a successful response as a reply.
 func (r *Request) success(result interface{}) {
 	data, err := json.Marshal(successResponse{Result: result})
@@ -457,7 +468,7 @@ func (r *Request) executeHandler() {
 			}
 		}
 
-		r.s.Logf("error handling request %s: %s", r.msg.Subject, str)
+		r.s.Logf("error handling request %s: %s\n\t%s", r.msg.Subject, str, string(debug.Stack()))
 	}()
 
 	hs := r.hs
@@ -471,18 +482,11 @@ func (r *Request) executeHandler() {
 		hs.Access(r)
 	case "get":
 		r.inGet = true
-		switch hs.typ {
-		case rtypeModel:
-			hs.GetModel(r)
-		case rtypeCollection:
-			hs.GetCollection(r)
-		default:
-			if hs.GetResource == nil {
-				r.reply(responseNotFound)
-				return
-			}
-			hs.GetResource(r)
+		if hs.Get == nil {
+			r.reply(responseNotFound)
+			return
 		}
+		hs.Get(r)
 	case "call":
 		if r.method == "new" {
 			h := hs.New

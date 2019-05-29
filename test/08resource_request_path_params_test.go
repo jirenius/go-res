@@ -37,7 +37,7 @@ func TestPathParams(t *testing.T) {
 func TestPathParamsUsingWith(t *testing.T) {
 	for _, l := range resourceRequestPathParamsTestTbl {
 		runTestAsync(t, func(s *Session) {
-			s.Handle(l.Pattern)
+			s.Handle(l.Pattern, res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 		}, func(s *Session, done func()) {
 			AssertNoError(t, s.With(l.ResourceName, func(r res.Resource) {
 				pp := r.PathParams()

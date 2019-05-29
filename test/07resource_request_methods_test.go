@@ -68,7 +68,7 @@ func TestServiceMethodUsingWith(t *testing.T) {
 	var service *res.Service
 	runTestAsync(t, func(s *Session) {
 		service = s.Service
-		s.Handle("model")
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session, done func()) {
 		AssertNoError(t, s.With("test.model", func(r res.Resource) {
 			if r.Service() != service {
@@ -111,7 +111,7 @@ func TestResourceNameAndQuery(t *testing.T) {
 func TestResourceNameAndQueryUsingWith(t *testing.T) {
 	for _, l := range resourceRequestTestTbl {
 		runTestAsync(t, func(s *Session) {
-			s.Handle(l.Pattern)
+			s.Handle(l.Pattern, res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 		}, func(s *Session, done func()) {
 			rid := l.ResourceName
 			if l.Query != "" {
@@ -136,7 +136,7 @@ func TestResourceNameAndQueryUsingWith(t *testing.T) {
 func TestParseQuery(t *testing.T) {
 	for _, l := range resourceRequestQueryTestTbl {
 		runTestAsync(t, func(s *Session) {
-			s.Handle("model")
+			s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 		}, func(s *Session, done func()) {
 			rid := "test.model?" + l.Query
 			AssertNoError(t, s.With(rid, func(r res.Resource) {

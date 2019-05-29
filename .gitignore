@@ -11,3 +11,5 @@ debug
 
 # Output of the go coverage tool
 *.out
+
+.vscode
