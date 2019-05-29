@@ -1,10 +1,11 @@
-# Hello World example
+# Edit Text Example
 
-This is an example of a simple Hello World RES service written in Go.
-* It exposes a single resource: `example.mymodel`.
+This is an example of a simple text field that can be edited by multiple clients.
+
+* It exposes a single resource: `example.shared`.
 * It allows setting the resource's `message` property through the `set` method.
 * It resets the model on server restart.
-* It serves a web client at http://localhost:8081
+* It serves a web client at http://localhost:8082
 
 ## Prerequisite
 
@@ -15,13 +16,13 @@ This is an example of a simple Hello World RES service written in Go.
 Clone go-res repository and run example:
 ```bash
 git clone https://github.com/jirenius/go-res
-cd go-res/examples/hello-world
+cd go-res/examples/edit-text
 go run main.go
 ```
 
 Open the client
 ```
-http://localhost:8081
+http://localhost:8082
 ```
 
 ## Things to try out
@@ -35,12 +36,12 @@ Resources can be retrieved using ordinary HTTP GET requests, and methods can be 
 
 ### Get model
 ```
-GET http://localhost:8080/api/exampleService/myModel
+GET http://localhost:8080/api/example/shared
 ```
 
 ### Update model
 ```
-POST http://localhost:8080/api/exampleService/myModel/set
+POST http://localhost:8080/api/example/shared/set
 ```
 *Body*  
 ```

@@ -13,7 +13,7 @@ import (
 func TestQueryEvent(t *testing.T) {
 	model := resource["test.model"]
 
-	runTestWithGnatsd(t, func(s *Session) {
+	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.Model(json.RawMessage(model))
@@ -31,7 +31,7 @@ func TestQueryEvent(t *testing.T) {
 			t.Errorf("expected query event payload contain subject string, but got %#v", ev.Payload())
 		}
 		s.GetMsg(t).AssertSubject(t, inb)
-	})
+	}, withGnatsd)
 }
 
 // Test QueryEvent expiration causes callback to be called with nil
@@ -40,7 +40,7 @@ func TestQueryEventExpiration(t *testing.T) {
 	var done func()
 	ch := make(chan struct{})
 
-	runTestAsyncWithGnatsd(t, func(s *Session) {
+	runTestAsync(t, func(s *Session) {
 		s.SetQueryEventDuration(time.Millisecond)
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
@@ -63,12 +63,14 @@ func TestQueryEventExpiration(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, inb)
 		<-ch
 		done()
-	})
+	}, withGnatsd)
 }
 
 // Test SetQueryEventDuration panics when called after starting service
 func TestSetQueryEventDurationPanicsAfterStart(t *testing.T) {
-	runTest(t, func(s *Session) {}, func(s *Session) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(res.AccessGranted))
+	}, func(s *Session) {
 		AssertPanic(t, func() {
 			s.SetQueryEventDuration(time.Second * 5)
 		})
@@ -80,7 +82,7 @@ func TestQueryEventFailedSubscribe(t *testing.T) {
 	model := resource["test.model"]
 	var done func()
 
-	runTestAsyncWithGnatsd(t, func(s *Session) {
+	runTestAsync(t, func(s *Session) {
 		s.SetQueryEventDuration(time.Millisecond)
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
@@ -102,7 +104,7 @@ func TestQueryEventFailedSubscribe(t *testing.T) {
 	}, func(s *Session, d func()) {
 		done = d
 		s.Request("call.test.model.method", nil)
-	})
+	}, withGnatsd)
 }
 
 // Test QueryRequests being received on query event
@@ -112,7 +114,7 @@ func TestQueryRequest(t *testing.T) {
 
 	events := json.RawMessage(`{"events":[]}`)
 
-	runTestWithGnatsd(t, func(s *Session) {
+	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.Model(json.RawMessage(model))
@@ -130,7 +132,7 @@ func TestQueryRequest(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, inb)
 		inb = s.Request(subj, json.RawMessage(`{"query":"`+query+`"}`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, events)
-	})
+	}, withGnatsd)
 }
 
 // Test QueryRequest responses.
@@ -318,7 +320,7 @@ func TestQueryRequestResponse(t *testing.T) {
 	}
 	lookup := make(map[string]func(r res.QueryRequest), len(tbl))
 
-	runTestWithGnatsd(t, func(s *Session) {
+	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				var q string
@@ -354,12 +356,12 @@ func TestQueryRequestResponse(t *testing.T) {
 				resp.AssertResult(t, v)
 			}
 		}
-	})
+	}, withGnatsd)
 }
 
 // Test QueryRequest' Timeout sends a correct pre-response
 func TestQueryRequestTimeout(t *testing.T) {
-	runTestWithGnatsd(t, func(s *Session) {
+	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
@@ -375,12 +377,12 @@ func TestQueryRequestTimeout(t *testing.T) {
 		inb = s.Request(subj, json.RawMessage(`{"query":"foo=bar"}`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertRawPayload(t, []byte(`timeout:"42000"`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, json.RawMessage(`{"events":[]}`))
-	})
+	}, withGnatsd)
 }
 
 // Test QueryRequest' with invalid Timeout duration returns error
 func TestQueryRequestInvalidTimeout(t *testing.T) {
-	runTestWithGnatsd(t, func(s *Session) {
+	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
@@ -395,7 +397,7 @@ func TestQueryRequestInvalidTimeout(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, inb)
 		inb = s.Request(subj, json.RawMessage(`{"query":"foo=bar"}`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, res.CodeInternalError)
-	})
+	}, withGnatsd)
 }
 
 // Test Invalid QueryRequests gets an internal error response
@@ -408,7 +410,7 @@ func TestInvalidQueryRequest(t *testing.T) {
 		{json.RawMessage(`]`)},
 	}
 
-	runTestWithGnatsd(t, func(s *Session) {
+	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {})
@@ -429,5 +431,5 @@ func TestInvalidQueryRequest(t *testing.T) {
 				break
 			}
 		}
-	})
+	}, withGnatsd)
 }

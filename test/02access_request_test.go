@@ -17,7 +17,7 @@ func TestAccess(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("access.test.model", nil)
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"get":true,"call":"bar"}}`))
-	})
+	}, withAccess([]string{"test.>"}))
 }
 
 // Test that access granted response is sent when calling AccessGranted
@@ -154,7 +154,7 @@ func TestRegisteringMultipleAccessHandlersPanics(t *testing.T) {
 				}),
 			)
 		})
-	}, nil)
+	}, nil, withoutReset)
 }
 
 // Test that access granted response is sent when using AccessGranted handler.

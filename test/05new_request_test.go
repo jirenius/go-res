@@ -297,7 +297,7 @@ func TestRegisteringNewCallPanics(t *testing.T) {
 				r.OK(nil)
 			}))
 		})
-	}, nil)
+	}, nil, withoutReset)
 }
 
 // Test registering multiple new handlers causes panic
@@ -313,7 +313,7 @@ func TestRegisteringMultipleNewHandlersPanics(t *testing.T) {
 				}),
 			)
 		})
-	}, nil)
+	}, nil, withoutReset)
 }
 
 // Test that Timeout sends the pre-response with timeout
