@@ -1,10 +1,13 @@
-# Edit Text Example
+# Edit Text BadgerDB Example
 
-This is an example of a simple text field that can be edited by multiple clients.
+This is the Edit Text example where all changes are persisted using the BadgerDB middleware.  
+By using the BadgerDB middleware, both clients and database can be updated with a single event.
 
 * It exposes a single resource: `example.shared`.
 * It allows setting the resource's `message` property through the `set` method.
-* It resets the model on server restart.
+* The middleware adds a GetResource handler that loads the resource from the database.
+* The middleware adds a ApplyChange handler that updates the database on change events.
+* It persists all changes to a local BadgerDB database under `./db`.
 * It serves a web client at http://localhost:8082
 
 ## Prerequisite
@@ -16,7 +19,7 @@ This is an example of a simple text field that can be edited by multiple clients
 Clone go-res repository and run example:
 ```bash
 git clone https://github.com/jirenius/go-res
-cd go-res/examples/edit-text
+cd go-res/examples/edit-text-badgerdb
 go run main.go
 ```
 
@@ -27,8 +30,8 @@ http://localhost:8082
 
 ## Things to try out
 
-**Realtime updates**  
-Run the client in two separate tabs, edit the message in one tab, and observe realtime updates in both.
+**BadgerDB persistance**  
+Run the client and make edits to the text. Restart the service and observe all changes are persisted.
 
 ## Web resources
 

@@ -10,16 +10,17 @@ import (
 	res "github.com/jirenius/go-res"
 )
 
-type badgerDB struct {
-	rawDefault json.RawMessage
-	t          reflect.Type
-	BadgerDBOption
-}
-
-type BadgerDBOption struct {
-	DB      *badger.DB
+// BadgerDB provides persistance to BadgerDB for the res Handlers.
+//
+// It will set the GetResource and Apply* handlers to load, store, and update the resources
+// in the database, using the resource ID as key value.
+type BadgerDB struct {
+	// BadgerDB database
+	DB *badger.DB
+	// Default resource value if not found in database. Will return res.ErrNotFound if not set.
 	Default interface{}
-	Type    interface{}
+	// Type used to marshal into when calling r.Value() or r.RequireValue().
+	Type interface{}
 }
 
 var (
@@ -29,34 +30,44 @@ var (
 	errResourceAlreadyExists = res.InternalError(errors.New("resource already exists"))
 )
 
-func BadgerDB(db *badger.DB) BadgerDBOption {
-	return BadgerDBOption{DB: db}
+type badgerDB struct {
+	rawDefault json.RawMessage
+	t          reflect.Type
+	BadgerDB
 }
 
-func (o BadgerDBOption) SetDefault(i interface{}) BadgerDBOption {
+// WithDefault returns a new BadgerDB value with the Default resource value set to i.
+func (o BadgerDB) WithDefault(i interface{}) BadgerDB {
 	o.Default = i
 	return o
 }
 
-func (o BadgerDBOption) SetType(v interface{}) BadgerDBOption {
+// WithType returns a new BadgerDB value with the Type value set to v.
+func (o BadgerDB) WithType(v interface{}) BadgerDB {
 	o.Type = v
 	return o
 }
 
-func (o BadgerDBOption) SetDB(db *badger.DB) BadgerDBOption {
+// WithDB returns a new BadgerDB value with the DB set to db.
+func (o BadgerDB) WithDB(db *badger.DB) BadgerDB {
 	o.DB = db
 	return o
 }
 
-func (o BadgerDBOption) SetOption(hs *res.Handler) {
+// SetOption is to implement the res.Option interface
+func (o BadgerDB) SetOption(hs *res.Handler) {
 	var err error
+
+	if o.DB == nil {
+		panic("middleware: no badger DB set")
+	}
 
 	if hs.Type == res.TypeUnset {
 		panic("middleware: no resource Type set for handler prior to setting BadgerDB middleware")
 	}
 
 	b := badgerDB{
-		BadgerDBOption: o,
+		BadgerDB: o,
 	}
 
 	if o.Type != nil {

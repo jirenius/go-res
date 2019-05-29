@@ -47,7 +47,7 @@ func main() {
 	defer db.Close()
 
 	// Create badgerDB middleware for res.Service
-	badgerDB := middleware.BadgerDB(db)
+	badgerDB := middleware.BadgerDB{DB: db}
 
 	// Create a new RES Service
 	s := res.NewService("library")
@@ -57,7 +57,7 @@ func main() {
 		"book.$id",
 		res.Model,
 		res.Access(res.AccessGranted),
-		badgerDB.SetType(Book{}),
+		badgerDB.WithType(Book{}),
 		res.Set(setBookHandler),
 	)
 
@@ -66,7 +66,7 @@ func main() {
 		"books",
 		res.Collection,
 		res.Access(res.AccessGranted),
-		badgerDB.SetType([]res.Ref(nil)),
+		badgerDB.WithType([]res.Ref(nil)),
 		res.New(newBookHandler),
 		res.Call("delete", deleteBookHandler),
 	)

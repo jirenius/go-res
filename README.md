@@ -45,8 +45,10 @@ func main() {
 
 | Example | Description
 | --- | ---
-| [Hello World](examples/hello-world/) | Single text field that is updated in real time.
+| [Edit Text](examples/edit-text/) | Text field that can be edited by multiple clients concurrently.
+| [Edit Text BadgerDB](examples/edit-text-badgerdb/) | Edit Text example using BadgerDB middleware to persist all changes.
 | [Book Collection](examples/book-collection/) | List of book titles & authors that can be edited by many.
+| [Book Collection BadgerDB](examples/book-collection-badgerdb/) | Book Collection example using BadgerBD middleware to persist all changes.
 
 > **Note**
 >
@@ -174,6 +176,16 @@ s.Handle("mymodel",
       r.Model(mymodel)
    }),
 )
+```
+
+#### Using routes
+
+```go
+s.Route("v2", func(m *res.Mux) {
+   m.Handle("mymodel",
+      /* ... */
+   )
+})
 ```
 
 #### Start service

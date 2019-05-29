@@ -1,7 +1,8 @@
-# Book Collection example
+# Book Collection Example
 
 This is an example RES service that shows a lists of books, where book titles can be added,
 edited and deleted by multiple users simultaneously.
+
 * It exposes a collection, `library.books`, containing book model references.
 * It exposes book models, `library.book.<BOOK_ID>`, of each book.
 * It allows setting the books' *title* and *author* property through the `set` method.
