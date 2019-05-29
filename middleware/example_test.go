@@ -21,14 +21,14 @@ func ExampleBadgerDB_WithType() {
 	db := &badger.DB{} // Dummy. Use badger.Open
 
 	type User struct {
-		ID   int
-		Name string
+		ID   int    `json:"id"`
+		Name string `json:"name"`
 	}
 
 	s := res.NewService("directory")
 	badgerDB := middleware.BadgerDB{DB: db}
 	s.Handle("user.$id",
-		res.Collection,
+		res.Model,
 		badgerDB.WithType(User{}),
 		res.Set(func(r res.CallRequest) {
 			_ = r.RequireValue().(User)
