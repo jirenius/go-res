@@ -54,6 +54,17 @@ func main() {
 >
 > Above examples are complete with both service and client.
 
+## Middleware <a href="http://godoc.org/github.com/jirenius/go-res/middleware"><img src="https://godoc.org/github.com/jirenius/go-res/middleware?status.svg" alt="GoDoc"></a>
+
+The `middleware` sub-package contains middleware that adds handler functions to a `res.Handler`, to perform tasks such as:
+
+* storing, loading and updating persisted data
+* synchronize changes between multiple service instances
+* provide helpers for complex live queries
+
+| Name | Description
+| --- | ---
+| `middleware.BadgerDB` | Stores and updates resources in a BadgerDB using the events.
 
 ## Usage
 
