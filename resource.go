@@ -262,7 +262,7 @@ func (r *resource) RemoveEvent(idx int) {
 		panic("res: remove event idx less than zero")
 	}
 	if r.hs.ApplyRemove != nil {
-		err, _ := r.hs.ApplyRemove(r, idx)
+		_, err := r.hs.ApplyRemove(r, idx)
 		if err != nil {
 			panic(err)
 		}

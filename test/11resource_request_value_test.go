@@ -16,6 +16,7 @@ func TestModelValue(t *testing.T) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.Model(model)
+				AssertEqual(t, "r.ForValue()", r.ForValue(), true)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				v, err := r.Value()
@@ -32,6 +33,30 @@ func TestModelValue(t *testing.T) {
 	})
 }
 
+// Test that RequireValue gets the model as provided from the GetModel resource handler.
+func TestModelRequireValue(t *testing.T) {
+	model := resource["test.model"]
+
+	runTest(t, func(s *Session) {
+		s.Handle("model",
+			res.GetModel(func(r res.ModelRequest) {
+				r.Model(model)
+				AssertEqual(t, "r.ForValue()", r.ForValue(), true)
+			}),
+			res.Call("method", func(r res.CallRequest) {
+				v := r.RequireValue()
+				if v != model {
+					t.Errorf("expected Value() to return model, but it didn't")
+				}
+				r.OK(nil)
+			}),
+		)
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
+	})
+}
+
 // Test that Value gets the model as provided from the GetModel resource handler, using With.
 func TestModelValueUsingWith(t *testing.T) {
 	model := resource["test.model"]
@@ -39,6 +64,7 @@ func TestModelValueUsingWith(t *testing.T) {
 	runTestAsync(t, func(s *Session) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
 			r.Model(model)
+			AssertEqual(t, "r.ForValue()", r.ForValue(), true)
 		}))
 	}, func(s *Session, done func()) {
 		AssertNoError(t, s.With("test.model", func(r res.Resource) {
@@ -60,6 +86,7 @@ func TestCollectionValue(t *testing.T) {
 		s.Handle("collection",
 			res.GetCollection(func(r res.CollectionRequest) {
 				r.Collection(collection)
+				AssertEqual(t, "r.ForValue()", r.ForValue(), true)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				v, err := r.Value()
@@ -73,6 +100,30 @@ func TestCollectionValue(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("call.test.collection.method", nil)
 		s.GetMsg(t).AssertSubject(t, inb)
+	})
+}
+
+// Test that Value gets the collection as provided from the GetCollection resource handler.
+func TestCollectionRequireValue(t *testing.T) {
+	collection := resource["test.collection"]
+
+	runTest(t, func(s *Session) {
+		s.Handle("collection",
+			res.GetCollection(func(r res.CollectionRequest) {
+				r.Collection(collection)
+				AssertEqual(t, "r.ForValue()", r.ForValue(), true)
+			}),
+			res.Call("method", func(r res.CallRequest) {
+				v := r.RequireValue()
+				if v != collection {
+					t.Errorf("expected Value() to return collection, but it didn't")
+				}
+				r.OK(nil)
+			}),
+		)
+	}, func(s *Session) {
+		inb := s.Request("call.test.collection.method", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
 	})
 }
 

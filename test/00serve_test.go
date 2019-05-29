@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	res "github.com/jirenius/go-res"
 )
@@ -134,4 +135,23 @@ func TestServiceReset(t *testing.T) {
 			s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token")
 		})
 	}
+}
+
+// Test OnServe is called on serve
+func TestOnServeIsCalledOnServe(t *testing.T) {
+	ch := make(chan bool)
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+		s.SetOnServe(func(s *res.Service) {
+			close(ch)
+		})
+	}, func(s *Session) {
+		select {
+		case <-ch:
+		case <-time.After(timeoutDuration):
+			if t == nil {
+				t.Fatal("expected OnServe callback to be called, but it wasn't")
+			}
+		}
+	})
 }

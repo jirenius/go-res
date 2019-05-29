@@ -8,7 +8,7 @@ import (
 	"github.com/resgateio/resgate/logger"
 )
 
-const timeoutDuration = 1 * time.Second
+const timeoutDuration = 100 * time.Second
 
 // Session represents a test session with a res server
 type Session struct {

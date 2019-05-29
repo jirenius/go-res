@@ -271,9 +271,25 @@ func AssertEqual(t *testing.T, name string, result, expected interface{}) bool {
 
 // AssertNoError expects that err is nil, otherwise logs an error
 // with t.Fatalf
-func AssertNoError(t *testing.T, err error) {
+func AssertNoError(t *testing.T, err error, ctx ...interface{}) {
 	if err != nil {
-		t.Fatalf("expected no error but got:\n%s", err)
+		var str string
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected no error but got:\n%s%s", err, str)
+	}
+}
+
+// AssertError expects that err is not nil, otherwise logs an error
+// with t.Fatalf
+func AssertError(t *testing.T, err error, ctx ...interface{}) {
+	if err == nil {
+		var str string
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected an error but got none%s", str)
 	}
 }
 
@@ -287,6 +303,19 @@ func AssertPanic(t *testing.T, cb func()) {
 		}
 	}()
 	cb()
+}
+
+// AssertPanicNoRecover expects the callback function to panic, otherwise
+// logs an error with t.Errorf. Does not recover from the panic
+func AssertPanicNoRecover(t *testing.T, cb func()) {
+	panicking := true
+	defer func() {
+		if !panicking {
+			t.Errorf(`expected callback to panic, but it didn't`)
+		}
+	}()
+	cb()
+	panicking = false
 }
 
 // Equals asserts that the message has the expected subject and payload

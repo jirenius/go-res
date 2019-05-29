@@ -15,6 +15,8 @@ func TestGetModel(t *testing.T) {
 
 	runTest(t, func(s *Session) {
 		s.Handle("model.foo", res.GetModel(func(r res.ModelRequest) {
+			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
+			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeModel)
 			r.Model(json.RawMessage(model))
 		}))
 	}, func(s *Session) {
@@ -42,6 +44,8 @@ func TestGetCollection(t *testing.T) {
 
 	runTest(t, func(s *Session) {
 		s.Handle("collection.foo", res.GetCollection(func(r res.CollectionRequest) {
+			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
+			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeCollection)
 			r.Collection(json.RawMessage(collection))
 		}))
 	}, func(s *Session) {
@@ -69,11 +73,51 @@ func TestGetResource(t *testing.T) {
 
 	runTest(t, func(s *Session) {
 		s.Handle("model.foo", res.GetResource(func(r res.GetRequest) {
+			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
+			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeUnset)
 			r.Model(json.RawMessage(model))
 		}))
 	}, func(s *Session) {
 		inb := s.Request("get.test.model.foo", newRequest())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+	})
+}
+
+// Test ResourceType returns TypeModel when using res.Model
+func TestGetResourceTypedModel(t *testing.T) {
+	model := resource["test.model"]
+
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo",
+			res.Model,
+			res.GetResource(func(r res.GetRequest) {
+				AssertEqual(t, "r.ForValue()", r.ForValue(), false)
+				AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeModel)
+				r.Model(json.RawMessage(model))
+			}),
+		)
+	}, func(s *Session) {
+		inb := s.Request("get.test.model.foo", newRequest())
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+	})
+}
+
+// Test ResourceType returns TypeCollection when using res.Collection
+func TestGetResourceTypedCollection(t *testing.T) {
+	collection := resource["test.collection"]
+
+	runTest(t, func(s *Session) {
+		s.Handle("collection.foo",
+			res.Collection,
+			res.GetResource(func(r res.GetRequest) {
+				AssertEqual(t, "r.ForValue()", r.ForValue(), false)
+				AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeCollection)
+				r.Collection(json.RawMessage(collection))
+			}),
+		)
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection.foo", newRequest())
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"collection":`+collection+`}}`))
 	})
 }
 

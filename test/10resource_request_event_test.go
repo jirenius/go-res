@@ -435,3 +435,55 @@ func TestReaccessEventUsingWith(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, "event.test.model.reaccess").AssertPayload(t, nil)
 	})
 }
+
+// Test CreateEvent sends a create event.
+func TestCreateEvent(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.CreateEvent(map[string]interface{}{"foo": "bar"})
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).AssertSubject(t, "event.test.model.create").AssertPayload(t, nil)
+		s.GetMsg(t).AssertSubject(t, inb)
+	})
+}
+
+// Test CreateEvent sends a create event, using With.
+func TestCreateEventUsingWith(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
+		AssertNoError(t, s.With("test.model", func(r res.Resource) {
+			r.CreateEvent(map[string]interface{}{"foo": "bar"})
+		}))
+		s.GetMsg(t).AssertSubject(t, "event.test.model.create").AssertPayload(t, nil)
+	})
+}
+
+// Test DeleteEvent sends a delete event.
+func TestDeleteEvent(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.DeleteEvent()
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).AssertSubject(t, "event.test.model.delete").AssertPayload(t, nil)
+		s.GetMsg(t).AssertSubject(t, inb)
+	})
+}
+
+// Test DeleteEvent sends a delete event, using With.
+func TestDeleteEventUsingWith(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
+		AssertNoError(t, s.With("test.model", func(r res.Resource) {
+			r.DeleteEvent()
+		}))
+		s.GetMsg(t).AssertSubject(t, "event.test.model.delete").AssertPayload(t, nil)
+	})
+}
