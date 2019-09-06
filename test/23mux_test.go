@@ -147,21 +147,28 @@ func TestAddHandlerWithValidPath(t *testing.T) {
 // Test adding handler with an invalid route handler path causes panic.
 func TestAddHandlerWithInvalidPathCausesPanic(t *testing.T) {
 	tbl := []struct {
-		Path string
+		Path    string
+		Pattern string
 	}{
-		{"model.$id.type.$id"},
-		{"model..foo"},
-		{"model.$"},
-		{"model.$.foo"},
-		{"model.>.foo"},
-		{"model.foo.>bar"},
+		{"test", "model.$id.type.$id"},
+		{"test", "model..foo"},
+		{"test", "model.$"},
+		{"test", "model.$.foo"},
+		{"test", "model.>.foo"},
+		{"test", "model.foo.>bar"},
+		{"$id", "model"},
+		{">", "model"},
+		{"test.>", "model"},
+		{"test.", "model"},
+		{"test.$id", "model"},
+		{"test..foo", "model"},
 	}
 
-	for _, l := range tbl {
+	for i, l := range tbl {
 		AssertPanic(t, func() {
-			m := res.NewMux("test")
-			m.Handle(l.Path, res.GetResource(func(r res.GetRequest) { r.NotFound() }))
-		})
+			m := res.NewMux(l.Path)
+			m.Handle(l.Pattern, res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+		}, "test ", i)
 	}
 }
 
@@ -233,6 +240,7 @@ func TestPathWithValidPath(t *testing.T) {
 	for i, l := range tbl {
 		m := res.NewMux(l.Path)
 		AssertEqual(t, "Mux.Path", m.Path(), l.Path, "test ", i)
+		AssertEqual(t, "Mux.FullPath", m.FullPath(), l.Path, "test ", i)
 	}
 }
 
@@ -248,15 +256,12 @@ func TestPathWithMountedChild(t *testing.T) {
 		{"", "", "sub", "", "sub"},
 		{"", "sub", "", "sub", "sub"},
 		{"", "sub", "foo", "sub", "foo.sub"},
-		{"", "sub", "$id", "sub", "$id.sub"},
 		{"test", "", "sub", "", "test.sub"},
 		{"test", "sub", "", "sub", "test.sub"},
 		{"test", "sub", "foo", "sub", "test.foo.sub"},
-		{"test", "sub", "$id", "sub", "test.$id.sub"},
 		{"test.foo", "", "sub", "", "test.foo.sub"},
 		{"test.foo", "sub", "", "sub", "test.foo.sub"},
 		{"test.foo", "sub", "bar", "sub", "test.foo.bar.sub"},
-		{"test.foo", "sub", "$id", "sub", "test.foo.$id.sub"},
 	}
 
 	for i, l := range tbl {

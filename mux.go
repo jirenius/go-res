@@ -1,5 +1,7 @@
 package res
 
+import "strings"
+
 // Code inspired, and partly borrowed, from SubList in nats-server
 // https://github.com/nats-io/nats-server/blob/master/server/sublist.go
 
@@ -55,7 +57,7 @@ type nodeMatch struct {
 // NewMux returns a new root Mux starting with given resource name path.
 // Use an empty path to not add any prefix to the resource names.
 func NewMux(path string) *Mux {
-	if path != "" && !Ref(path).IsValid() {
+	if !isValidPath(path) {
 		panic("res: invalid path")
 	}
 	return &Mux{
@@ -114,7 +116,7 @@ func (m *Mux) AddHandler(pattern string, hs Handler) {
 // Mount attaches another Mux at a given path.
 // When mounting, any path set on the sub Mux will be suffixed to the path.
 func (m *Mux) Mount(path string, sub *Mux) {
-	if path != "" && !Ref(path).IsValid() {
+	if !isValidPath(path) {
 		panic("res: invalid path")
 	}
 	if sub.parent != nil {
@@ -397,4 +399,8 @@ func contains(n *node, test func(h Handler) bool) bool {
 	}
 
 	return false
+}
+
+func isValidPath(p string) bool {
+	return p == "" || (Ref(p).IsValid() && !strings.ContainsRune(p, '$'))
 }
