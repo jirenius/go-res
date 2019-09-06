@@ -394,7 +394,7 @@ func TestMultipleGetDifferentResources(t *testing.T) {
 				m.AssertResult(t, json.RawMessage(`{"collection":`+collection+`}`))
 				ci++
 			default:
-				t.Fatalf("expected message subject to be a for a collection or model requestion, but got %#v", m.Subject)
+				t.Fatalf("expected message subject to be a for a collection or model request, but got %#v", m.Subject)
 			}
 		}
 	})

@@ -26,6 +26,10 @@ type Resource interface {
 	// Query returns the query part of the resource ID without the question mark separator.
 	Query() string
 
+	// Group which the resource shares worker goroutine with.
+	// Will be the resource name of no specific group was set.
+	Group() string
+
 	// ParseQuery parses the query and returns the corresponding values.
 	// It silently discards malformed value pairs.
 	// To check errors use url.ParseQuery(Query()).
@@ -42,11 +46,11 @@ type Resource interface {
 
 	// Event sends a custom event on the resource.
 	// Will panic if the event is one of the pre-defined or reserved events,
-	// "change", "add", "remove", "reaccess", or "unsubscribe".
+	// "change", "delete", "add", "remove", "patch", "reaccess", "unsubscribe", or "query".
 	// For pre-defined events, the matching method, ChangeEvent, AddEvent,
-	// RemoveEvent, or ReaccessEvent should be used instead.
+	// RemoveEvent, CreateEvent, DeleteEvent, or ReaccessEvent should be used instead.
 	//
-	// See the protocol specification for more information:
+	// This is to ensure compliance with the specifications:
 	// https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#events
 	Event(event string, payload interface{})
 
@@ -97,9 +101,10 @@ type resource struct {
 	rname      string
 	pathParams map[string]string
 	query      string
+	group      string
 	inGet      bool
+	h          Handler
 	s          *Service
-	hs         *regHandler
 }
 
 // Service returns the service instance
@@ -114,7 +119,7 @@ func (r *resource) ResourceName() string {
 
 // ResourceType returns the resource type.
 func (r *resource) ResourceType() ResourceType {
-	return r.hs.Type
+	return r.h.Type
 }
 
 // PathParams returns parameters that are derived from the resource name.
@@ -130,6 +135,12 @@ func (r *resource) PathParam(key string) string {
 // Query returns the query part of the resource ID without the question mark separator.
 func (r *resource) Query() string {
 	return r.query
+}
+
+// Group returns the group which the resource shares the worker goroutine with.
+// Will be the resource name of no specific group was set.
+func (r *resource) Group() string {
+	return r.group
 }
 
 // ParseQuery parses the query and returns the corresponding values.
@@ -165,23 +176,11 @@ func (r *resource) RequireValue() interface{} {
 	return i
 }
 
-func isValidPart(p string) bool {
-	for _, r := range p {
-		if r == '?' {
-			return false
-		}
-		if r < 33 || r > 126 || r == '?' || r == '*' || r == '>' || r == '.' {
-			return false
-		}
-	}
-	return true
-}
-
 // Event sends a custom event on the resource.
 // Will panic if the event is one of the pre-defined or reserved events,
 // "change", "delete", "add", "remove", "patch", "reaccess", "unsubscribe", or "query".
 // For pre-defined events, the matching method, ChangeEvent, AddEvent,
-// RemoveEvent, or ReaccessEvent should be used instead.
+// RemoveEvent, CreateEvent, DeleteEvent, or ReaccessEvent should be used instead.
 //
 // This is to ensure compliance with the specifications:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#events
@@ -216,14 +215,14 @@ func (r *resource) Event(event string, payload interface{}) {
 // If ev is empty, no event is sent.
 // Panics if the resource is not a Model.
 func (r *resource) ChangeEvent(ev map[string]interface{}) {
-	if r.hs.Type == TypeCollection {
+	if r.h.Type == TypeCollection {
 		panic("res: change event not allowed on Collections")
 	}
 	if len(ev) == 0 {
 		return
 	}
-	if r.hs.ApplyChange != nil {
-		rev, err := r.hs.ApplyChange(r, ev)
+	if r.h.ApplyChange != nil {
+		rev, err := r.h.ApplyChange(r, ev)
 		if err != nil {
 			panic(err)
 		}
@@ -237,14 +236,14 @@ func (r *resource) ChangeEvent(ev map[string]interface{}) {
 // AddEvent sends an add event, adding the value v at index idx.
 // Panics if the resource is not a Collection.
 func (r *resource) AddEvent(v interface{}, idx int) {
-	if r.hs.Type == TypeModel {
+	if r.h.Type == TypeModel {
 		panic("res: add event not allowed on Models")
 	}
 	if idx < 0 {
 		panic("res: add event idx less than zero")
 	}
-	if r.hs.ApplyAdd != nil {
-		err := r.hs.ApplyAdd(r, v, idx)
+	if r.h.ApplyAdd != nil {
+		err := r.h.ApplyAdd(r, v, idx)
 		if err != nil {
 			panic(err)
 		}
@@ -255,14 +254,14 @@ func (r *resource) AddEvent(v interface{}, idx int) {
 // RemoveEvent sends an remove event, removing the value at index idx.
 // Panics if the resource is not a Collection.
 func (r *resource) RemoveEvent(idx int) {
-	if r.hs.Type == TypeModel {
+	if r.h.Type == TypeModel {
 		panic("res: remove event not allowed on Models")
 	}
 	if idx < 0 {
 		panic("res: remove event idx less than zero")
 	}
-	if r.hs.ApplyRemove != nil {
-		_, err := r.hs.ApplyRemove(r, idx)
+	if r.h.ApplyRemove != nil {
+		_, err := r.h.ApplyRemove(r, idx)
 		if err != nil {
 			panic(err)
 		}
@@ -305,8 +304,8 @@ func (r *resource) QueryEvent(cb func(QueryRequest)) {
 
 // CreateEvent sends a create event for the resource.
 func (r *resource) CreateEvent(value interface{}) {
-	if r.hs.ApplyCreate != nil {
-		err := r.hs.ApplyCreate(r, value)
+	if r.h.ApplyCreate != nil {
+		err := r.h.ApplyCreate(r, value)
 		if err != nil {
 			panic(err)
 		}
@@ -316,11 +315,26 @@ func (r *resource) CreateEvent(value interface{}) {
 
 // DeleteEvent sends a delete event.
 func (r *resource) DeleteEvent() {
-	if r.hs.ApplyDelete != nil {
-		_, err := r.hs.ApplyDelete(r)
+	if r.h.ApplyDelete != nil {
+		_, err := r.h.ApplyDelete(r)
 		if err != nil {
 			panic(err)
 		}
 	}
 	r.s.rawEvent("event."+r.rname+".delete", nil)
+}
+
+func isValidPart(p string) bool {
+	if p == "" {
+		return false
+	}
+	for _, r := range p {
+		if r == '?' {
+			return false
+		}
+		if r < 33 || r > 126 || r == '?' || r == '*' || r == '>' || r == '.' {
+			return false
+		}
+	}
+	return true
 }

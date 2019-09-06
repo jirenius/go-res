@@ -108,12 +108,12 @@ func (r *getRequest) executeHandler() {
 		r.s.Logf("error handling get request %#v: %s", r.rname, str)
 	}()
 
-	hs := r.hs
-	if hs.Get == nil {
+	h := r.h
+	if h.Get == nil {
 		r.Error(ErrNotFound)
 		return
 	}
-	hs.Get(r)
+	h.Get(r)
 
 	if !r.replied {
 		r.Error(InternalError(fmt.Errorf("missing response on get request for %#v", r.rname)))

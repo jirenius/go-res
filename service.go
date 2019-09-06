@@ -164,7 +164,7 @@ type Service struct {
 	resetAccess    []string          // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
 	queryTQ        *timerqueue.Queue // Timer queue for query events duration
 	queryDuration  time.Duration     // Duration to listen for query requests on a query event
-	onServe        func(*Service)    // Handler called after starting to serve prior to calling syste.reset
+	onServe        func(*Service)    // Handler called after starting to serve prior to calling system.reset
 }
 
 // NewService creates a new Service.
@@ -278,6 +278,9 @@ func GetResource(h GetHandler) Option {
 // For pre-defined call methods, the matching handlers, Set, and New
 // should be used instead.
 func Call(method string, h CallHandler) Option {
+	if !isValidPart(method) {
+		panic("res: invalid method name: " + method)
+	}
 	if method == "new" {
 		panic("res: new handler should be registered using the New method")
 	}
@@ -310,6 +313,9 @@ func New(h NewHandler) Option {
 
 // Auth sets a handler for resource auth requests
 func Auth(method string, h AuthHandler) Option {
+	if !isValidPart(method) {
+		panic("res: invalid method name: " + method)
+	}
 	return OptionFunc(func(hs *Handler) {
 		if hs.Auth == nil {
 			hs.Auth = make(map[string]AuthHandler)
@@ -385,9 +391,10 @@ func Group(group string) Option {
 // If set to nil (default), the patterns returned by ResourcePatterns and AccessPatterns is used.
 // For more details on system reset, see:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#system-reset-event
-func (s *Service) SetReset(resources, access []string) {
+func (s *Service) SetReset(resources, access []string) *Service {
 	s.resetResources = resources
 	s.resetAccess = access
+	return s
 }
 
 // ListenAndServe connects to the NATS server at the url. Once connected,
@@ -411,8 +418,8 @@ func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 		nats.DisconnectHandler(s.handleDisconnect),
 		nats.ClosedHandler(s.handleClosed),
 	}
-	if s.Mux.pattern != "" {
-		opts = append(opts, nats.Name(s.Mux.pattern))
+	if s.Mux.path != "" {
+		opts = append(opts, nats.Name(s.Mux.path))
 	}
 	opts = append(opts, options...)
 
@@ -559,7 +566,7 @@ func (s *Service) ResetAll() {
 		return
 	}
 
-	s.setResetDefault()
+	s.setDefaultOwnership()
 
 	s.reset(s.resetResources, s.resetAccess)
 }
@@ -580,18 +587,22 @@ func (s *Service) TokenEvent(cid string, token interface{}) {
 	s.event("conn."+cid+".token", tokenEvent{Token: token})
 }
 
-func (s *Service) setResetDefault() {
+func (s *Service) setDefaultOwnership() {
 	if s.resetResources == nil {
-		if s.hasResources() {
-			s.resetResources = []string{mergePattern(s.Mux.pattern, ">")}
+		if s.Contains(func(h Handler) bool {
+			return h.Get != nil || len(h.Call) > 0 || len(h.Auth) > 0 || h.New != nil
+		}) {
+			s.resetResources = []string{mergePattern(s.Mux.path, ">")}
 		} else {
 			s.resetResources = []string{}
 		}
 	}
 
 	if s.resetAccess == nil {
-		if s.hasAccess() {
-			s.resetAccess = []string{mergePattern(s.Mux.pattern, ">")}
+		if s.Contains(func(h Handler) bool {
+			return h.Access != nil
+		}) {
+			s.resetAccess = []string{mergePattern(s.Mux.path, ">")}
 		} else {
 			s.resetAccess = []string{}
 		}
@@ -601,7 +612,7 @@ func (s *Service) setResetDefault() {
 // subscribe makes a nats subscription for each required request type, based
 // on the patterns used for ResetAll.
 func (s *Service) subscribe() error {
-	s.setResetDefault()
+	s.setDefaultOwnership()
 	if len(s.resetResources) == 0 && len(s.resetAccess) == 0 {
 		return errors.New("res: no resources to serve")
 	}
@@ -663,22 +674,21 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		rname = rname[:idx]
 	}
 
-	hs, params := s.get(rname)
-
-	s.runWithHandler(hs, rname, func() {
-		s.processRequest(m, rtype, rname, method, hs, params)
-	})
-}
-
-// runWithHandler enqueues the callback, cb, to be called by the worker goroutine.
-// The worker ID of the worker is the hs.wid value, if one is set.
-// Otherwise the worker ID will fall back to rname.
-func (s *Service) runWithHandler(hs *regHandler, rname string, cb func()) {
-	wid := rname
-	if hs != nil {
-		wid = hs.group.toString(rname)
+	h, params, group, err := s.GetHandler(rname)
+	if err != nil {
+		group = rname
 	}
-	s.runWith(wid, cb)
+	r := resource{
+		rname:      rname,
+		pathParams: params,
+		group:      group,
+		s:          s,
+		h:          h,
+	}
+
+	s.runWith(group, func() {
+		s.processRequest(m, rtype, method, r, err)
+	})
 }
 
 // runWith enqueues the callback, cb, to be called by the worker goroutine
@@ -714,25 +724,23 @@ func (s *Service) runWith(wid string, cb func()) {
 // With will return an error and not call the callback if there is
 // no matching handler found.
 func (s *Service) With(rid string, cb func(r Resource)) error {
-	rname, q := parseRID(rid)
-	hs, params := s.get(rname)
-	if hs == nil {
-		return errHandlerNotFound
+	r, err := s.Resource(rid)
+	if err != nil {
+		return err
 	}
 
-	r := &resource{
-		rname:      rname,
-		pathParams: params,
-		query:      q,
-		s:          s,
-		hs:         hs,
-	}
-
-	s.runWithHandler(hs, rname, func() {
+	s.runWith(r.Group(), func() {
 		cb(r)
 	})
 
 	return nil
+}
+
+// WithResource enqueues the callback, cb, to be called by the resource's
+// worker goroutine. If the resource belongs to a group, it will be called
+// on the group's worker goroutine.
+func (s *Service) WithResource(r Resource, cb func()) {
+	s.runWith(r.Group(), cb)
 }
 
 // WithGroup calls the callback, cb, on the group's worker goroutine.
@@ -747,17 +755,18 @@ func (s *Service) WithGroup(group string, cb func(s *Service)) {
 // Using the returned value from another goroutine may cause race conditions.
 func (s *Service) Resource(rid string) (Resource, error) {
 	rname, q := parseRID(rid)
-	hs, params := s.get(rname)
-	if hs == nil {
-		return nil, errHandlerNotFound
+	h, params, group, err := s.GetHandler(rname)
+	if err != nil {
+		return nil, err
 	}
 
 	return &resource{
 		rname:      rname,
 		pathParams: params,
 		query:      q,
+		group:      group,
 		s:          s,
-		hs:         hs,
+		h:          h,
 	}, nil
 }
 
@@ -826,26 +835,21 @@ func parseRID(rid string) (rname string, q string) {
 }
 
 // processRequest is executed by the worker to process an incoming request.
-func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *regHandler, pathParams map[string]string) {
+func (s *Service) processRequest(m *nats.Msg, rtype, method string, res resource, err error) {
 	r := Request{
-		resource: resource{
-			rname:      rname,
-			pathParams: pathParams,
-			s:          s,
-			hs:         hs,
-		},
-		rtype:  rtype,
-		method: method,
-		msg:    m,
+		resource: res,
+		rtype:    rtype,
+		method:   method,
+		msg:      m,
 	}
 
-	if hs == nil {
+	if err != nil {
 		r.reply(responseNotFound)
 		return
 	}
 
 	var rc resRequest
-	err := json.Unmarshal(m.Data, &rc)
+	err = json.Unmarshal(m.Data, &rc)
 	if err != nil {
 		s.Logf("error unmarshaling incoming request: %s", err)
 		r.error(ToError(err))
@@ -867,7 +871,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, hs *r
 func (s *Service) queryEventExpire(v interface{}) {
 	qe := v.(*queryEvent)
 	qe.sub.Drain()
-	s.runWithHandler(qe.r.hs, qe.r.rname, func() {
+	s.runWith(qe.r.Group(), func() {
 		qe.cb(nil)
 	})
 }

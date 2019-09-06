@@ -214,14 +214,14 @@ func TestQueryRequestResponse(t *testing.T) {
 			json.RawMessage(`{"events":[{"event":"remove","data":{"idx":3}},{"event":"add","data":{"value":"bar","idx":2}}]}`),
 		},
 		{
-			"foo=removeadd",
+			"foo=addremove",
 			func(r res.QueryRequest) {
 				if r != nil {
-					r.RemoveEvent(3)
 					r.AddEvent("bar", 2)
+					r.RemoveEvent(3)
 				}
 			},
-			json.RawMessage(`{"events":[{"event":"remove","data":{"idx":3}},{"event":"add","data":{"value":"bar","idx":2}}]}`),
+			json.RawMessage(`{"events":[{"event":"add","data":{"value":"bar","idx":2}},{"event":"remove","data":{"idx":3}}]}`),
 		},
 		{
 			"foo=notFound",

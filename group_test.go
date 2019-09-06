@@ -54,32 +54,33 @@ func TestParseGroup(t *testing.T) {
 // Test group toString
 func TestGroupToString(t *testing.T) {
 	tbl := []struct {
-		Group    string
-		Pattern  string
-		RName    string
-		Expected string
+		Group        string
+		Pattern      string
+		ResourceName string
+		Tokens       []string
+		Expected     string
 	}{
-		{"", "test", "test", "test"},
-		{"test", "test", "test", "test"},
-		{"foo", "test", "test", "foo"},
-		{"test", "test.$foo", "test.42", "test"},
-		{"test.${foo}", "test.$foo", "test.42", "test.42"},
-		{"bar.${foo}", "test.$foo", "test.42", "bar.42"},
-		{"${foo}", "test.$foo", "test.42", "42"},
-		{"${foo}.test", "test.$foo", "test.42", "42.test"},
-		{"${foo}${bar}", "test.$foo.$bar", "test.42.baz", "42baz"},
-		{"${bar}${foo}", "test.$foo.$bar", "test.42.baz", "baz42"},
-		{"${foo}.${bar}", "test.$foo.$bar.>", "test.42.baz.extra.all", "42.baz"},
-		{"${foo}${foo}", "test.$foo.$bar", "test.42.baz", "4242"},
-		{"${foo}.test.this.${bar}", "test.$foo.$bar", "test.42.baz", "42.test.this.baz"},
+		{"", "test", "test", []string{"test"}, "test"},
+		{"test", "test", "test", []string{"test"}, "test"},
+		{"foo", "test", "test", []string{"test"}, "foo"},
+		{"test", "test.$foo", "test.42", []string{"test", "42"}, "test"},
+		{"test.${foo}", "test.$foo", "test.42", []string{"test", "42"}, "test.42"},
+		{"bar.${foo}", "test.$foo", "test.42", []string{"test", "42"}, "bar.42"},
+		{"${foo}", "test.$foo", "test.42", []string{"test", "42"}, "42"},
+		{"${foo}.test", "test.$foo", "test.42", []string{"test", "42"}, "42.test"},
+		{"${foo}${bar}", "test.$foo.$bar", "test.42.baz", []string{"test", "42", "baz"}, "42baz"},
+		{"${bar}${foo}", "test.$foo.$bar", "test.42.baz", []string{"test", "42", "baz"}, "baz42"},
+		{"${foo}.${bar}", "test.$foo.$bar.>", "test.42.baz.extra.all", []string{"test", "42", "baz", "extra", "all"}, "42.baz"},
+		{"${foo}${foo}", "test.$foo.$bar", "test.42.baz", []string{"test", "42", "baz"}, "4242"},
+		{"${foo}.test.this.${bar}", "test.$foo.$bar", "test.42.baz", []string{"test", "42", "baz"}, "42.test.this.baz"},
 	}
 
 	for _, l := range tbl {
 		func() {
 			gr := parseGroup(l.Group, l.Pattern)
-			wid := gr.toString(l.RName)
+			wid := gr.toString(l.ResourceName, l.Tokens)
 			if wid != l.Expected {
-				t.Errorf("expected parseGroup(%#v, %#v).toString(%#v) to return:\n\t%#v\nbut got:\n\t%#v", l.Group, l.Pattern, l.RName, l.Expected, wid)
+				t.Errorf("expected parseGroup(%#v, %#v).toString(%#v, %#v) to return:\n\t%#v\nbut got:\n\t%#v", l.Group, l.Pattern, l.ResourceName, l.Tokens, l.Expected, wid)
 			}
 		}()
 	}
