@@ -257,12 +257,30 @@ func (c *MockConn) GetMsg(t *testing.T) *Msg {
 
 // AssertEqual expects that a equals b for the named value,
 // and returns true if it is, otherwise logs an error and returns false.
-func AssertEqual(t *testing.T, name string, result, expected interface{}) bool {
+func AssertEqual(t *testing.T, name string, result, expected interface{}, ctx ...interface{}) bool {
 	aa, aj := jsonMap(t, result)
 	bb, bj := jsonMap(t, expected)
 
 	if !reflect.DeepEqual(aa, bb) {
-		t.Errorf("expected %s to be:\n%s\nbut got:\n%s", name, bj, aj)
+		var str string
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Errorf("expected %s to be:\n%s\nbut got:\n%s%s", name, bj, aj, str)
+		return false
+	}
+
+	return true
+}
+
+// AssertTrue expects that a condition is true.
+func AssertTrue(t *testing.T, expectation string, isTrue bool, ctx ...interface{}) bool {
+	if !isTrue {
+		var str string
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Errorf("expected %s%s", expectation, str)
 		return false
 	}
 
@@ -295,11 +313,15 @@ func AssertError(t *testing.T, err error, ctx ...interface{}) {
 
 // AssertPanic expects the callback function to panic, otherwise
 // logs an error with t.Errorf
-func AssertPanic(t *testing.T, cb func()) {
+func AssertPanic(t *testing.T, cb func(), ctx ...interface{}) {
 	defer func() {
 		v := recover()
 		if v == nil {
-			t.Errorf(`expected callback to panic, but it didn't`)
+			var str string
+			if len(ctx) > 0 {
+				str = "\nin " + fmt.Sprint(ctx...)
+			}
+			t.Errorf("expected callback to panic, but it didn't%s", str)
 		}
 	}()
 	cb()

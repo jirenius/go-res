@@ -375,7 +375,7 @@ func (r *Request) Timeout(d time.Duration) {
 	if d < 0 {
 		panic("res: negative timeout duration")
 	}
-	out := []byte(`timeout:"` + strconv.FormatInt(d.Nanoseconds()/1000000, 10) + `"`)
+	out := []byte(`timeout:"` + strconv.FormatInt(int64(d/time.Millisecond), 10) + `"`)
 	r.s.rawEvent(r.msg.Reply, out)
 }
 
@@ -471,7 +471,7 @@ func (r *Request) executeHandler() {
 		r.s.Logf("error handling request %s: %s\n\t%s", r.msg.Subject, str, string(debug.Stack()))
 	}()
 
-	hs := r.hs
+	hs := r.h
 
 	switch r.rtype {
 	case "access":
@@ -489,12 +489,11 @@ func (r *Request) executeHandler() {
 		hs.Get(r)
 	case "call":
 		if r.method == "new" {
-			h := hs.New
-			if h == nil {
+			if hs.New == nil {
 				r.reply(responseMethodNotFound)
 				return
 			}
-			h(r)
+			hs.New(r)
 		} else {
 			var h CallHandler
 			if hs.Call != nil {

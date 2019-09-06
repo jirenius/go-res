@@ -78,14 +78,14 @@ func (qr *queryRequest) Timeout(d time.Duration) {
 	if d < 0 {
 		panic("res: negative timeout duration")
 	}
-	out := []byte(`timeout:"` + strconv.FormatInt(d.Nanoseconds()/1000000, 10) + `"`)
+	out := []byte(`timeout:"` + strconv.FormatInt(int64(d/time.Millisecond), 10) + `"`)
 	qr.s.rawEvent(qr.msg.Reply, out)
 }
 
 // startQueryListener listens for query requests and passes them on to a worker.
 func (qe *queryEvent) startQueryListener() {
 	for m := range qe.ch {
-		qe.r.s.runWithHandler(qe.r.hs, qe.r.rname, func() {
+		qe.r.s.runWith(qe.r.Group(), func() {
 			qe.handleQueryRequest(m)
 		})
 	}
