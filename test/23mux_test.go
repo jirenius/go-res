@@ -220,19 +220,51 @@ func TestAddHandlerWithInvalidGroupWillPanic(t *testing.T) {
 	}
 }
 
-// Test Pattern with a valid pattern returns the router pattern.
-func TestPatternWithValidPattern(t *testing.T) {
+// Test Path with a valid pattern returns the Mux path.
+func TestPathWithValidPath(t *testing.T) {
 	tbl := []struct {
-		Pattern string
+		Path string
 	}{
 		{"test"},
 		{"test.foo"},
 		{"test.foo.bar"},
 	}
 
-	for _, l := range tbl {
-		m := res.NewMux(l.Pattern)
-		AssertEqual(t, "Mux.Pattern", l.Pattern, m.Pattern())
+	for i, l := range tbl {
+		m := res.NewMux(l.Path)
+		AssertEqual(t, "Mux.Path", m.Path(), l.Path, "test ", i)
+	}
+}
+
+// Test Path with a valid path returns the Mux path.
+func TestPathWithMountedChild(t *testing.T) {
+	tbl := []struct {
+		Path             string
+		SubPath          string
+		MountPath        string
+		ExpectedPath     string
+		ExpectedFullPath string
+	}{
+		{"", "", "sub", "", "sub"},
+		{"", "sub", "", "sub", "sub"},
+		{"", "sub", "foo", "sub", "foo.sub"},
+		{"", "sub", "$id", "sub", "$id.sub"},
+		{"test", "", "sub", "", "test.sub"},
+		{"test", "sub", "", "sub", "test.sub"},
+		{"test", "sub", "foo", "sub", "test.foo.sub"},
+		{"test", "sub", "$id", "sub", "test.$id.sub"},
+		{"test.foo", "", "sub", "", "test.foo.sub"},
+		{"test.foo", "sub", "", "sub", "test.foo.sub"},
+		{"test.foo", "sub", "bar", "sub", "test.foo.bar.sub"},
+		{"test.foo", "sub", "$id", "sub", "test.foo.$id.sub"},
+	}
+
+	for i, l := range tbl {
+		m := res.NewMux(l.Path)
+		sub := res.NewMux(l.SubPath)
+		m.Mount(l.MountPath, sub)
+		AssertEqual(t, "Mux.Path", sub.Path(), l.ExpectedPath, "test ", i)
+		AssertEqual(t, "Mux.Path", sub.FullPath(), l.ExpectedFullPath, "test ", i)
 	}
 }
 
@@ -243,6 +275,7 @@ func TestGetHandlerWithMatchingPathReturnsHandler(t *testing.T) {
 		Path         string
 		ResourceName string
 	}{
+		{"", "", ""},
 		{"", "model", "model"},
 		{"", "model.foo", "model.foo"},
 		{"", "model.$id", "model.42"},
@@ -251,6 +284,7 @@ func TestGetHandlerWithMatchingPathReturnsHandler(t *testing.T) {
 		{"", "model.>", "model.foo.bar"},
 		{"", "model.$id.>", "model.42.foo"},
 		{"", "model.$id.>", "model.42.foo.bar"},
+		{"test", "", "test"},
 		{"test", "model", "test.model"},
 		{"test", "model.foo", "test.model.foo"},
 		{"test", "model.$id", "test.model.42"},
@@ -275,27 +309,33 @@ func TestGetHandlerWithMatchingPathReturnsHandler(t *testing.T) {
 // Test GetHandler without matching path returns error.
 func TestGetHandlerWithMismatchingPathReturnsError(t *testing.T) {
 	tbl := []struct {
-		Pattern      string
 		Path         string
+		Pattern      string
 		ResourceName string
 	}{
+		{"", "", "model"},
+		{"", "model", ""},
 		{"", "model", "model.foo"},
 		{"", "model.foo", "model"},
 		{"", "model.$id", "model.42.foo"},
 		{"", "model.$id.foo", "model.42"},
 		{"", "model.>", "model"},
 		{"", "model.$id.>", "model.42"},
+		{"test", "", "model"},
+		{"test", "model", "this.model"},
+		{"test", "model", "test"},
 		{"test", "model", "test.model.foo"},
 		{"test", "model.foo", "test.model"},
 		{"test", "model.$id", "test.model.42.foo"},
 		{"test", "model.$id.foo", "test.model.42"},
 		{"test", "model.>", "test.model"},
 		{"test", "model.$id.>", "test.model.42"},
+		{"test", "model", "test"},
 	}
 
 	for i, l := range tbl {
-		m := res.NewMux(l.Pattern)
-		m.Handle(l.Path)
+		m := res.NewMux(l.Path)
+		m.Handle(l.Pattern)
 		_, _, _, err := m.GetHandler(l.ResourceName)
 		AssertError(t, err, "test ", i)
 	}
@@ -571,5 +611,75 @@ func TestGetHandlerAddedAfterBeingMounted(t *testing.T) {
 		h.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 		AssertEqual(t, "pathParams", p, json.RawMessage(l.ExpectedParams), "test ", i)
+	}
+}
+
+// Test Contains with single added handler.
+func TestContainsWithSinglePath(t *testing.T) {
+	tbl := []struct {
+		Path    string
+		Pattern string
+	}{
+		{"", "model"},
+		{"", "model.foo"},
+		{"", "model.$id"},
+		{"", "model.$id.foo"},
+		{"", "model.>"},
+		{"", "model.$id.>"},
+		{"test", "model"},
+		{"test", "model.foo"},
+		{"test", "model.$id"},
+		{"test", "model.$id.foo"},
+		{"test", "model.>"},
+		{"test", "model.$id.>"},
+	}
+
+	for i, l := range tbl {
+		m := res.NewMux(l.Path)
+		m.Handle(l.Pattern)
+		AssertTrue(t, "Contains to return true", m.Contains(func(h res.Handler) bool { return true }), "test ", i)
+	}
+}
+
+// Test Contains with overlapping handler paths.
+func TestContainsWithOverlappingPaths(t *testing.T) {
+	tbl := []struct {
+		Path            string
+		SpecificPattern string
+		WildcardPattern string
+	}{
+		{"", "model", "$type"},
+		{"", "model.foo", "model.$id"},
+		{"", "model.foo", "$type.foo"},
+		{"", "model.$id", "model.>"},
+		{"", "model.$id.foo", "model.$id.$type"},
+		{"", "model.$id.foo", "model.$id.>"},
+		{"", "model.$id.foo", "model.>"},
+		{"", "model.>", ">"},
+		{"", "model.>", "$type.>"},
+		{"", "model.$id.>", "model.>"},
+		{"", "model.$id.>", "$type.>"},
+		{"", "model.$id.>", ">"},
+		{"test", "model", "$type"},
+		{"test", "model.foo", "model.$id"},
+		{"test", "model.foo", "$type.foo"},
+		{"test", "model.$id", "model.>"},
+		{"test", "model.$id.foo", "model.$id.$type"},
+		{"test", "model.$id.foo", "model.$id.>"},
+		{"test", "model.$id.foo", "model.>"},
+		{"test", "model.>", ">"},
+		{"test", "model.>", "$type.>"},
+		{"test", "model.$id.>", "model.>"},
+		{"test", "model.$id.>", "$type.>"},
+		{"test", "model.$id.>", ">"},
+	}
+
+	for i, l := range tbl {
+		m := res.NewMux(l.Path)
+		m.Handle(l.SpecificPattern, res.Model)
+		m.Handle(l.WildcardPattern, res.Collection)
+		AssertTrue(t, "Contains TypeModel to return true", m.Contains(func(h res.Handler) bool { return h.Type == res.TypeModel }), "test ", i)
+		AssertTrue(t, "Contains TypeCollection to return true", m.Contains(func(h res.Handler) bool { return h.Type == res.TypeCollection }), "test ", i)
+		AssertTrue(t, "Contains TypeUnset to return false", !m.Contains(func(h res.Handler) bool { return h.Type == res.TypeUnset }), "test ", i)
 	}
 }

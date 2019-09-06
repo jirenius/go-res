@@ -418,8 +418,8 @@ func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 		nats.DisconnectHandler(s.handleDisconnect),
 		nats.ClosedHandler(s.handleClosed),
 	}
-	if s.Mux.pattern != "" {
-		opts = append(opts, nats.Name(s.Mux.pattern))
+	if s.Mux.path != "" {
+		opts = append(opts, nats.Name(s.Mux.path))
 	}
 	opts = append(opts, options...)
 
@@ -566,7 +566,7 @@ func (s *Service) ResetAll() {
 		return
 	}
 
-	s.setResetDefault()
+	s.setDefaultOwnership()
 
 	s.reset(s.resetResources, s.resetAccess)
 }
@@ -587,18 +587,22 @@ func (s *Service) TokenEvent(cid string, token interface{}) {
 	s.event("conn."+cid+".token", tokenEvent{Token: token})
 }
 
-func (s *Service) setResetDefault() {
+func (s *Service) setDefaultOwnership() {
 	if s.resetResources == nil {
-		if s.hasResources() {
-			s.resetResources = []string{mergePattern(s.Mux.pattern, ">")}
+		if s.Contains(func(h Handler) bool {
+			return h.Get != nil || len(h.Call) > 0 || len(h.Auth) > 0 || h.New != nil
+		}) {
+			s.resetResources = []string{mergePattern(s.Mux.path, ">")}
 		} else {
 			s.resetResources = []string{}
 		}
 	}
 
 	if s.resetAccess == nil {
-		if s.hasAccess() {
-			s.resetAccess = []string{mergePattern(s.Mux.pattern, ">")}
+		if s.Contains(func(h Handler) bool {
+			return h.Access != nil
+		}) {
+			s.resetAccess = []string{mergePattern(s.Mux.path, ">")}
 		} else {
 			s.resetAccess = []string{}
 		}
@@ -608,7 +612,7 @@ func (s *Service) setResetDefault() {
 // subscribe makes a nats subscription for each required request type, based
 // on the patterns used for ResetAll.
 func (s *Service) subscribe() error {
-	s.setResetDefault()
+	s.setDefaultOwnership()
 	if len(s.resetResources) == 0 && len(s.resetAccess) == 0 {
 		return errors.New("res: no resources to serve")
 	}

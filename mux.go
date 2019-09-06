@@ -13,11 +13,12 @@ const (
 
 const invalidPattern = "res: invalid pattern"
 
-// Mux stores patterns and efficiently retrieves pattern handlers.
+// Mux stores handlers and efficiently retrieves them for resource names matching a pattern.
 type Mux struct {
-	pattern string
-	root    *node
-	parent  *Mux
+	path   string
+	root   *node
+	parent *Mux
+	mountp string
 }
 
 // A registered handler
@@ -51,30 +52,34 @@ type nodeMatch struct {
 	mountIdx int
 }
 
-// NewMux returns a new root Mux starting with given pattern.
-func NewMux(pattern string) *Mux {
+// NewMux returns a new root Mux starting with given resource name path.
+// Use an empty path to not add any prefix to the resource names.
+func NewMux(path string) *Mux {
+	if path != "" && !Ref(path).IsValid() {
+		panic("res: invalid path")
+	}
 	return &Mux{
-		pattern: pattern,
-		root:    &node{},
+		path: path,
+		root: &node{},
 	}
 }
 
-// Pattern returns the pattern that prefix all resources,
-// not including the pattern of any parent Mux.
-func (m *Mux) Pattern() string {
-	return m.pattern
+// Path returns the path that prefix all resource handlers,
+// not including the any pattern derived from being mounted.
+func (m *Mux) Path() string {
+	return m.path
 }
 
-// FullPattern returns the pattern that prefix all resources,
-// including the pattern of any parent Mux.
-func (m *Mux) FullPattern() string {
+// FullPath returns the path that prefix all resource handlers,
+// including the pattern derived from being mounted.
+func (m *Mux) FullPath() string {
 	if m.parent == nil {
-		return m.pattern
+		return m.path
 	}
-	return mergePattern(m.parent.pattern, m.pattern)
+	return mergePattern(mergePattern(m.parent.path, m.mountp), m.path)
 }
 
-// Handle registers the handler functions for the given resource subpattern.
+// Handle registers the handler functions for the given resource pattern.
 //
 // A pattern may contain placeholders that acts as wildcards, and will be
 // parsed and stored in the request.PathParams map.
@@ -87,70 +92,73 @@ func (m *Mux) FullPattern() string {
 //
 // If the pattern is already registered, or if there are conflicts among
 // the handlers, Handle panics.
-func (m *Mux) Handle(subpattern string, hf ...Option) {
+func (m *Mux) Handle(pattern string, hf ...Option) {
 	var h Handler
 	for _, f := range hf {
 		f.SetOption(&h)
 	}
-	m.AddHandler(subpattern, h)
+	m.AddHandler(pattern, h)
 }
 
-// AddHandler register a handler for the given resource subpattern.
+// AddHandler register a handler for the given resource pattern.
 // The pattern used is the same as described for Handle.
-func (m *Mux) AddHandler(subpattern string, hs Handler) {
+func (m *Mux) AddHandler(pattern string, hs Handler) {
 	h := regHandler{
 		Handler: hs,
-		group:   parseGroup(hs.Group, subpattern),
+		group:   parseGroup(hs.Group, pattern),
 	}
 
-	m.add(subpattern, &h)
+	m.add(pattern, &h)
 }
 
-// Mount attaches another Mux at a given pattern.
-// When mounting, any pattern set on the sub Mux will be suffixed to the subpattern.
-func (m *Mux) Mount(subpattern string, sub *Mux) {
+// Mount attaches another Mux at a given path.
+// When mounting, any path set on the sub Mux will be suffixed to the path.
+func (m *Mux) Mount(path string, sub *Mux) {
+	if path != "" && !Ref(path).IsValid() {
+		panic("res: invalid path")
+	}
 	if sub.parent != nil {
 		panic("res: already mounted")
 	}
-	spattern := mergePattern(subpattern, sub.pattern)
-	if spattern == "" {
+	spath := mergePattern(path, sub.path)
+	if spath == "" {
 		panic("res: attempting to mount to root")
 	}
-	n, _ := m.fetch(spattern, sub.root)
+	n, _ := m.fetch(spath, sub.root)
 	if n != sub.root {
-		panic("res: attempting to mount to existing pattern: " + mergePattern(m.pattern, spattern))
+		panic("res: attempting to mount to existing pattern: " + mergePattern(m.path, spath))
 	}
-	sub.pattern = spattern
+	sub.mountp = path
 	sub.root.mounted = true
 	sub.parent = m
 }
 
-// Route create a new Mux and mounts it to the given subpattern.
-func (m *Mux) Route(subpattern string, fn func(m *Mux)) *Mux {
+// Route create a new Mux and mounts it to the given subpath.
+func (m *Mux) Route(subpath string, fn func(m *Mux)) *Mux {
 	sub := NewMux("")
 	if fn != nil {
 		fn(sub)
 	}
-	m.Mount(subpattern, sub)
+	m.Mount(subpath, sub)
 	return sub
 }
 
-// add inserts new handlers for a given subpattern.
+// add inserts new handlers for a given pattern.
 // An invalid pattern, or a pattern already registered will cause panic.
-func (m *Mux) add(subpattern string, hs *regHandler) {
-	n, params := m.fetch(subpattern, nil)
+func (m *Mux) add(pattern string, hs *regHandler) {
+	n, params := m.fetch(pattern, nil)
 
 	if n.hs != nil {
-		panic("res: registration already done for pattern " + mergePattern(m.pattern, subpattern))
+		panic("res: registration already done for pattern " + mergePattern(m.path, pattern))
 	}
 	n.params = params
 	n.hs = hs
 }
 
-// fetch get the node for a given subpattern (not including Mux path).
+// fetch get the node for a given pattern (not including Mux path).
 // An invalid pattern will cause panic.
-func (m *Mux) fetch(subpattern string, mount *node) (*node, []pathParam) {
-	tokens := splitPattern(subpattern)
+func (m *Mux) fetch(pattern string, mount *node) (*node, []pathParam) {
+	tokens := splitPattern(pattern)
 
 	var params []pathParam
 
@@ -178,10 +186,10 @@ func (m *Mux) fetch(subpattern string, mount *node) (*node, []pathParam) {
 			}
 			if t[0] == pmark {
 				name := t[1:]
-				// Validate subpattern is unique
+				// Validate pattern is unique
 				for _, p := range params {
 					if p.name == name {
-						panic("res: placeholder " + t + " found multiple times in pattern: " + mergePattern(m.pattern, subpattern))
+						panic("res: placeholder " + t + " found multiple times in pattern: " + mergePattern(m.path, pattern))
 					}
 				}
 				params = append(params, pathParam{name: name, idx: i - mountIdx})
@@ -201,7 +209,7 @@ func (m *Mux) fetch(subpattern string, mount *node) (*node, []pathParam) {
 			}
 			if l.wild == nil {
 				if doMount {
-					panic("res: attempting to mount on full wildcard pattern: " + mergePattern(m.pattern, subpattern))
+					panic("res: attempting to mount on full wildcard pattern: " + mergePattern(m.path, pattern))
 				}
 				l.wild = &node{}
 			}
@@ -240,16 +248,16 @@ func (m *Mux) fetch(subpattern string, mount *node) (*node, []pathParam) {
 func (m *Mux) GetHandler(rname string) (Handler, map[string]string, string, error) {
 	var tokens []string
 	subrname := rname
-	pl := len(m.pattern)
+	pl := len(m.path)
 	if pl > 0 {
 		rl := len(rname)
 		if pl == rl {
-			if m.pattern != rname {
+			if m.path != rname {
 				return Handler{}, nil, "", errHandlerNotFound
 			}
 			subrname = ""
 		} else {
-			if pl > rl || (rname[0:pl] != m.pattern) || rname[pl] != '.' {
+			if pl > rl || (rname[0:pl] != m.path) || rname[pl] != '.' {
 				return Handler{}, nil, "", errHandlerNotFound
 			}
 			subrname = rname[pl+1:]
@@ -367,36 +375,23 @@ func mergePattern(a, b string) string {
 	return a + "." + b
 }
 
-func (m *Mux) hasResources() bool {
-	return hasPattern(m.root, func(n *node) bool {
-		if n.hs == nil {
-			return false
-		}
-		hs := n.hs
-		return hs.Get != nil || len(hs.Call) > 0 || len(hs.Auth) > 0 || hs.New != nil
-	})
+// Contains traverses through the registered handlers to see if
+// any of them matches the predicate test.
+func (m *Mux) Contains(test func(h Handler) bool) bool {
+	return contains(m.root, test)
 }
 
-func (m *Mux) hasAccess() bool {
-	return hasPattern(m.root, func(n *node) bool {
-		if n.hs == nil {
-			return false
-		}
-		return n.hs.Access != nil
-	})
-}
-
-func hasPattern(n *node, test func(n *node) bool) bool {
-	if n.wild != nil && test(n.wild) {
+func contains(n *node, test func(h Handler) bool) bool {
+	if n.wild != nil && n.wild.hs != nil && test(n.wild.hs.Handler) {
 		return true
 	}
 
-	if n.param != nil && (test(n.param) || hasPattern(n.param, test)) {
+	if n.param != nil && ((n.param.hs != nil && test(n.param.hs.Handler)) || contains(n.param, test)) {
 		return true
 	}
 
 	for _, nn := range n.nodes {
-		if test(nn) || hasPattern(nn, test) {
+		if (nn.hs != nil && test(nn.hs.Handler)) || contains(nn, test) {
 			return true
 		}
 	}
