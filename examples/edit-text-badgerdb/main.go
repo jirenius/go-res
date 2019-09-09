@@ -18,7 +18,7 @@ import (
 
 func main() {
 	// Create badger DB
-	db, err := badger.Open(badger.DefaultOptions("./db"))
+	db, err := badger.Open(badger.DefaultOptions("./db").WithTruncate(true))
 	if err != nil {
 		log.Fatal(err)
 	}

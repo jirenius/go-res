@@ -424,10 +424,10 @@ func (r *Request) reply(payload []byte) {
 		panic("res: response already sent on request")
 	}
 	r.replied = true
-	r.s.Tracef("<== %s: %s", r.msg.Subject, payload)
+	r.s.tracef("<== %s: %s", r.msg.Subject, payload)
 	err := r.s.nc.Publish(r.msg.Reply, payload)
 	if err != nil {
-		r.s.Logf("error sending reply %s: %s", r.msg.Subject, err)
+		r.s.errorf("Error sending reply %s: %s", r.msg.Subject, err)
 	}
 }
 
@@ -468,7 +468,7 @@ func (r *Request) executeHandler() {
 			}
 		}
 
-		r.s.Logf("error handling request %s: %s\n\t%s", r.msg.Subject, str, string(debug.Stack()))
+		r.s.errorf("Error handling request %s: %s\n\t%s", r.msg.Subject, str, string(debug.Stack()))
 	}()
 
 	hs := r.h
@@ -516,7 +516,7 @@ func (r *Request) executeHandler() {
 		}
 		h(r)
 	default:
-		r.s.Logf("unknown request type: %s", r.Type())
+		r.s.errorf("Unknown request type: %s", r.Type())
 		return
 	}
 

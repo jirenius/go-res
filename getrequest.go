@@ -105,7 +105,7 @@ func (r *getRequest) executeHandler() {
 			}
 		}
 
-		r.s.Logf("error handling get request %#v: %s", r.rname, str)
+		r.s.errorf("Error handling get request %#v: %s", r.rname, str)
 	}()
 
 	h := r.h

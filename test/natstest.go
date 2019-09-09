@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -20,19 +21,29 @@ import (
 
 // MockConn mocks a client connection to a NATS server.
 type MockConn struct {
-	useGnatsd bool
-	mu        sync.Mutex
-	subs      map[string]struct{}
-	rch       chan *nats.Msg
+	useGnatsd  bool
+	mu         sync.Mutex
+	subs       map[*nats.Subscription]*MockSubscription
+	subStrings map[string]struct{}
+	rch        chan *nats.Msg
 
 	// Mock server fields
-	closed bool
-	ch     chan *nats.Msg
+	closed               bool
+	failNextSubscription bool
 
 	// Real server fields
 	gnatsd *server.Server
 	nc     *nats.Conn // nats connection for service
 	rc     *nats.Conn // nats connection for Resgate
+}
+
+// MockSubscription mocks a subscription made to NATS server.
+type MockSubscription struct {
+	c       *MockConn
+	subject string
+	parts   []string
+	isFWC   bool
+	ch      chan *nats.Msg
 }
 
 // Msg represent a message sent to NATS
@@ -57,8 +68,9 @@ func NewTestConn(useGnatsd bool) *MockConn {
 	if !useGnatsd {
 		// Use a fake server for speeds sake
 		return &MockConn{
-			subs: make(map[string]struct{}),
-			rch:  make(chan *nats.Msg, 256),
+			subs:       make(map[*nats.Subscription]*MockSubscription),
+			subStrings: make(map[string]struct{}),
+			rch:        make(chan *nats.Msg, 256),
 		}
 	}
 
@@ -91,12 +103,12 @@ func NewTestConn(useGnatsd bool) *MockConn {
 		panic(err)
 	}
 	return &MockConn{
-		useGnatsd: true,
-		gnatsd:    gnatsd,
-		nc:        nc,
-		rc:        rc,
-		rch:       rch,
-		subs:      make(map[string]struct{}),
+		useGnatsd:  true,
+		gnatsd:     gnatsd,
+		nc:         nc,
+		rc:         rc,
+		rch:        rch,
+		subStrings: make(map[string]struct{}),
 	}
 }
 
@@ -131,24 +143,26 @@ func (c *MockConn) Publish(subj string, payload []byte) error {
 func (c *MockConn) ChanSubscribe(subj string, ch chan *nats.Msg) (*nats.Subscription, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.failNextSubscription {
+		c.failNextSubscription = false
+		return nil, errors.New("test: failing subscription as requested")
+	}
 
-	if _, ok := c.subs[subj]; ok {
+	if _, ok := c.subStrings[subj]; ok {
 		panic("test: subscription for " + subj + " already exists")
 	}
 
-	c.subs[subj] = struct{}{}
+	c.subStrings[subj] = struct{}{}
 
 	if c.useGnatsd {
 		return c.nc.ChanSubscribe(subj, ch)
 	}
 
-	if c.ch == nil {
-		c.ch = ch
-	} else if c.ch != ch {
-		panic("test: subscription with different receiving channels. Use gnatsd for test instead.")
-	}
+	sub := &nats.Subscription{}
+	msub := newMockSubscription(c, subj, ch)
+	c.subs[sub] = msub
 
-	return &nats.Subscription{}, nil
+	return sub, nil
 }
 
 // Close will close the connection to the server.
@@ -198,7 +212,14 @@ func (c *MockConn) RequestRaw(subj string, data []byte) string {
 		Reply:   inbox,
 		Data:    data,
 	}
-	c.ch <- &msg
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, msub := range c.subs {
+		if msub.matches(subj) {
+			msub.ch <- &msg
+		}
+	}
 	return inbox
 }
 
@@ -217,7 +238,7 @@ func (c *MockConn) AssertSubscription(t *testing.T, subj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, ok := c.subs[subj]
+	_, ok := c.subStrings[subj]
 	if !ok {
 		t.Fatalf("expected subscription for %#v, but found none", subj)
 	}
@@ -228,7 +249,7 @@ func (c *MockConn) AssertNoSubscription(t *testing.T, subj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, ok := c.subs[subj]
+	_, ok := c.subStrings[subj]
 	if ok {
 		t.Fatalf("expected no subscription for %#v, but found one", subj)
 	}
@@ -253,6 +274,12 @@ func (c *MockConn) GetMsg(t *testing.T) *Msg {
 		}
 	}
 	return nil
+}
+
+func (c *MockConn) FailNextSubscription() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.failNextSubscription = true
 }
 
 // AssertEqual expects that a equals b for the named value,
@@ -576,4 +603,28 @@ func (pm ParallelMsgs) GetMsg(t *testing.T, subject string) *Msg {
 
 	t.Fatalf("expected parallel messages to contain subject %#v, but found none", subject)
 	return nil
+}
+
+func newMockSubscription(c *MockConn, subject string, ch chan *nats.Msg) *MockSubscription {
+	s := &MockSubscription{c: c, subject: subject, ch: ch}
+
+	s.isFWC = subject == ">" || strings.HasSuffix(subject, ".>")
+	s.parts = strings.Split(subject, ".")
+	if s.isFWC {
+		s.parts = s.parts[:len(s.parts)-1]
+	}
+	return s
+}
+
+func (s *MockSubscription) matches(subj string) bool {
+	mparts := strings.Split(subj, ".")
+	if len(mparts) < len(s.parts) || (!s.isFWC && len(mparts) != len(s.parts)) {
+		return false
+	}
+	for i := 0; i < len(s.parts); i++ {
+		if s.parts[i] != mparts[i] && s.parts[i] != "*" {
+			return false
+		}
+	}
+	return true
 }

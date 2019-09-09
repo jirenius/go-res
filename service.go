@@ -3,14 +3,15 @@ package res
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/jirenius/go-res/logger"
 	"github.com/jirenius/timerqueue"
 	nats "github.com/nats-io/go-nats"
-	"github.com/resgateio/resgate/logger"
 )
 
 // The size of the in channel receiving messages from NATS Server.
@@ -153,18 +154,21 @@ var (
 type Service struct {
 	*Mux
 	state          int32
-	nc             Conn              // NATS Server connection
-	inCh           chan *nats.Msg    // Channel for incoming nats messages
-	rwork          map[string]*work  // map of resource work
-	workCh         chan *work        // Resource work channel, listened to by the workers
-	wg             sync.WaitGroup    // WaitGroup for all workers
-	mu             sync.Mutex        // Mutex to protect rwork map
-	logger         logger.Logger     // Logger
-	resetResources []string          // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
-	resetAccess    []string          // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
-	queryTQ        *timerqueue.Queue // Timer queue for query events duration
-	queryDuration  time.Duration     // Duration to listen for query requests on a query event
-	onServe        func(*Service)    // Handler called after starting to serve prior to calling system.reset
+	nc             Conn                   // NATS Server connection
+	inCh           chan *nats.Msg         // Channel for incoming nats messages
+	rwork          map[string]*work       // map of resource work
+	workCh         chan *work             // Resource work channel, listened to by the workers
+	wg             sync.WaitGroup         // WaitGroup for all workers
+	mu             sync.Mutex             // Mutex to protect rwork map
+	logger         logger.Logger          // Logger
+	resetResources []string               // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
+	resetAccess    []string               // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
+	queryTQ        *timerqueue.Queue      // Timer queue for query events duration
+	queryDuration  time.Duration          // Duration to listen for query requests on a query event
+	onServe        func(*Service)         // Handler called after the starting to serve prior to calling system.reset
+	onDisconnect   func(*Service)         // Handler called after the service has been disconnected from NATS server.
+	onReconnect    func(*Service)         // Handler called after the service has reconnected to NATS server and sent a system reset event.
+	onError        func(*Service, string) // Handler called on errors within the service, or incoming messages not complying with the RES protocol.
 }
 
 // NewService creates a new Service.
@@ -176,7 +180,7 @@ type Service struct {
 func NewService(name string) *Service {
 	return &Service{
 		Mux:           NewMux(name),
-		logger:        logger.NewStdLogger(false, false),
+		logger:        logger.NewStdLogger(),
 		queryDuration: defaultQueryEventDuration,
 	}
 }
@@ -202,10 +206,28 @@ func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
 	return s
 }
 
-// SetOnServe sets a function to call when starting to serve,
-// after sending a system.reset.
+// SetOnServe sets a function to call when the service has started
+// after sending the initial system reset event.
 func (s *Service) SetOnServe(f func(*Service)) {
 	s.onServe = f
+}
+
+// SetOnDisconnect sets a function to call when the service has been
+// disconnected from NATS server.
+func (s *Service) SetOnDisconnect(f func(*Service)) {
+	s.onDisconnect = f
+}
+
+// SetOnReconnect sets a function to call when the service has
+// reconnected to NATS server and sent a system reset event.
+func (s *Service) SetOnReconnect(f func(*Service)) {
+	s.onReconnect = f
+}
+
+// SetOnError sets a function to call on errors within the service,
+// or incoming messages not complying with the RES protocol.
+func (s *Service) SetOnError(f func(*Service, string)) {
+	s.onError = f
 }
 
 // Logger returns the logger.
@@ -213,28 +235,31 @@ func (s *Service) Logger() logger.Logger {
 	return s.logger
 }
 
-// Logf writes a formatted log message
-func (s *Service) Logf(format string, v ...interface{}) {
+// infof logs a formatted info entry.
+func (s *Service) infof(format string, v ...interface{}) {
 	if s.logger == nil {
 		return
 	}
-	s.logger.Logf("[Service] ", format, v...)
+	s.logger.Infof(format, v...)
 }
 
-// Debugf writes a formatted debug message
-func (s *Service) Debugf(format string, v ...interface{}) {
+// errorf logs a formatted error entry.
+func (s *Service) errorf(format string, v ...interface{}) {
 	if s.logger == nil {
 		return
 	}
-	s.logger.Debugf("[Service] ", format, v...)
+	s.logger.Errorf(format, v...)
+	if s.onError != nil {
+		s.onError(s, fmt.Sprintf(format, v...))
+	}
 }
 
-// Tracef writes a formatted trace message
-func (s *Service) Tracef(format string, v ...interface{}) {
+// tracef logs a formatted trace entry.
+func (s *Service) tracef(format string, v ...interface{}) {
 	if s.logger == nil {
 		return
 	}
-	s.logger.Tracef("[Service] ", format, v...)
+	s.logger.Tracef(format, v...)
 }
 
 // Access sets a handler for resource access requests
@@ -387,11 +412,35 @@ func Group(group string) Option {
 	})
 }
 
-// SetReset sets the patterns used for resources and access when a ResetAll is made.
-// If set to nil (default), the patterns returned by ResourcePatterns and AccessPatterns is used.
+// SetReset is an alias for SetOwnedResources.
+// Deprecated: Renamed to SetOwnedResources to match API of similar libraries.
+func (s *Service) SetReset(resources, access []string) *Service {
+	return s.SetOwnedResources(resources, access)
+}
+
+// SetOwnedResources sets the patterns which the service will handle requests for.
+// The resources slice patterns ill be listened to for get, call, and auth requests.
+// The access slice patterns will be listened to for access requests.
+// These patterns will be used when a ResetAll is made.
+//
+//  // Handle all requests for resources prefixed "library."
+//  service.SetOwnedResources([]string{"library.>"}, []string{"library.>"})
+//  // Handle access requests for any resource
+//  service.SetOwnedResources([]string{}, []string{">"})
+//  // Handle non-access requests for a subset of resources
+//  service.SetOwnedResources([]string{"library.book", "library.books.*"}, []string{})
+//
+// If set to nil (default), the service will default to set ownership of all resources
+// prefixed with its own path if one was provided when creating the service
+// (eg. "serviceName.>"), or to all resources if no name was provided.
+// It will take resource ownership if it has at least one registered handler has a
+// Get, Call, Auth, or New handler method not being nil.
+// It will take access ownership if it has at least one registered handler with the
+// Access method not being nil.
+//
 // For more details on system reset, see:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#system-reset-event
-func (s *Service) SetReset(resources, access []string) *Service {
+func (s *Service) SetOwnedResources(resources, access []string) *Service {
 	s.resetResources = resources
 	s.resetAccess = access
 	return s
@@ -423,10 +472,10 @@ func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 	}
 	opts = append(opts, options...)
 
-	s.Logf("Connecting to NATS server")
+	s.infof("Connecting to NATS server")
 	nc, err := nats.Connect(url, opts...)
 	if err != nil {
-		s.Logf("Failed to connect to NATS server: %s", err)
+		s.errorf("Failed to connect to NATS server: %s", err)
 		return err
 	}
 
@@ -452,7 +501,7 @@ func (s *Service) Serve(nc Conn) error {
 }
 
 func (s *Service) serve(nc Conn) error {
-	s.Logf("Starting service")
+	s.infof("Starting service")
 
 	// Initialize fields
 	inCh := make(chan *nats.Msg, inChannelSize)
@@ -473,8 +522,8 @@ func (s *Service) serve(nc Conn) error {
 
 	err := s.subscribe()
 	if err != nil {
-		s.Logf("Failed to subscribe: %s", err)
-		s.close()
+		s.errorf("Failed to subscribe: %s", err)
+		go s.Shutdown()
 	} else {
 		// Send a system.reset
 		s.ResetAll()
@@ -483,7 +532,7 @@ func (s *Service) serve(nc Conn) error {
 			s.onServe(s)
 		}
 
-		s.Logf("Listening for requests")
+		s.infof("Listening for requests")
 		s.startListener(inCh)
 	}
 
@@ -502,7 +551,7 @@ func (s *Service) Shutdown() error {
 		return errNotStarted
 	}
 
-	s.Logf("Stopping service...")
+	s.infof("Stopping service...")
 	s.close()
 
 	// Wait for all workers to be done
@@ -514,7 +563,7 @@ func (s *Service) Shutdown() error {
 
 	atomic.StoreInt32(&s.state, stateStopped)
 
-	s.Logf("Stopped")
+	s.infof("Stopped")
 	return nil
 }
 
@@ -527,7 +576,7 @@ func (s *Service) close() {
 // Reset sends a system reset for the provided resource patterns.
 func (s *Service) Reset(resources []string, access []string) {
 	if atomic.LoadInt32(&s.state) != stateStarted {
-		s.Logf("failed to reset: service not started")
+		s.errorf("Failed to reset: service not started")
 		return
 	}
 
@@ -562,7 +611,7 @@ func (s *Service) reset(resources []string, access []string) {
 // The method is automatically called on server start and reconnects.
 func (s *Service) ResetAll() {
 	if atomic.LoadInt32(&s.state) != stateStarted {
-		s.Logf("failed to reset: service not started")
+		s.errorf("Failed to reset: service not started")
 		return
 	}
 
@@ -577,7 +626,7 @@ func (s *Service) ResetAll() {
 // A nil token clears any previously set token.
 func (s *Service) TokenEvent(cid string, token interface{}) {
 	if atomic.LoadInt32(&s.state) != stateStarted {
-		s.Logf("failed to send token event: service not started")
+		s.errorf("Failed to send token event: service not started")
 		return
 	}
 
@@ -643,11 +692,11 @@ func (s *Service) startListener(ch chan *nats.Msg) {
 // handleRequest is called by the nats listener on incoming messages.
 func (s *Service) handleRequest(m *nats.Msg) {
 	subj := m.Subject
-	s.Tracef("==> %s: %s", subj, m.Data)
+	s.tracef("==> %s: %s", subj, m.Data)
 
 	// Assert there is a reply subject
 	if m.Reply == "" {
-		s.Logf("missing reply subject on request: %s", subj)
+		s.errorf("Missing reply subject on request: %s", subj)
 		return
 	}
 
@@ -655,7 +704,7 @@ func (s *Service) handleRequest(m *nats.Msg) {
 	idx := strings.IndexByte(subj, '.')
 	if idx < 0 {
 		// Shouldn't be possible unless NATS is really acting up
-		s.Logf("invalid request subject: %s", subj)
+		s.errorf("Invalid request subject: %s", subj)
 		return
 	}
 
@@ -667,7 +716,7 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		idx = strings.LastIndexByte(rname, '.')
 		if idx < 0 {
 			// No method? Resgate must be acting up
-			s.Logf("invalid request subject: %s", subj)
+			s.errorf("Invalid request subject: %s", subj)
 			return
 		}
 		method = rname[idx+1:]
@@ -780,35 +829,40 @@ func (s *Service) event(subj string, data interface{}) {
 
 	payload, err := json.Marshal(data)
 	if err == nil {
-		s.Tracef("<-- %s: %s", subj, payload)
+		s.tracef("<-- %s: %s", subj, payload)
 		err = s.nc.Publish(subj, payload)
 	}
 	if err != nil {
-		s.Logf("error sending event %s: %s", subj, err)
+		s.errorf("Error sending event %s: %s", subj, err)
 	}
 }
 
 // rawEvent publishes the payload on a subject,
 // and logs it as an outgoing event.
 func (s *Service) rawEvent(subj string, payload []byte) {
-	s.Tracef("<-- %s: %s", subj, payload)
+	s.tracef("<-- %s: %s", subj, payload)
 	err := s.nc.Publish(subj, payload)
 	if err != nil {
-		s.Logf("error sending event %s: %s", subj, err)
+		s.errorf("Error sending event %s: %s", subj, err)
 	}
 }
 
 // handleReconnect is called when nats has reconnected.
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleReconnect(_ *nats.Conn) {
-	s.Logf("Reconnected to NATS. Sending reset event.")
+	s.infof("Reconnected to NATS. Sending reset event.")
 	s.ResetAll()
+	if s.onReconnect != nil {
+		s.onReconnect(s)
+	}
 }
 
 // handleDisconnect is called when nats is disconnected.
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleDisconnect(_ *nats.Conn) {
-	s.Logf("Lost connection to NATS.")
+	if s.onDisconnect != nil {
+		s.onDisconnect(s)
+	}
 }
 
 func (s *Service) handleClosed(_ *nats.Conn) {
@@ -851,7 +905,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, method string, res resource
 	var rc resRequest
 	err = json.Unmarshal(m.Data, &rc)
 	if err != nil {
-		s.Logf("error unmarshaling incoming request: %s", err)
+		s.errorf("Error unmarshaling incoming request: %s", err)
 		r.error(ToError(err))
 		return
 	}
