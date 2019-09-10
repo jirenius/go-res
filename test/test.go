@@ -1,11 +1,12 @@
 package test
 
 import (
+	"log"
 	"testing"
 	"time"
 
 	res "github.com/jirenius/go-res"
-	"github.com/resgateio/resgate/logger"
+	"github.com/jirenius/go-res/logger"
 )
 
 const timeoutDuration = 100 * time.Second
@@ -129,9 +130,13 @@ func runTest(t *testing.T, precb func(*Session), cb func(*Session), opts ...func
 	runTestAsync(t, precb, syncCallback(cb), opts...)
 }
 
+func newMemLogger() *logger.MemLogger {
+	return logger.NewMemLogger().SetTrace(true).SetFlags(log.Ltime)
+}
+
 func runTestAsync(t *testing.T, precb func(*Session), cb func(*Session, func()), opts ...func(*runConfig)) {
 	cfg := &runConfig{
-		logger:         newMemLogger(true, true),
+		logger:         newMemLogger(),
 		preCallback:    precb,
 		callback:       cb,
 		useGnatsd:      false,

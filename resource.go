@@ -51,7 +51,7 @@ type Resource interface {
 	// RemoveEvent, CreateEvent, DeleteEvent, or ReaccessEvent should be used instead.
 	//
 	// This is to ensure compliance with the specifications:
-	// https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#events
+	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#events
 	Event(event string, payload interface{})
 
 	// ChangeEvents sends a change event with properties that has been changed
@@ -284,7 +284,7 @@ func (r *resource) QueryEvent(cb func(QueryRequest)) {
 	sub, err := r.s.nc.ChanSubscribe(qsubj, ch)
 	if err != nil {
 		cb(nil)
-		r.s.Logf("Failed to subscribe to query event: %s", err)
+		r.s.errorf("Failed to subscribe to query event: %s", err)
 		return
 	}
 

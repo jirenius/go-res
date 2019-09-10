@@ -24,7 +24,7 @@ func TestWithoutLogger(t *testing.T) {
 
 // Test that Logger returns the logger set with SetLogger
 func TestServiceLogger(t *testing.T) {
-	l := newMemLogger(true, true)
+	l := newMemLogger()
 	runTest(t, func(s *Session) {
 		if s.Logger() != l {
 			t.Errorf("expected Logger to return the logger passed to SetLogger, but it didn't")
@@ -51,7 +51,7 @@ func TestServiceSetReset(t *testing.T) {
 	access := []string{"test.zoo.>", "test.baz.>"}
 
 	s := setup(t, &runConfig{
-		logger: newMemLogger(true, true),
+		logger: newMemLogger(),
 		preCallback: func(s *Session) {
 			s.SetReset(resources, access)
 		},
@@ -154,4 +154,24 @@ func TestOnServeIsCalledOnServe(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Test OnServe
+func TestOnErrorIsCalledOnError(t *testing.T) {
+	ch := make(chan bool)
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+		s.SetOnError(func(s *res.Service, msg string) {
+			close(ch)
+		})
+		s.FailNextSubscription()
+	}, func(s *Session) {
+		select {
+		case <-ch:
+		case <-time.After(timeoutDuration):
+			if t == nil {
+				t.Fatal("expected OnError callback to be called, but it wasn't")
+			}
+		}
+	}, withoutReset)
 }
