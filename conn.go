@@ -1,6 +1,6 @@
 package res
 
-import nats "github.com/nats-io/go-nats"
+import nats "github.com/nats-io/nats.go"
 
 // Conn is an interface that represents a connection to a NATS server.
 // It is implemented by nats.Conn.

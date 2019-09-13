@@ -7,9 +7,10 @@ import "encoding/json"
 //  {"rid":"userService.user.42"}
 type Ref string
 
-// Resource type enum
+// ResourceType enum
 type ResourceType byte
 
+// Resource type enum values
 const (
 	TypeUnset ResourceType = iota
 	TypeModel

@@ -14,9 +14,9 @@ import (
 	"time"
 
 	res "github.com/jirenius/go-res"
-	nats "github.com/nats-io/go-nats"
-	"github.com/nats-io/nats-server/server"
-	ntest "github.com/nats-io/nats-server/test"
+	"github.com/nats-io/nats-server/v2/server"
+	ntest "github.com/nats-io/nats-server/v2/test"
+	nats "github.com/nats-io/nats.go"
 )
 
 // MockConn mocks a client connection to a NATS server.

@@ -3,7 +3,7 @@ package res
 import (
 	"net/url"
 
-	nats "github.com/nats-io/go-nats"
+	nats "github.com/nats-io/nats.go"
 )
 
 // Resource represents a resource

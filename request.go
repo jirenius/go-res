@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	nats "github.com/nats-io/go-nats"
+	nats "github.com/nats-io/nats.go"
 )
 
 // Request types
@@ -155,12 +155,12 @@ var (
 
 // Predefined handlers
 var (
-	// Access handler that provides full get and call access.
+	// AccessGranted is an access handler that provides full get and call access.
 	AccessGranted AccessHandler = func(r AccessRequest) {
 		r.AccessGranted()
 	}
 
-	// Access handler that sends a system.accessDenied error response.
+	// AccessDenied is an access handler that sends a response denying all access.
 	AccessDenied AccessHandler = func(r AccessRequest) {
 		r.AccessDenied()
 	}
