@@ -11,7 +11,7 @@ import (
 
 	"github.com/jirenius/go-res/logger"
 	"github.com/jirenius/timerqueue"
-	nats "github.com/nats-io/go-nats"
+	nats "github.com/nats-io/nats.go"
 )
 
 // The size of the in channel receiving messages from NATS Server.
