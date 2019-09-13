@@ -85,27 +85,13 @@ UnexpectedEnd:
 	panic("unexpected end of group tag")
 }
 
-func (g group) toString(rname string) string {
+func (g group) toString(rname string, tokens []string) string {
 	l := len(g)
 	if l == 0 {
 		return rname
 	}
-
 	if l == 1 && g[0].str != "" {
 		return g[0].str
-	}
-
-	var tokens []string
-	if len(rname) > 0 {
-		tokens = make([]string, 0, 32)
-		start := 0
-		for i := 0; i < len(rname); i++ {
-			if rname[i] == btsep {
-				tokens = append(tokens, rname[start:i])
-				start = i + 1
-			}
-		}
-		tokens = append(tokens, rname[start:])
 	}
 
 	var b strings.Builder

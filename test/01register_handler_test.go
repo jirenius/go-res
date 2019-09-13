@@ -80,7 +80,6 @@ func TestPanicOnInvalidPatternRegistration(t *testing.T) {
 		{"model.$.foo"},
 		{"model.>.foo"},
 		{"model.foo.>bar"},
-		{"model.>.foo"},
 	}
 
 	for _, l := range tbl {

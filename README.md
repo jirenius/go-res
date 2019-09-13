@@ -10,7 +10,7 @@
 
 ---
 
-[Go](http://golang.org) package implementing the RES-Service Protocol. Used to create REST, real time, and RPC APIs, where all your reactive web clients are synchronized seamlessly through [Resgate](https://github.com/resgateio/resgate).
+[Go](http://golang.org) package used to create REST, real time, and RPC APIs, where all your reactive web clients are synchronized seamlessly through [Resgate](https://github.com/resgateio/resgate).
 
 Visit [Resgate.io](https://resgate.io) for more information.
 
@@ -211,6 +211,8 @@ Inspiration on the go-res API has been taken from [github.com/go-chi/chi](https:
 
 ## Contributing
 
-The go-res package is still under development, and commits may still contain breaking changes. It should only be used for educational purpose. Any feedback on the package API or its implementation is highly appreciated!
+The go-res package is still under development, but the API is mostly settled. Any feedback on the package API or its implementation is highly appreciated!
+
+Once the API is fully settled, the package will be moved to the [resgateio](https://github.com/resgateio/) GitHub organization.
 
 If you find any issues, feel free to [report them](https://github.com/jirenius/go-res/issues/new) as an issue.

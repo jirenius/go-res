@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	nats "github.com/nats-io/go-nats"
+	nats "github.com/nats-io/nats.go"
 )
 
 const queryEventChannelSize = 10
@@ -78,14 +78,14 @@ func (qr *queryRequest) Timeout(d time.Duration) {
 	if d < 0 {
 		panic("res: negative timeout duration")
 	}
-	out := []byte(`timeout:"` + strconv.FormatInt(d.Nanoseconds()/1000000, 10) + `"`)
+	out := []byte(`timeout:"` + strconv.FormatInt(int64(d/time.Millisecond), 10) + `"`)
 	qr.s.rawEvent(qr.msg.Reply, out)
 }
 
 // startQueryListener listens for query requests and passes them on to a worker.
 func (qe *queryEvent) startQueryListener() {
 	for m := range qe.ch {
-		qe.r.s.runWithHandler(qe.r.hs, qe.r.rname, func() {
+		qe.r.s.runWith(qe.r.Group(), func() {
 			qe.handleQueryRequest(m)
 		})
 	}
@@ -94,7 +94,7 @@ func (qe *queryEvent) startQueryListener() {
 // handleQueryRequest is called by the query listener on incoming query requests.
 func (qe *queryEvent) handleQueryRequest(m *nats.Msg) {
 	s := qe.r.s
-	s.Tracef("Q=> %s: %s", qe.r.rname, m.Data)
+	s.tracef("Q=> %s: %s", qe.r.rname, m.Data)
 
 	qr := &queryRequest{
 		resource: qe.r,
@@ -104,13 +104,13 @@ func (qe *queryEvent) handleQueryRequest(m *nats.Msg) {
 	var rqr resQueryRequest
 	err := json.Unmarshal(m.Data, &rqr)
 	if err != nil {
-		s.Logf("error unmarshaling incoming query request: %s", err)
+		s.errorf("Error unmarshaling incoming query request: %s", err)
 		qr.error(ToError(err))
 		return
 	}
 
 	if rqr.Query == "" {
-		s.Logf("missing query on incoming query request: %s", err)
+		s.errorf("Missing query on incoming query request: %s", err)
 		qr.reply(responseMissingQuery)
 		return
 	}
@@ -170,7 +170,7 @@ func (qr *queryRequest) executeCallback(cb func(QueryRequest)) {
 			}
 		}
 
-		qr.s.Logf("error handling query request %s: %s", qr.rname, str)
+		qr.s.errorf("Error handling query request %s: %s", qr.rname, str)
 	}()
 
 	cb(qr)
@@ -189,14 +189,14 @@ func (qr *queryRequest) error(e *Error) {
 // If a reply is already sent, reply will log an error.
 func (qr *queryRequest) reply(payload []byte) {
 	if qr.replied {
-		qr.s.Logf("response already sent on query request %s", qr.rname)
+		qr.s.errorf("Response already sent on query request %s", qr.rname)
 		return
 	}
 	qr.replied = true
 
-	qr.s.Tracef("<=Q %s: %s", qr.rname, payload)
+	qr.s.tracef("<=Q %s: %s", qr.rname, payload)
 	err := qr.s.nc.Publish(qr.msg.Reply, payload)
 	if err != nil {
-		qr.s.Logf("error sending query reply %s: %s", qr.rname, err)
+		qr.s.errorf("Error sending query reply %s: %s", qr.rname, err)
 	}
 }

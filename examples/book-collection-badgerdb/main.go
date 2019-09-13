@@ -36,11 +36,7 @@ type Book struct {
 
 func main() {
 	// Create badger DB
-	opts := badger.DefaultOptions
-	opts.Dir = "./db"
-	opts.ValueDir = "./db"
-	opts.Truncate = true
-	db, err := badger.Open(opts)
+	db, err := badger.Open(badger.DefaultOptions("./db").WithTruncate(true))
 	if err != nil {
 		log.Fatal(err)
 	}

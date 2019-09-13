@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	nats "github.com/nats-io/go-nats"
+	nats "github.com/nats-io/nats.go"
 )
 
 // Request types
@@ -155,12 +155,12 @@ var (
 
 // Predefined handlers
 var (
-	// Access handler that provides full get and call access.
+	// AccessGranted is an access handler that provides full get and call access.
 	AccessGranted AccessHandler = func(r AccessRequest) {
 		r.AccessGranted()
 	}
 
-	// Access handler that sends a system.accessDenied error response.
+	// AccessDenied is an access handler that sends a response denying all access.
 	AccessDenied AccessHandler = func(r AccessRequest) {
 		r.AccessDenied()
 	}
@@ -375,7 +375,7 @@ func (r *Request) Timeout(d time.Duration) {
 	if d < 0 {
 		panic("res: negative timeout duration")
 	}
-	out := []byte(`timeout:"` + strconv.FormatInt(d.Nanoseconds()/1000000, 10) + `"`)
+	out := []byte(`timeout:"` + strconv.FormatInt(int64(d/time.Millisecond), 10) + `"`)
 	r.s.rawEvent(r.msg.Reply, out)
 }
 
@@ -424,10 +424,10 @@ func (r *Request) reply(payload []byte) {
 		panic("res: response already sent on request")
 	}
 	r.replied = true
-	r.s.Tracef("<== %s: %s", r.msg.Subject, payload)
+	r.s.tracef("<== %s: %s", r.msg.Subject, payload)
 	err := r.s.nc.Publish(r.msg.Reply, payload)
 	if err != nil {
-		r.s.Logf("error sending reply %s: %s", r.msg.Subject, err)
+		r.s.errorf("Error sending reply %s: %s", r.msg.Subject, err)
 	}
 }
 
@@ -468,10 +468,10 @@ func (r *Request) executeHandler() {
 			}
 		}
 
-		r.s.Logf("error handling request %s: %s\n\t%s", r.msg.Subject, str, string(debug.Stack()))
+		r.s.errorf("Error handling request %s: %s\n\t%s", r.msg.Subject, str, string(debug.Stack()))
 	}()
 
-	hs := r.hs
+	hs := r.h
 
 	switch r.rtype {
 	case "access":
@@ -489,12 +489,11 @@ func (r *Request) executeHandler() {
 		hs.Get(r)
 	case "call":
 		if r.method == "new" {
-			h := hs.New
-			if h == nil {
+			if hs.New == nil {
 				r.reply(responseMethodNotFound)
 				return
 			}
-			h(r)
+			hs.New(r)
 		} else {
 			var h CallHandler
 			if hs.Call != nil {
@@ -517,7 +516,7 @@ func (r *Request) executeHandler() {
 		}
 		h(r)
 	default:
-		r.s.Logf("unknown request type: %s", r.Type())
+		r.s.errorf("Unknown request type: %s", r.Type())
 		return
 	}
 

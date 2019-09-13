@@ -1,5 +1,7 @@
 package res
 
+import "strings"
+
 // Code inspired, and partly borrowed, from SubList in nats-server
 // https://github.com/nats-io/nats-server/blob/master/server/sublist.go
 
@@ -13,12 +15,12 @@ const (
 
 const invalidPattern = "res: invalid pattern"
 
-// Mux stores patterns and efficiently retrieves pattern handlers.
+// Mux stores handlers and efficiently retrieves them for resource names matching a pattern.
 type Mux struct {
-	pattern string
-	plen    int
-	root    *node
-	parent  *Mux
+	path   string
+	root   *node
+	parent *Mux
+	mountp string
 }
 
 // A registered handler
@@ -31,11 +33,12 @@ type regHandler struct {
 // to the next nodes, including wildcards.
 // Only one instance of handlers may exist per node.
 type node struct {
-	hs     *regHandler // Handlers on this node
-	params []pathParam // path parameters for the handlers
-	nodes  map[string]*node
-	param  *node
-	wild   *node // Wild card node
+	hs      *regHandler // Handlers on this node
+	params  []pathParam // path parameters for the handlers
+	nodes   map[string]*node
+	param   *node
+	wild    *node // Wild card node
+	mounted bool
 }
 
 // A pathParam represent a parameter part of the resource name.
@@ -46,20 +49,39 @@ type pathParam struct {
 
 // Matchin handlers instance to a resource name
 type nodeMatch struct {
-	hs     *regHandler
-	params map[string]string
+	hs       *regHandler
+	params   map[string]string
+	mountIdx int
 }
 
-// NewMux returns a new root Mux starting with given pattern.
-func NewMux(pattern string) *Mux {
+// NewMux returns a new root Mux starting with given resource name path.
+// Use an empty path to not add any prefix to the resource names.
+func NewMux(path string) *Mux {
+	if !isValidPath(path) {
+		panic("res: invalid path")
+	}
 	return &Mux{
-		pattern: pattern,
-		plen:    len(splitPattern(pattern)),
-		root:    &node{},
+		path: path,
+		root: &node{},
 	}
 }
 
-// Handle registers the handler functions for the given resource subpattern.
+// Path returns the path that prefix all resource handlers,
+// not including the any pattern derived from being mounted.
+func (m *Mux) Path() string {
+	return m.path
+}
+
+// FullPath returns the path that prefix all resource handlers,
+// including the pattern derived from being mounted.
+func (m *Mux) FullPath() string {
+	if m.parent == nil {
+		return m.path
+	}
+	return mergePattern(mergePattern(m.parent.path, m.mountp), m.path)
+}
+
+// Handle registers the handler functions for the given resource pattern.
 //
 // A pattern may contain placeholders that acts as wildcards, and will be
 // parsed and stored in the request.PathParams map.
@@ -72,79 +94,87 @@ func NewMux(pattern string) *Mux {
 //
 // If the pattern is already registered, or if there are conflicts among
 // the handlers, Handle panics.
-func (m *Mux) Handle(subpattern string, hf ...Option) {
+func (m *Mux) Handle(pattern string, hf ...Option) {
 	var h Handler
 	for _, f := range hf {
 		f.SetOption(&h)
 	}
-	m.AddHandler(subpattern, h)
+	m.AddHandler(pattern, h)
 }
 
-// AddHandler register a handler for the given resource subpattern.
+// AddHandler register a handler for the given resource pattern.
 // The pattern used is the same as described for Handle.
-func (m *Mux) AddHandler(subpattern string, hs Handler) {
+func (m *Mux) AddHandler(pattern string, hs Handler) {
 	h := regHandler{
 		Handler: hs,
-		group:   parseGroup(hs.Group, subpattern),
+		group:   parseGroup(hs.Group, pattern),
 	}
 
-	m.add(subpattern, &h)
+	m.add(pattern, &h)
 }
 
-// Mount attaches another Mux at a given pattern.
-// When mounting, any pattern set on the sub Mux will be merge with the subpattern.
-func (m *Mux) Mount(subpattern string, sub *Mux) {
+// Mount attaches another Mux at a given path.
+// When mounting, any path set on the sub Mux will be suffixed to the path.
+func (m *Mux) Mount(path string, sub *Mux) {
+	if !isValidPath(path) {
+		panic("res: invalid path")
+	}
 	if sub.parent != nil {
 		panic("res: already mounted")
 	}
-	spattern := mergePattern(sub.pattern, subpattern)
-	if spattern == "" {
+	spath := mergePattern(path, sub.path)
+	if spath == "" {
 		panic("res: attempting to mount to root")
 	}
-	n, _ := m.fetch(spattern, sub.root)
+	n, _ := m.fetch(spath, sub.root)
 	if n != sub.root {
-		panic("res: attempting to mount to existing pattern: " + mergePattern(m.pattern, spattern))
+		panic("res: attempting to mount to existing pattern: " + mergePattern(m.path, spath))
 	}
-	sub.pattern = spattern
+	sub.mountp = path
+	sub.root.mounted = true
 	sub.parent = m
 }
 
-// Route create a new Mux and mounts it to the given subpattern.
-func (m *Mux) Route(subpattern string, fn func(m *Mux)) *Mux {
+// Route create a new Mux and mounts it to the given subpath.
+func (m *Mux) Route(subpath string, fn func(m *Mux)) *Mux {
 	sub := NewMux("")
 	if fn != nil {
 		fn(sub)
 	}
-	m.Mount(subpattern, sub)
+	m.Mount(subpath, sub)
 	return sub
 }
 
-// add inserts new handlers for a given subpattern.
+// add inserts new handlers for a given pattern.
 // An invalid pattern, or a pattern already registered will cause panic.
-func (m *Mux) add(subpattern string, hs *regHandler) {
-	n, params := m.fetch(subpattern, nil)
+func (m *Mux) add(pattern string, hs *regHandler) {
+	n, params := m.fetch(pattern, nil)
 
 	if n.hs != nil {
-		panic("res: registration already done for pattern " + mergePattern(m.pattern, subpattern))
+		panic("res: registration already done for pattern " + mergePattern(m.path, pattern))
 	}
 	n.params = params
 	n.hs = hs
 }
 
-// fetch get the node for a given subpattern (not including Mux path).
+// fetch get the node for a given pattern (not including Mux path).
 // An invalid pattern will cause panic.
-func (m *Mux) fetch(subpattern string, mount *node) (*node, []pathParam) {
-	tokens := splitPattern(subpattern)
+func (m *Mux) fetch(pattern string, mount *node) (*node, []pathParam) {
+	tokens := splitPattern(pattern)
 
 	var params []pathParam
 
 	l := m.root
 	var n *node
 	var doMount bool
+	var mountIdx int
 
 	for i, t := range tokens {
 		if mount != nil && i == len(tokens)-1 {
 			doMount = true
+		}
+		if l.mounted {
+			mountIdx = i
 		}
 
 		lt := len(t)
@@ -158,13 +188,13 @@ func (m *Mux) fetch(subpattern string, mount *node) (*node, []pathParam) {
 			}
 			if t[0] == pmark {
 				name := t[1:]
-				// Validate subpattern is unique
+				// Validate pattern is unique
 				for _, p := range params {
 					if p.name == name {
-						panic("res: placeholder " + t + " found multiple times in pattern: " + mergePattern(m.pattern, subpattern))
+						panic("res: placeholder " + t + " found multiple times in pattern: " + mergePattern(m.path, pattern))
 					}
 				}
-				params = append(params, pathParam{name: name, idx: i})
+				params = append(params, pathParam{name: name, idx: i - mountIdx})
 			}
 			if l.param == nil {
 				if doMount {
@@ -181,7 +211,7 @@ func (m *Mux) fetch(subpattern string, mount *node) (*node, []pathParam) {
 			}
 			if l.wild == nil {
 				if doMount {
-					panic("res: attempting to mount on full wildcard pattern: " + mergePattern(m.pattern, subpattern))
+					panic("res: attempting to mount on full wildcard pattern: " + mergePattern(m.path, pattern))
 				}
 				l.wild = &node{}
 			}
@@ -214,42 +244,62 @@ func (m *Mux) fetch(subpattern string, mount *node) (*node, []pathParam) {
 	return l, params
 }
 
-// get parses the resource name and gets the registered handlers and
-// any path params.
-// It will assume the first tokens matches the Mux path (if any).
-// Returns nil, nil if there is no match
-func (m *Mux) get(rname string) (*regHandler, map[string]string) {
-	pl := m.plen
+// GetHandler parses the resource name and gets the registered handler,
+// path params, and group ID.
+// Returns the matching handler, or an error if not found.
+func (m *Mux) GetHandler(rname string) (Handler, map[string]string, string, error) {
 	var tokens []string
-	if len(rname) > 0 {
-		tokens = make([]string, 0, 32)
-		start := 0
-		for i := 0; i < len(rname); i++ {
-			if rname[i] == btsep {
-				if pl > 0 {
-					pl--
-				} else {
-					tokens = append(tokens, rname[start:i])
-				}
-				start = i + 1
+	subrname := rname
+	pl := len(m.path)
+	if pl > 0 {
+		rl := len(rname)
+		if pl == rl {
+			if m.path != rname {
+				return Handler{}, nil, "", errHandlerNotFound
 			}
-		}
-		if pl == 0 {
-			tokens = append(tokens, rname[start:])
+			subrname = ""
+		} else {
+			if pl > rl || (rname[0:pl] != m.path) || rname[pl] != '.' {
+				return Handler{}, nil, "", errHandlerNotFound
+			}
+			subrname = rname[pl+1:]
 		}
 	}
 
-	var nm nodeMatch
-	matchNode(m.root, tokens, 0, &nm)
+	if len(subrname) == 0 {
+		if m.root.hs == nil {
+			return Handler{}, nil, "", errHandlerNotFound
+		}
 
-	return nm.hs, nm.params
+		return m.root.hs.Handler, nil, m.root.hs.group.toString(rname, nil), nil
+	}
+
+	tokens = make([]string, 0, 32)
+	start := 0
+	for i := 0; i < len(subrname); i++ {
+		if subrname[i] == btsep {
+			tokens = append(tokens, subrname[start:i])
+			start = i + 1
+		}
+	}
+	tokens = append(tokens, subrname[start:])
+
+	var nm nodeMatch
+	matchNode(m.root, tokens, 0, 0, &nm)
+	if nm.hs == nil {
+		return Handler{}, nil, "", errHandlerNotFound
+	}
+
+	return nm.hs.Handler, nm.params, nm.hs.group.toString(rname, tokens[nm.mountIdx:]), nil
 }
 
-func matchNode(l *node, toks []string, i int, nm *nodeMatch) bool {
-	t := toks[i]
+func matchNode(l *node, toks []string, i int, mi int, nm *nodeMatch) bool {
+	n := l.nodes[toks[i]]
+	if l.mounted {
+		mi = i
+	}
 	i++
 	c := 2
-	n := l.nodes[t]
 	for c > 0 {
 		// Does the node exist
 		if n != nil {
@@ -258,19 +308,20 @@ func matchNode(l *node, toks []string, i int, nm *nodeMatch) bool {
 				// Check if this node has handlers
 				if n.hs != nil {
 					nm.hs = n.hs
+					nm.mountIdx = mi
 					// Check if we have path parameters for the handlers
 					if len(n.params) > 0 {
 						// Create a map with path parameter values
 						nm.params = make(map[string]string, len(n.params))
 						for _, pp := range n.params {
-							nm.params[pp.name] = toks[pp.idx]
+							nm.params[pp.name] = toks[pp.idx+mi]
 						}
 					}
 					return true
 				}
 			} else {
 				// Match against next node
-				if matchNode(n, toks, i, nm) {
+				if matchNode(n, toks, i, mi, nm) {
 					return true
 				}
 			}
@@ -286,13 +337,15 @@ func matchNode(l *node, toks []string, i int, nm *nodeMatch) bool {
 	if l.wild != nil {
 		n = l.wild
 		nm.hs = n.hs
+		nm.mountIdx = mi
 		if len(n.params) > 0 {
 			// Create a map with path parameter values
 			nm.params = make(map[string]string, len(n.params))
 			for _, pp := range n.params {
-				nm.params[pp.name] = toks[pp.idx]
+				nm.params[pp.name] = toks[pp.idx+mi]
 			}
 		}
+		return true
 	}
 
 	return false
@@ -324,39 +377,30 @@ func mergePattern(a, b string) string {
 	return a + "." + b
 }
 
-func (m *Mux) hasResources() bool {
-	return hasPattern(m.root, func(n *node) bool {
-		if n.hs == nil {
-			return false
-		}
-		hs := n.hs
-		return hs.Get != nil || len(hs.Call) > 0 || len(hs.Auth) > 0 || hs.New != nil
-	})
+// Contains traverses through the registered handlers to see if
+// any of them matches the predicate test.
+func (m *Mux) Contains(test func(h Handler) bool) bool {
+	return contains(m.root, test)
 }
 
-func (m *Mux) hasAccess() bool {
-	return hasPattern(m.root, func(n *node) bool {
-		if n.hs == nil {
-			return false
-		}
-		return n.hs.Access != nil
-	})
-}
-
-func hasPattern(n *node, test func(n *node) bool) bool {
-	if n.wild != nil && test(n.wild) {
+func contains(n *node, test func(h Handler) bool) bool {
+	if n.wild != nil && n.wild.hs != nil && test(n.wild.hs.Handler) {
 		return true
 	}
 
-	if n.param != nil && (test(n.param) || hasPattern(n.param, test)) {
+	if n.param != nil && ((n.param.hs != nil && test(n.param.hs.Handler)) || contains(n.param, test)) {
 		return true
 	}
 
 	for _, nn := range n.nodes {
-		if test(nn) || hasPattern(nn, test) {
+		if (nn.hs != nil && test(nn.hs.Handler)) || contains(nn, test) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func isValidPath(p string) bool {
+	return p == "" || (Ref(p).IsValid() && !strings.ContainsRune(p, '$'))
 }
