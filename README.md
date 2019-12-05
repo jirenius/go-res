@@ -45,10 +45,11 @@ func main() {
 
 | Example | Description
 | --- | ---
-| [Edit Text](examples/edit-text/) | Text field that can be edited by multiple clients concurrently.
-| [Edit Text BadgerDB](examples/edit-text-badgerdb/) | Edit Text example using BadgerDB middleware to persist all changes.
-| [Book Collection](examples/book-collection/) | List of book titles & authors that can be edited by many.
-| [Book Collection BadgerDB](examples/book-collection-badgerdb/) | Book Collection example using BadgerBD middleware to persist all changes.
+| [Hello World](examples/01-hello-world/) | Smallest of services serving a static message.
+| [Edit Text](examples/02-edit-text/) | Single text field that is updated in real time.
+| [Edit Text Persisted](examples/03-edit-text-persisted/) | Edit Text example persisting changes using BadgerDB middleware.
+| [Book Collection](examples/04-book-collection/) | List of book titles & authors that can be edited by many.
+| [Book Collection Persisted](examples/04-book-collection-persisted/) | Book Collection example persisting changes using BadgerBD middleware.
 
 > **Note**
 >
