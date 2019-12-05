@@ -1,14 +1,15 @@
 /*
-This is the book collection example with persistance to BadgerDB using its middlware.
+This is the Book Collection example where all changes are persisted using the BadgerDB middleware. By using the BadgerDB middleware, both clients and database can be updated with a single event.
 * It exposes a collection, `library.books`, containing book model references.
 * It exposes book models, `library.book.<BOOK_ID>`, of each book.
-* It allows setting the books' *title* and *author* property through the `set` method.
-* It allows creating new books that are added to the collection with the `new` method.
-* It allows deleting existing books from the collection with the `delete` method.
-* It verifies that a *title* and *author* is always set.
-* It persists all events to the BadgerDB.
-* It bootstraps an empty/non-existing database with some default books.
-* It serves a web client at http://localhost:8083
+* The middleware adds a GetResource handler that loads the resources from the database.
+* The middleware adds a ApplyChange handler that updates the books on change events.
+* The middleware adds a ApplyAdd handler that updates the list on add events.
+* The middleware adds a ApplyRemove handler that updates the list on remove events.
+* The middleware adds a ApplyCreate handler that stores new books on create events.
+* The middleware adds a ApplyDelete handler that deletes books on delete events.
+* It persists all changes to a local BadgerDB database under `./db`.
+* It serves a web client at http://localhost:8085
 */
 package main
 
@@ -16,8 +17,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
 
 	"github.com/dgraph-io/badger"
@@ -70,29 +69,12 @@ func main() {
 	// Set on serve handler to bootstrap the data, if needed
 	s.SetOnServe(onServe)
 
-	// Start service in separate goroutine
-	stop := make(chan bool)
-	go func() {
-		defer close(stop)
-		if err := s.ListenAndServe("nats://localhost:4222"); err != nil {
-			fmt.Printf("%s\n", err.Error())
-		}
-	}()
-
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	go func() { log.Fatal(http.ListenAndServe(":8083", http.FileServer(http.Dir("./")))) }()
-	fmt.Println("Client at: http://localhost:8083/")
+	go func() { log.Fatal(http.ListenAndServe(":8085", http.FileServer(http.Dir("wwwroot/")))) }()
+	fmt.Println("Client at: http://localhost:8085/")
 
-	// Wait for interrupt signal
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	select {
-	case <-c:
-		// Graceful stop
-		s.Shutdown()
-	case <-stop:
-	}
+	s.ListenAndServe("nats://localhost:4222")
 }
 
 func setBookHandler(r res.CallRequest) {
