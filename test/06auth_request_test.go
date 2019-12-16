@@ -8,8 +8,8 @@ import (
 	"github.com/jirenius/go-res"
 )
 
-// Test auth response with result
-func TestAuth(t *testing.T) {
+// Test auth OK response with result
+func TestAuthOK(t *testing.T) {
 	result := `{"foo":"bar","zoo":42}`
 
 	runTest(t, func(s *Session) {
@@ -40,7 +40,7 @@ func TestAuthRequestGetters(t *testing.T) {
 	})
 }
 
-// Test auth response with nil result
+// Test auth OK response with nil result
 func TestAuthWithNil(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
@@ -49,6 +49,32 @@ func TestAuthWithNil(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":null}`))
+	})
+}
+
+// Test auth Resource response with valid resource ID
+func TestAuthResource_WithValidRID_SendsResourceResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			r.Resource("test.foo")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", nil)
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"resource":{"rid":"test.foo"}}`))
+	})
+}
+
+// Test auth Resource response with invalid resource ID causes panic
+func TestAuthResource_WithInvalidRID_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.Resource("test..foo")
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, res.CodeInternalError)
 	})
 }
 

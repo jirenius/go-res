@@ -8,8 +8,8 @@ import (
 	"github.com/jirenius/go-res"
 )
 
-// Test call response with result
-func TestCall(t *testing.T) {
+// Test call OK response with result
+func TestCallOK(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.OK(mock.Result)
@@ -35,8 +35,8 @@ func TestCallRequestGetters(t *testing.T) {
 	})
 }
 
-// Test call response with nil result
-func TestCallWithNil(t *testing.T) {
+// Test call OK response with nil result
+func TestCallOKWithNil(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.OK(nil)
@@ -44,6 +44,32 @@ func TestCallWithNil(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("call.test.model.method", nil)
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":null}`))
+	})
+}
+
+// Test call Resource response with valid resource ID
+func TestCallResource_WithValidRID_SendsResourceResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.Resource("test.foo")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"resource":{"rid":"test.foo"}}`))
+	})
+}
+
+// Test call Resource response with invalid resource ID causes panic
+func TestCallResource_WithInvalidRID_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.Resource("test..foo")
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, res.CodeInternalError)
 	})
 }
 

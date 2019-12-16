@@ -330,6 +330,44 @@ func TestQueryRequestResponse(t *testing.T) {
 			},
 			res.ErrNotFound,
 		},
+		{
+			"foo=model_response",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.Model(mock.Model)
+				}
+			},
+			json.RawMessage(`{"model":{"id":42,"foo":"bar"}}`),
+		},
+		{
+			"foo=event_with_model_response",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.ChangeEvent(map[string]interface{}{"foo": "bar"})
+					r.Model(mock.Model)
+				}
+			},
+			json.RawMessage(`{"model":{"id":42,"foo":"bar"}}`),
+		},
+		{
+			"foo=collection_response",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.Collection(mock.Collection)
+				}
+			},
+			json.RawMessage(`{"collection":[42,"foo",null]}`),
+		},
+		{
+			"foo=event_with_collection_response",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.ChangeEvent(map[string]interface{}{"foo": "bar"})
+					r.Collection(mock.Collection)
+				}
+			},
+			json.RawMessage(`{"collection":[42,"foo",null]}`),
+		},
 	}
 	lookup := make(map[string]func(r res.QueryRequest), len(tbl))
 
