@@ -1,7 +1,6 @@
 package test
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -11,18 +10,16 @@ import (
 
 // Test that the model is sent on get request
 func TestGetModel(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("model.foo", res.GetModel(func(r res.ModelRequest) {
 			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeModel)
-			r.Model(json.RawMessage(model))
+			r.Model(mock.Model)
 		}))
 	}, func(s *Session) {
 		// Test getting the model
 		inb := s.Request("get.test.model.foo", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 
 		// Test getting the model with missing part
 		inb = s.Request("get.test.model", mock.Request())
@@ -40,18 +37,16 @@ func TestGetModel(t *testing.T) {
 
 // Test that the collection is sent on get request
 func TestGetCollection(t *testing.T) {
-	collection := resource["test.collection"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("collection.foo", res.GetCollection(func(r res.CollectionRequest) {
 			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeCollection)
-			r.Collection(json.RawMessage(collection))
+			r.Collection(mock.Collection)
 		}))
 	}, func(s *Session) {
 		// Test getting the collection
 		inb := s.Request("get.test.collection.foo", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"collection":`+collection+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.CollectionResponse)
 
 		// Test getting the collection with missing part
 		inb = s.Request("get.test.collection", mock.Request())
@@ -69,55 +64,49 @@ func TestGetCollection(t *testing.T) {
 
 // Test that the model is sent on get request
 func TestGetResource(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("model.foo", res.GetResource(func(r res.GetRequest) {
 			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeUnset)
-			r.Model(json.RawMessage(model))
+			r.Model(mock.Model)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("get.test.model.foo", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test ResourceType returns TypeModel when using res.Model
 func TestGetResourceTypedModel(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("model.foo",
 			res.Model,
 			res.GetResource(func(r res.GetRequest) {
 				AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 				AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeModel)
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 		)
 	}, func(s *Session) {
 		inb := s.Request("get.test.model.foo", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test ResourceType returns TypeCollection when using res.Collection
 func TestGetResourceTypedCollection(t *testing.T) {
-	collection := resource["test.collection"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("collection.foo",
 			res.Collection,
 			res.GetResource(func(r res.GetRequest) {
 				AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 				AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeCollection)
-				r.Collection(json.RawMessage(collection))
+				r.Collection(mock.Collection)
 			}),
 		)
 	}, func(s *Session) {
 		inb := s.Request("get.test.collection.foo", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"collection":`+collection+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.CollectionResponse)
 	})
 }
 
@@ -376,12 +365,11 @@ func TestPanicWithGenericValueOnGetCollection(t *testing.T) {
 // Test sending multiple get model requests for the same resource
 // and assert they are handled in order
 func TestMultipleGetModel(t *testing.T) {
-	model := resource["test.model"]
 	const requestCount = 100
 
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.Model(json.RawMessage(model))
+			r.Model(mock.Model)
 		}))
 	}, func(s *Session) {
 		inbs := make([]string, requestCount)
@@ -392,7 +380,7 @@ func TestMultipleGetModel(t *testing.T) {
 		}
 
 		for _, inb := range inbs {
-			s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+			s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 		}
 	})
 }
@@ -400,12 +388,11 @@ func TestMultipleGetModel(t *testing.T) {
 // Test sending multiple get collection requests for the same resource
 // and assert they are handled in order
 func TestMultipleGetCollection(t *testing.T) {
-	collection := resource["test.collection"]
 	const requestCount = 100
 
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			r.Collection(json.RawMessage(collection))
+			r.Collection(mock.Collection)
 		}))
 	}, func(s *Session) {
 		inbs := make([]string, requestCount)
@@ -416,7 +403,7 @@ func TestMultipleGetCollection(t *testing.T) {
 		}
 
 		for _, inb := range inbs {
-			s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"collection":`+collection+`}}`))
+			s.GetMsg(t).Equals(t, inb, mock.CollectionResponse)
 		}
 	})
 }
@@ -424,16 +411,14 @@ func TestMultipleGetCollection(t *testing.T) {
 // Test sending multiple get model requests for the same resource
 // and assert they are handled in order
 func TestMultipleGetDifferentResources(t *testing.T) {
-	model := resource["test.model"]
-	collection := resource["test.collection"]
 	const requestCount = 50
 
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.Model(json.RawMessage(model))
+			r.Model(mock.Model)
 		}))
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			r.Collection(json.RawMessage(collection))
+			r.Collection(mock.Collection)
 		}))
 	}, func(s *Session) {
 		minbs := make([]string, requestCount)
@@ -450,10 +435,10 @@ func TestMultipleGetDifferentResources(t *testing.T) {
 			m := s.GetMsg(t)
 			switch {
 			case mi < requestCount && minbs[mi] == m.Subject:
-				m.AssertResult(t, json.RawMessage(`{"model":`+model+`}`))
+				m.AssertPayload(t, mock.ModelResponse)
 				mi++
 			case ci < requestCount && cinbs[ci] == m.Subject:
-				m.AssertResult(t, json.RawMessage(`{"collection":`+collection+`}`))
+				m.AssertPayload(t, mock.CollectionResponse)
 				ci++
 			default:
 				t.Fatalf("expected message subject to be a for a collection or model request, but got %#v", m.Subject)

@@ -11,12 +11,10 @@ import (
 
 // Test QueryEvent sends a query event with a inbox subject
 func TestQueryEvent(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {})
@@ -36,7 +34,6 @@ func TestQueryEvent(t *testing.T) {
 
 // Test QueryEvent expiration causes callback to be called with nil
 func TestQueryEventExpiration(t *testing.T) {
-	model := resource["test.model"]
 	var done func()
 	ch := make(chan struct{})
 
@@ -44,7 +41,7 @@ func TestQueryEventExpiration(t *testing.T) {
 		s.SetQueryEventDuration(time.Millisecond)
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
@@ -79,14 +76,13 @@ func TestSetQueryEventDurationPanicsAfterStart(t *testing.T) {
 
 // Test QueryEvent callback called directly on failed query subscription
 func TestQueryEventFailedSubscribe(t *testing.T) {
-	model := resource["test.model"]
 	var done func()
 
 	runTestAsync(t, func(s *Session) {
 		s.SetQueryEventDuration(time.Millisecond)
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				s.Close()
@@ -109,19 +105,18 @@ func TestQueryEventFailedSubscribe(t *testing.T) {
 
 // Test QueryRequests being received on query event
 func TestQueryRequest(t *testing.T) {
-	model := resource["test.model"]
-	query := "foo=bar"
-
 	events := json.RawMessage(`{"events":[]}`)
 
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
-					AssertEqual(t, "query", r.Query(), query)
+					if r != nil {
+						AssertEqual(t, "query", r.Query(), mock.Query)
+					}
 				})
 				r.OK(nil)
 			}),
@@ -130,7 +125,7 @@ func TestQueryRequest(t *testing.T) {
 		inb := s.Request("call.test.model.method", nil)
 		subj := s.GetMsg(t).PathPayload(t, "subject").(string)
 		s.GetMsg(t).AssertSubject(t, inb)
-		inb = s.Request(subj, json.RawMessage(`{"query":"`+query+`"}`))
+		inb = s.Request(subj, json.RawMessage(`{"query":"`+mock.Query+`"}`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, events)
 	}, withGnatsd)
 }

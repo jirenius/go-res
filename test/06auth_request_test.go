@@ -367,15 +367,16 @@ func TestAuthRequestTimeoutWithDurationLessThanZero(t *testing.T) {
 
 // Test that TokenEvent sends a connection token event.
 func TestAuthRequestTokenEvent(t *testing.T) {
-	token := `{"id":42,"user":"foo","role":"admin"}`
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
-			r.TokenEvent(json.RawMessage(token))
+			r.TokenEvent(mock.Token)
 			r.OK(nil)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("auth.test.model.method", mock.AuthRequest())
-		s.GetMsg(t).AssertSubject(t, "conn."+mock.CID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
+		s.GetMsg(t).
+			AssertSubject(t, "conn."+mock.CID+".token").
+			AssertPayload(t, json.RawMessage(`{"token":{"user":"foo","id":42}}`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
 	})
 }

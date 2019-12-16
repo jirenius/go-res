@@ -156,16 +156,14 @@ func TestNewInvalidQuery_CustomMessage(t *testing.T) {
 
 // Test calling RawParams on a new request with parameters
 func TestNewRawParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, "RawParams", r.RawParams(), params)
+			AssertEqual(t, "RawParams", r.RawParams(), mock.Params)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
 		req := mock.DefaultRequest()
-		req.Params = params
+		req.Params = mock.Params
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -191,16 +189,14 @@ func TestNewRawParamsWithNilParams(t *testing.T) {
 
 // Test calling RawToken on a new request with token
 func TestNewRawToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, "RawToken", r.RawToken(), token)
+			AssertEqual(t, "RawToken", r.RawToken(), mock.Token)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
 		req := mock.DefaultRequest()
-		req.Token = token
+		req.Token = mock.Token
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -226,7 +222,6 @@ func TestNewRawTokenWithNoToken(t *testing.T) {
 
 // Test calling ParseParams on a new request with parameters
 func TestNewParseParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
 	var p struct {
 		Foo string `json:"foo"`
 		Baz int    `json:"baz"`
@@ -241,7 +236,7 @@ func TestNewParseParams(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		req := mock.DefaultRequest()
-		req.Params = params
+		req.Params = mock.Params
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -274,7 +269,6 @@ func TestNewParseParamsWithNilParams(t *testing.T) {
 
 // Test calling ParseToken on a new request with token
 func TestNewParseToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
 	var o struct {
 		User string `json:"user"`
 		ID   int    `json:"id"`
@@ -289,7 +283,7 @@ func TestNewParseToken(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		req := mock.DefaultRequest()
-		req.Token = token
+		req.Token = mock.Token
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).

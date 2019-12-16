@@ -9,90 +9,80 @@ import (
 
 // Test Route adds to the path of the the parent
 func TestRoute(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Route("foo", func(m *res.Mux) {
 			m.Handle("model",
 				res.GetModel(func(r res.ModelRequest) {
-					r.Model(json.RawMessage(model))
+					r.Model(mock.Model)
 				}),
 			)
 		})
 	}, func(s *Session) {
 		// Test getting the model
 		inb := s.Request("get.test.foo.model", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test Mount Mux to service
 func TestMount(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		m := res.NewMux("")
 		m.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 		)
 		s.Mount("foo", m)
 	}, func(s *Session) {
 		// Test getting the model
 		inb := s.Request("get.test.foo.model", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test Mount Mux to service root
 func TestMountToRoot(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		m := res.NewMux("foo")
 		m.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 		)
 		s.Mount("", m)
 	}, func(s *Session) {
 		// Test getting the model
 		inb := s.Request("get.test.foo.model", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test Mount root Mux to service
 func TestMountRootMux(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		m := res.NewMux("")
 		m.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 		)
 		s.Mount("foo", m)
 	}, func(s *Session) {
 		// Test getting the model
 		inb := s.Request("get.test.foo.model", mock.Request())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test Mount root Mux to service root panics
 func TestMountRootMuxToRoot(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		AssertPanic(t, func() {
 			m := res.NewMux("")
 			m.Handle("model",
 				res.GetModel(func(r res.ModelRequest) {
-					r.Model(json.RawMessage(model))
+					r.Model(mock.Model)
 				}),
 			)
 			s.Mount("", m)
@@ -102,14 +92,12 @@ func TestMountRootMuxToRoot(t *testing.T) {
 
 // Test Mount Mux twice panics
 func TestMountMuxTwice(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		AssertPanic(t, func() {
 			m := res.NewMux("")
 			m.Handle("model",
 				res.GetModel(func(r res.ModelRequest) {
-					r.Model(json.RawMessage(model))
+					r.Model(mock.Model)
 				}),
 			)
 			s.Mount("foo", m)

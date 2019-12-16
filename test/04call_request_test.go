@@ -153,16 +153,14 @@ func TestCallError(t *testing.T) {
 
 // Test calling RawParams on a call request with parameters
 func TestCallRawParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, "RawParams", r.RawParams(), params)
+			AssertEqual(t, "RawParams", r.RawParams(), mock.Params)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
 		req := mock.DefaultRequest()
-		req.Params = params
+		req.Params = mock.Params
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -188,16 +186,14 @@ func TestCallRawParamsWithNilParams(t *testing.T) {
 
 // Test calling RawToken on a call request with token
 func TestCallRawToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, "RawToken", r.RawToken(), token)
+			AssertEqual(t, "RawToken", r.RawToken(), mock.Token)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
 		req := mock.DefaultRequest()
-		req.Token = token
+		req.Token = mock.Token
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -223,7 +219,6 @@ func TestCallRawTokenWithNoToken(t *testing.T) {
 
 // Test calling ParseParams on a call request with parameters
 func TestCallParseParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
 	var p struct {
 		Foo string `json:"foo"`
 		Baz int    `json:"baz"`
@@ -238,7 +233,7 @@ func TestCallParseParams(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		req := mock.DefaultRequest()
-		req.Params = params
+		req.Params = mock.Params
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -271,7 +266,6 @@ func TestCallParseParamsWithNilParams(t *testing.T) {
 
 // Test calling ParseToken on a call request with token
 func TestCallParseToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
 	var o struct {
 		User string `json:"user"`
 		ID   int    `json:"id"`
@@ -286,7 +280,7 @@ func TestCallParseToken(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		req := mock.DefaultRequest()
-		req.Token = token
+		req.Token = mock.Token
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).

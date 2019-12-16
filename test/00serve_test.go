@@ -64,12 +64,13 @@ func TestServiceSetReset(t *testing.T) {
 
 // Test that TokenEvent sends a connection token event.
 func TestServiceTokenEvent(t *testing.T) {
-	token := `{"id":42,"user":"foo","role":"admin"}`
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session) {
-		s.TokenEvent(mock.CID, json.RawMessage(token))
-		s.GetMsg(t).AssertSubject(t, "conn."+mock.CID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
+		s.TokenEvent(mock.CID, mock.Token)
+		s.GetMsg(t).
+			AssertSubject(t, "conn."+mock.CID+".token").
+			AssertPayload(t, json.RawMessage(`{"token":{"user":"foo","id":42}}`))
 	})
 }
 
