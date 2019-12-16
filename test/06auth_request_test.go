@@ -17,7 +17,7 @@ func TestAuth(t *testing.T) {
 			r.OK(json.RawMessage(result))
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", nil)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":`+result+`}`))
 	})
 }
@@ -27,16 +27,15 @@ func TestAuthRequestGetters(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Auth("foo", func(r res.AuthRequest) {
 			AssertEqual(t, "Method", r.Method(), "foo")
-			AssertEqual(t, "CID", r.CID(), defaultCID)
-			AssertEqual(t, "Header", r.Header(), defaultHeader)
-			AssertEqual(t, "Host", r.Host(), defaultHost)
-			AssertEqual(t, "RemoteAddr", r.RemoteAddr(), defaultRemoteAddr)
-			AssertEqual(t, "URI", r.URI(), defaultURI)
+			AssertEqual(t, "CID", r.CID(), mock.CID)
+			AssertEqual(t, "Header", r.Header(), mock.Header)
+			AssertEqual(t, "Host", r.Host(), mock.Host)
+			AssertEqual(t, "RemoteAddr", r.RemoteAddr(), mock.RemoteAddr)
+			AssertEqual(t, "URI", r.URI(), mock.URI)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		inb := s.Request("auth.test.model.foo", req)
+		inb := s.Request("auth.test.model.foo", mock.AuthRequest())
 		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 	})
 }
@@ -48,7 +47,7 @@ func TestAuthWithNil(t *testing.T) {
 			r.OK(nil)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", nil)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":null}`))
 	})
 }
@@ -60,7 +59,7 @@ func TestAuthNotFound(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", nil)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -74,7 +73,7 @@ func TestAuthMethodNotFound(t *testing.T) {
 			r.MethodNotFound()
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", nil)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrMethodNotFound)
@@ -82,7 +81,7 @@ func TestAuthMethodNotFound(t *testing.T) {
 }
 
 // Test calling InvalidParams with no message on a auth request results in system.invalidParams
-func TestAuthDefaultInvalidParams(t *testing.T) {
+func TestAuthInvalidParams_NoMessage(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
 			r.InvalidParams("")
@@ -96,18 +95,49 @@ func TestAuthDefaultInvalidParams(t *testing.T) {
 }
 
 // Test calling InvalidParams on a auth request results in system.invalidParams
-func TestAuthInvalidParams(t *testing.T) {
+func TestAuthInvalidParams_CustomMessage(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
 			r.InvalidParams("foo")
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", nil)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, &res.Error{
 				Code:    res.CodeInvalidParams,
 				Message: "foo",
+			})
+	})
+}
+
+// Test calling InvalidQuery with no message on a auth request results in system.invalidQuery
+func TestAuthInvalidQuery_EmptyMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			r.InvalidQuery("")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrInvalidQuery)
+	})
+}
+
+// Test calling InvalidQuery on a auth request results in system.invalidQuery
+func TestAuthInvalidQuery_CustomMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			r.InvalidQuery(mock.ErrorMessage)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, &res.Error{
+				Code:    res.CodeInvalidQuery,
+				Message: mock.ErrorMessage,
 			})
 	})
 }
@@ -119,7 +149,7 @@ func TestAuthError(t *testing.T) {
 			r.Error(res.ErrTimeout)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", nil)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrTimeout)
@@ -128,16 +158,14 @@ func TestAuthError(t *testing.T) {
 
 // Test calling RawParams on a auth request with parameters
 func TestAuthRawParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
-			AssertEqual(t, "RawParams", r.RawParams(), params)
+			AssertEqual(t, "RawParams", r.RawParams(), mock.Params)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		req.Params = params
+		req := mock.AuthRequest()
+		req.Params = mock.Params
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -153,8 +181,7 @@ func TestAuthRawParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		inb := s.Request("auth.test.model.method", req)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -163,16 +190,14 @@ func TestAuthRawParamsWithNilParams(t *testing.T) {
 
 // Test calling RawToken on a auth request with token
 func TestAuthRawToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
-			AssertEqual(t, "RawToken", r.RawToken(), token)
+			AssertEqual(t, "RawToken", r.RawToken(), mock.Token)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		req.Token = token
+		req := mock.AuthRequest()
+		req.Token = mock.Token
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -188,8 +213,7 @@ func TestAuthRawTokenWithNoToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		inb := s.Request("auth.test.model.method", req)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -198,7 +222,6 @@ func TestAuthRawTokenWithNoToken(t *testing.T) {
 
 // Test calling ParseParams on a auth request with parameters
 func TestAuthParseParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
 	var p struct {
 		Foo string `json:"foo"`
 		Baz int    `json:"baz"`
@@ -212,8 +235,8 @@ func TestAuthParseParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		req.Params = params
+		req := mock.AuthRequest()
+		req.Params = mock.Params
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -236,8 +259,7 @@ func TestAuthParseParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		inb := s.Request("auth.test.model.method", req)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -246,7 +268,6 @@ func TestAuthParseParamsWithNilParams(t *testing.T) {
 
 // Test calling ParseToken on a auth request with token
 func TestAuthParseToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
 	var o struct {
 		User string `json:"user"`
 		ID   int    `json:"id"`
@@ -260,8 +281,8 @@ func TestAuthParseToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		req.Token = token
+		req := mock.AuthRequest()
+		req.Token = mock.Token
 		inb := s.Request("auth.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -284,8 +305,7 @@ func TestAuthParseTokenWithNilToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newAuthRequest()
-		inb := s.Request("auth.test.model.method", req)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -319,7 +339,7 @@ func TestAuthRequestTimeout(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", nil)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).AssertSubject(t, inb).AssertRawPayload(t, []byte(`timeout:"42000"`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 	})
@@ -340,7 +360,7 @@ func TestAuthRequestTimeoutWithDurationLessThanZero(t *testing.T) {
 			panicked = false
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", nil)
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
 		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
 	})
 }
@@ -354,8 +374,8 @@ func TestAuthRequestTokenEvent(t *testing.T) {
 			r.OK(nil)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", newAuthRequest())
-		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
+		s.GetMsg(t).AssertSubject(t, "conn."+mock.CID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
 	})
 }
@@ -368,8 +388,8 @@ func TestAuthRequestNilTokenEvent(t *testing.T) {
 			r.OK(nil)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("auth.test.model.method", newAuthRequest())
-		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":null}`))
+		inb := s.Request("auth.test.model.method", mock.AuthRequest())
+		s.GetMsg(t).AssertSubject(t, "conn."+mock.CID+".token").AssertPayload(t, json.RawMessage(`{"token":null}`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
 	})
 }

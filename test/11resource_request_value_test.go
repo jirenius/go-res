@@ -1,150 +1,413 @@
 package test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	res "github.com/jirenius/go-res"
 )
 
-// Test that Value gets the model as provided from the GetModel resource handler.
-func TestModelValue(t *testing.T) {
-	model := resource["test.model"]
-
-	runTest(t, func(s *Session) {
-		s.Handle("model",
-			res.GetModel(func(r res.ModelRequest) {
-				r.Model(model)
-				AssertEqual(t, "r.ForValue()", r.ForValue(), true)
-			}),
-			res.Call("method", func(r res.CallRequest) {
-				v, err := r.Value()
-				AssertNoError(t, err)
-				if v != model {
-					t.Errorf("expected Value() to return model, but it didn't")
-				}
-				r.OK(nil)
-			}),
-		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
-	})
-}
-
-// Test that RequireValue gets the model as provided from the GetModel resource handler.
-func TestModelRequireValue(t *testing.T) {
-	model := resource["test.model"]
-
-	runTest(t, func(s *Session) {
-		s.Handle("model",
-			res.GetModel(func(r res.ModelRequest) {
-				r.Model(model)
-				AssertEqual(t, "r.ForValue()", r.ForValue(), true)
-			}),
-			res.Call("method", func(r res.CallRequest) {
-				v := r.RequireValue()
-				if v != model {
-					t.Errorf("expected Value() to return model, but it didn't")
-				}
-				r.OK(nil)
-			}),
-		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
-	})
-}
-
-// Test that Value gets the model as provided from the GetModel resource handler, using With.
-func TestModelValueUsingWith(t *testing.T) {
-	model := resource["test.model"]
-
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.Model(model)
+var testRequestValueTbl = []struct {
+	Name   string
+	Get    func(t *testing.T, r res.GetRequest)
+	Assert func(t *testing.T, r res.Resource)
+}{
+	{
+		// ForValue returns true
+		"ForValue",
+		func(t *testing.T, r res.GetRequest) {
 			AssertEqual(t, "r.ForValue()", r.ForValue(), true)
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
+			r.NotFound()
+		},
+		func(t *testing.T, r res.Resource) { r.Value() },
+	},
+	{
+		// Model returns model
+		"Model",
+		func(t *testing.T, r res.GetRequest) { r.Model(mock.Model) },
+		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
 			AssertNoError(t, err)
-			if v != model {
-				t.Errorf("expected Value() to return model, but it didn't")
-			}
-			done()
-		}))
-	})
-}
-
-// Test that Value gets the collection as provided from the GetCollection resource handler.
-func TestCollectionValue(t *testing.T) {
-	collection := resource["test.collection"]
-
-	runTest(t, func(s *Session) {
-		s.Handle("collection",
-			res.GetCollection(func(r res.CollectionRequest) {
-				r.Collection(collection)
-				AssertEqual(t, "r.ForValue()", r.ForValue(), true)
-			}),
-			res.Call("method", func(r res.CallRequest) {
-				v, err := r.Value()
-				AssertNoError(t, err)
-				if v != collection {
-					t.Errorf("expected Value() to return collection, but it didn't")
-				}
-				r.OK(nil)
-			}),
-		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.collection.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
-	})
-}
-
-// Test that Value gets the collection as provided from the GetCollection resource handler.
-func TestCollectionRequireValue(t *testing.T) {
-	collection := resource["test.collection"]
-
-	runTest(t, func(s *Session) {
-		s.Handle("collection",
-			res.GetCollection(func(r res.CollectionRequest) {
-				r.Collection(collection)
-				AssertEqual(t, "r.ForValue()", r.ForValue(), true)
-			}),
-			res.Call("method", func(r res.CallRequest) {
-				v := r.RequireValue()
-				if v != collection {
-					t.Errorf("expected Value() to return collection, but it didn't")
-				}
-				r.OK(nil)
-			}),
-		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.collection.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
-	})
-}
-
-// Test that Value gets the collection as provided from the GetCollection resource handler, using With.
-func TestCollectionValueUsingWith(t *testing.T) {
-	collection := resource["test.collection"]
-
-	runTestAsync(t, func(s *Session) {
-		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			r.Collection(collection)
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.collection", func(r res.Resource) {
+			AssertEqual(t, "r.Value()", v, mock.Model)
+		},
+	},
+	{
+		// Model with query returns model
+		"ModelWithQuery",
+		func(t *testing.T, r res.GetRequest) { r.QueryModel(mock.Model, mock.NormalizedQuery) },
+		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
 			AssertNoError(t, err)
-			if v != collection {
-				t.Errorf("expected Value() to return collection, but it didn't")
-			}
-			done()
-		}))
-	})
+			AssertEqual(t, "r.Value()", v, mock.Model)
+		},
+	},
+	{
+		// Collection returns collection
+		"Collection",
+		func(t *testing.T, r res.GetRequest) { r.Collection(mock.Collection) },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertNoError(t, err)
+			AssertEqual(t, "r.Value()", v, mock.Collection)
+		},
+	},
+	{
+		// Collection with query returns collection
+		"CollectionWithQuery",
+		func(t *testing.T, r res.GetRequest) { r.QueryCollection(mock.Collection, mock.NormalizedQuery) },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertNoError(t, err)
+			AssertEqual(t, "r.Value()", v, mock.Collection)
+		},
+	},
+	{
+		// Error returns custom error
+		"Error",
+		func(t *testing.T, r res.GetRequest) { r.Error(mock.CustomError) },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertResError(t, err, mock.CustomError)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// NotFound returns system.notFound error
+		"NotFound",
+		func(t *testing.T, r res.GetRequest) { r.NotFound() },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertResError(t, err, res.ErrNotFound)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// InvalidQuery without message returns system.invalidQuery error
+		"InvalidQuery",
+		func(t *testing.T, r res.GetRequest) { r.InvalidQuery("") },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertResError(t, err, res.ErrInvalidQuery)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// InvalidQuery with message returns system.invalidQuery error with message
+		"InvalidQuery_WithMessage",
+		func(t *testing.T, r res.GetRequest) { r.InvalidQuery(mock.ErrorMessage) },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertResError(t, err, &res.Error{Code: res.CodeInvalidQuery, Message: mock.ErrorMessage})
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// Panic with *res.Error returns same error
+		"Panic_WithResError",
+		func(t *testing.T, r res.GetRequest) { panic(mock.CustomError) },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertResError(t, err, mock.CustomError)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// Panic with os.Error returns system.internalError
+		"Panic_WithError",
+		func(t *testing.T, r res.GetRequest) { panic(mock.Error) },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertErrorCode(t, err, res.CodeInternalError)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// Panic with string returns system.internalError
+		"Panic_WithString",
+		func(t *testing.T, r res.GetRequest) { panic(mock.ErrorMessage) },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertErrorCode(t, err, res.CodeInternalError)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// Panic with int returns system.internalError
+		"Panic_WithInt",
+		func(t *testing.T, r res.GetRequest) { panic(42) },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertErrorCode(t, err, res.CodeInternalError)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// No response returns system.internalError
+		"NoResponse",
+		func(t *testing.T, r res.GetRequest) {},
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertErrorCode(t, err, res.CodeInternalError)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// Value inside GetRequest causes internal error
+		"Value",
+		func(t *testing.T, r res.GetRequest) { r.Value() },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertErrorCode(t, err, res.CodeInternalError)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// RequireValue inside GetRequest causes panic
+		"RequireValue",
+		func(t *testing.T, r res.GetRequest) { r.RequireValue() },
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertErrorCode(t, err, res.CodeInternalError)
+			AssertEqual(t, "r.Value()", v, nil)
+		},
+	},
+	{
+		// Model with Timeout returns model
+		"Model_WithTimeout",
+		func(t *testing.T, r res.GetRequest) {
+			r.Timeout(5 * time.Second)
+			r.Model(mock.Model)
+		},
+		func(t *testing.T, r res.Resource) {
+			v, err := r.Value()
+			AssertNoError(t, err)
+			AssertEqual(t, "r.Value()", v, mock.Model)
+		},
+	},
+}
+
+func TestValue_UsingCall_ReturnsCorrectData(t *testing.T) {
+	for _, l := range testRequestValueTbl {
+		runTest(t, func(s *Session) {
+			s.Handle("model",
+				res.GetResource(func(r res.GetRequest) {
+					l.Get(t, r)
+				}),
+				res.Call("method", func(r res.CallRequest) {
+					l.Assert(t, r)
+					r.OK(nil)
+				}),
+			)
+		}, func(s *Session) {
+			inb := s.Request("call.test.model.method", nil)
+			s.GetMsg(t).AssertSubject(t, inb)
+		}, withName(l.Name))
+	}
+}
+
+func TestValue_UsingWith_ReturnsCorrectData(t *testing.T) {
+	for _, l := range testRequestValueTbl {
+		runTestAsync(t, func(s *Session) {
+			s.Handle("model",
+				res.GetResource(func(r res.GetRequest) {
+					l.Get(t, r)
+				}),
+			)
+		}, func(s *Session, done func()) {
+			s.With("test.model", func(r res.Resource) {
+				l.Assert(t, r)
+				done()
+			})
+		}, withName(l.Name))
+	}
+}
+
+var testRequestRequireValueTbl = []struct {
+	Name   string
+	Get    func(t *testing.T, r res.GetRequest)
+	Assert func(t *testing.T, r res.Resource)
+}{
+	{
+		// ForValue returns true
+		"ForValue",
+		func(t *testing.T, r res.GetRequest) {
+			AssertEqual(t, "r.ForValue()", r.ForValue(), true)
+			r.Model(mock.Model)
+		},
+		func(t *testing.T, r res.Resource) { r.RequireValue() },
+	},
+	{
+		// Model returns model
+		"Model",
+		func(t *testing.T, r res.GetRequest) { r.Model(mock.Model) },
+		func(t *testing.T, r res.Resource) {
+			v := r.RequireValue()
+			AssertEqual(t, "r.RequireValue()", v, mock.Model)
+		},
+	},
+	{
+		// Model with query returns model
+		"ModelWithQuery",
+		func(t *testing.T, r res.GetRequest) { r.QueryModel(mock.Model, mock.NormalizedQuery) },
+		func(t *testing.T, r res.Resource) {
+			v := r.RequireValue()
+			AssertEqual(t, "r.RequireValue()", v, mock.Model)
+		},
+	},
+	{
+		// Collection returns collection
+		"Collection",
+		func(t *testing.T, r res.GetRequest) { r.Collection(mock.Collection) },
+		func(t *testing.T, r res.Resource) {
+			v := r.RequireValue()
+			AssertEqual(t, "r.RequireValue()", v, mock.Collection)
+		},
+	},
+	{
+		// Collection with query returns collection
+		"CollectionWithQuery",
+		func(t *testing.T, r res.GetRequest) { r.QueryCollection(mock.Collection, mock.NormalizedQuery) },
+		func(t *testing.T, r res.Resource) {
+			v := r.RequireValue()
+			AssertEqual(t, "r.RequireValue()", v, mock.Collection)
+		},
+	},
+	{
+		// Error returns custom error
+		"Error",
+		func(t *testing.T, r res.GetRequest) { r.Error(mock.CustomError) },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// NotFound returns system.notFound error
+		"NotFound",
+		func(t *testing.T, r res.GetRequest) { r.NotFound() },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// InvalidQuery without message returns system.invalidQuery error
+		"InvalidQuery",
+		func(t *testing.T, r res.GetRequest) { r.InvalidQuery("") },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// InvalidQuery with message returns system.invalidQuery error with message
+		"InvalidQuery_WithMessage",
+		func(t *testing.T, r res.GetRequest) { r.InvalidQuery(mock.ErrorMessage) },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// Panic with *res.Error returns same error
+		"Panic_WithResError",
+		func(t *testing.T, r res.GetRequest) { panic(mock.CustomError) },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// Panic with os.Error returns system.internalError
+		"Panic_WithError",
+		func(t *testing.T, r res.GetRequest) { panic(mock.Error) },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// Panic with string returns system.internalError
+		"Panic_WithString",
+		func(t *testing.T, r res.GetRequest) { panic(mock.ErrorMessage) },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// Panic with int returns system.internalError
+		"Panic_WithInt",
+		func(t *testing.T, r res.GetRequest) { panic(42) },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// No response returns system.internalError
+		"NoResponse",
+		func(t *testing.T, r res.GetRequest) {},
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// Value inside GetRequest causes internal error
+		"Value",
+		func(t *testing.T, r res.GetRequest) { r.Value() },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// RequireValue inside GetRequest causes panic
+		"RequireValue",
+		func(t *testing.T, r res.GetRequest) { r.RequireValue() },
+		func(t *testing.T, r res.Resource) {
+			AssertPanic(t, func() { r.RequireValue() })
+		},
+	},
+	{
+		// Model with Timeout returns model
+		"Model_WithTimeout",
+		func(t *testing.T, r res.GetRequest) {
+			r.Timeout(5 * time.Second)
+			r.Model(mock.Model)
+		},
+		func(t *testing.T, r res.Resource) {
+			v := r.RequireValue()
+			AssertEqual(t, "r.RequireValue()", v, mock.Model)
+		},
+	},
+}
+
+func TestRequireValue_UsingCall_ReturnsCorrectData(t *testing.T) {
+	for _, l := range testRequestRequireValueTbl {
+		runTest(t, func(s *Session) {
+			s.Handle("model",
+				res.GetResource(func(r res.GetRequest) {
+					l.Get(t, r)
+				}),
+				res.Call("method", func(r res.CallRequest) {
+					l.Assert(t, r)
+					r.OK(nil)
+				}),
+			)
+		}, func(s *Session) {
+			inb := s.Request("call.test.model.method", nil)
+			s.GetMsg(t).AssertSubject(t, inb)
+		}, withName(l.Name))
+	}
+}
+
+func TestRequireValue_UsingWith_ReturnsCorrectData(t *testing.T) {
+	for _, l := range testRequestRequireValueTbl {
+		runTestAsync(t, func(s *Session) {
+			s.Handle("model",
+				res.GetResource(func(r res.GetRequest) {
+					l.Get(t, r)
+				}),
+			)
+		}, func(s *Session, done func()) {
+			s.With("test.model", func(r res.Resource) {
+				l.Assert(t, r)
+				done()
+			})
+		}, withName(l.Name))
+	}
 }
 
 // Test that Value returns an error on missing get handler.
@@ -157,240 +420,6 @@ func TestValueWithoutHandler(t *testing.T) {
 			AssertEqual(t, "value", v, nil)
 			AssertEqual(t, "error", err, res.ErrNotFound)
 			done()
-		}))
-	})
-}
-
-// Test that calling QueryModel within Value call gets the model.
-func TestValueQueryModel(t *testing.T) {
-	model := resource["test.model"]
-
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.QueryModel(model, "foo=bar")
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model?foo=bar", func(r res.Resource) {
-			v, err := r.Value()
-			AssertNoError(t, err)
-			if v != model {
-				t.Errorf("expected Value() to return model, but it didn't")
-			}
-			done()
-		}))
-	})
-}
-
-// Test that calling QueryCollection within Value call gets the collection.
-func TestValueQueryCollection(t *testing.T) {
-	collection := resource["test.collection"]
-
-	runTestAsync(t, func(s *Session) {
-		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			r.QueryCollection(collection, "foo=bar")
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.collection?foo=bar", func(r res.Resource) {
-			v, err := r.Value()
-			AssertNoError(t, err)
-			if v != collection {
-				t.Errorf("expected Value() to return collection, but it didn't")
-			}
-			done()
-		}))
-	})
-}
-
-// Test that calling QueryModel for a non query model within Value call causes error.
-func TestValueQueryModelOnNonQuery(t *testing.T) {
-	model := resource["test.model"]
-
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.QueryModel(model, "foo=bar")
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err.(*res.Error).Code, res.CodeInternalError)
-			done()
-		}))
-	})
-}
-
-// Test that calling QueryCollection for a non query collection within Value call causes error.
-func TestValueQueryCollectionOnNonQuery(t *testing.T) {
-	collection := resource["test.collection"]
-
-	runTestAsync(t, func(s *Session) {
-		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			r.QueryCollection(collection, "foo=bar")
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.collection", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err.(*res.Error).Code, res.CodeInternalError)
-			done()
-		}))
-	})
-}
-
-// Test that calling NotFound within Value call causes a system.notFound error.
-func TestValueNotFound(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.NotFound()
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err, res.ErrNotFound)
-			done()
-		}))
-	})
-}
-
-// Test that calling NotFound within Value call causes given error.
-func TestValueError(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.Error(res.ErrMethodNotFound)
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err, res.ErrMethodNotFound)
-			done()
-		}))
-	})
-}
-
-// Test that calling Timeout within Value call has no effect.
-func TestValueTimeout(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.Timeout(time.Second * 12)
-			r.NotFound()
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err, res.ErrNotFound)
-			done()
-		}))
-	})
-}
-
-// Test that calling panicking with *Error within Value call causes given error.
-func TestValuePanicWithError(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			panic(res.ErrMethodNotFound)
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err, res.ErrMethodNotFound)
-			done()
-		}))
-	})
-}
-
-// Test that calling panicking with error within Value call causes system.internalError.
-func TestValuePanicWithOsError(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			panic(errors.New("panic"))
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err.(*res.Error).Code, res.CodeInternalError)
-			done()
-		}))
-	})
-}
-
-// Test that calling panicking with string within Value call causes system.internalError.
-func TestValuePanicWithStringError(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			panic("panic")
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err.(*res.Error).Code, res.CodeInternalError)
-			done()
-		}))
-	})
-}
-
-// Test that calling panicking with generic type within Value call causes system.internalError.
-func TestValuePanicWithGenericTypeError(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			panic(42)
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err.(*res.Error).Code, res.CodeInternalError)
-			done()
-		}))
-	})
-}
-
-// Test that Value gets an error if the GetModel handler gives no response.
-func TestModelValueWithoutResponse(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err.(*res.Error).Code, res.CodeInternalError)
-			done()
-		}))
-	})
-}
-
-// Test that Value gets an error if the GetCollection handler gives no response.
-func TestCollectionValueWithoutResponse(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetCollection(func(r res.CollectionRequest) {}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err.(*res.Error).Code, res.CodeInternalError)
-			done()
-		}))
-	})
-}
-
-// Test that calling Value within GetModel handler causes Value to return system.internalError.
-func TestModelValueWithinGetModelHandler(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
-		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.Value()
-			r.NotFound()
-		}))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			defer done()
-			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err.(*res.Error).Code, res.CodeInternalError)
 		}))
 	})
 }

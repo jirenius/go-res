@@ -233,6 +233,24 @@ func TestQueryRequestResponse(t *testing.T) {
 			res.ErrNotFound,
 		},
 		{
+			"foo=invalidQuery",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.InvalidQuery("")
+				}
+			},
+			res.ErrInvalidQuery,
+		},
+		{
+			"foo=invalidQuery_with_message",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.InvalidQuery(mock.ErrorMessage)
+				}
+			},
+			&res.Error{Code: res.CodeInvalidQuery, Message: mock.ErrorMessage},
+		},
+		{
 			"foo=error",
 			func(r res.QueryRequest) {
 				if r != nil {
@@ -339,7 +357,7 @@ func TestQueryRequestResponse(t *testing.T) {
 		// because starting gnatsd takes a couple of seconds
 		for _, l := range tbl {
 			lookup[l.Query] = l.Callback
-			req := newDefaultRequest()
+			req := mock.DefaultRequest()
 			req.Params = json.RawMessage(`"` + l.Query + `"`)
 			inb := s.Request("call.test.model.method", req)
 			subj := s.GetMsg(t).PathPayload(t, "subject").(string)
@@ -419,7 +437,7 @@ func TestInvalidQueryRequest(t *testing.T) {
 		)
 	}, func(s *Session) {
 		for i, l := range tbl {
-			inb := s.Request("call.test.model.method", newDefaultRequest())
+			inb := s.Request("call.test.model.method", mock.DefaultRequest())
 			subj := s.GetMsg(t).PathPayload(t, "subject").(string)
 
 			s.GetMsg(t).AssertSubject(t, inb)

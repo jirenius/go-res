@@ -27,14 +27,13 @@ func InternalError(err error) *Error {
 
 // Predefined error codes
 const (
-	CodeAccessDenied     = "system.accessDenied"
-	CodeInternalError    = "system.internalError"
-	CodeInvalidParams    = "system.invalidParams"
-	CodeMethodNotFound   = "system.methodNotFound"
-	CodeNotFound         = "system.notFound"
-	CodeTimeout          = "system.timeout"
-	CodeBadRequest       = "system.badRequest"
-	CodeMethodNotAllowed = "system.methodNotAllowed"
+	CodeAccessDenied   = "system.accessDenied"
+	CodeInternalError  = "system.internalError"
+	CodeInvalidParams  = "system.invalidParams"
+	CodeInvalidQuery   = "system.invalidQuery"
+	CodeMethodNotFound = "system.methodNotFound"
+	CodeNotFound       = "system.notFound"
+	CodeTimeout        = "system.timeout"
 )
 
 // Predefined errors
@@ -42,6 +41,7 @@ var (
 	ErrAccessDenied   = &Error{Code: CodeAccessDenied, Message: "Access denied"}
 	ErrInternalError  = &Error{Code: CodeInternalError, Message: "Internal error"}
 	ErrInvalidParams  = &Error{Code: CodeInvalidParams, Message: "Invalid parameters"}
+	ErrInvalidQuery   = &Error{Code: CodeInvalidQuery, Message: "Invalid query"}
 	ErrMethodNotFound = &Error{Code: CodeMethodNotFound, Message: "Method not found"}
 	ErrNotFound       = &Error{Code: CodeNotFound, Message: "Not found"}
 	ErrTimeout        = &Error{Code: CodeTimeout, Message: "Request timeout"}

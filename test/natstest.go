@@ -293,7 +293,7 @@ func AssertEqual(t *testing.T, name string, result, expected interface{}, ctx ..
 		if len(ctx) > 0 {
 			str = "\nin " + fmt.Sprint(ctx...)
 		}
-		t.Errorf("expected %s to be:\n%s\nbut got:\n%s%s", name, bj, aj, str)
+		t.Errorf("expected %s to be:\n\t%s\nbut got:\n\t%s%s", name, bj, aj, str)
 		return false
 	}
 
@@ -336,6 +336,34 @@ func AssertError(t *testing.T, err error, ctx ...interface{}) {
 		}
 		t.Fatalf("expected an error but got none%s", str)
 	}
+}
+
+// AssertResError expects that err is of type *res.Error and matches rerr.
+func AssertResError(t *testing.T, err error, rerr *res.Error, ctx ...interface{}) {
+	AssertError(t, err, ctx...)
+	var str string
+	v, ok := err.(*res.Error)
+	if !ok {
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected error to be of type *res.Error%s", str)
+	}
+	AssertEqual(t, "error", v, rerr, ctx...)
+}
+
+// AssertErrorCode expects that err is of type *res.Error with given code.
+func AssertErrorCode(t *testing.T, err error, code string, ctx ...interface{}) {
+	AssertError(t, err, ctx...)
+	var str string
+	v, ok := err.(*res.Error)
+	if !ok {
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected error to be of type *res.Error%s", str)
+	}
+	AssertEqual(t, "error code", v.Code, code, ctx...)
 }
 
 // AssertPanic expects the callback function to panic, otherwise

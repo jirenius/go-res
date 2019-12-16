@@ -68,8 +68,8 @@ func TestServiceTokenEvent(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session) {
-		s.TokenEvent(defaultCID, json.RawMessage(token))
-		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
+		s.TokenEvent(mock.CID, json.RawMessage(token))
+		s.GetMsg(t).AssertSubject(t, "conn."+mock.CID+".token").AssertPayload(t, json.RawMessage(`{"token":`+token+`}`))
 	})
 }
 
@@ -78,8 +78,8 @@ func TestServiceNilTokenEvent(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session) {
-		s.TokenEvent(defaultCID, nil)
-		s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token").AssertPayload(t, json.RawMessage(`{"token":null}`))
+		s.TokenEvent(mock.CID, nil)
+		s.GetMsg(t).AssertSubject(t, "conn."+mock.CID+".token").AssertPayload(t, json.RawMessage(`{"token":null}`))
 	})
 }
 
@@ -124,7 +124,7 @@ func TestServiceReset(t *testing.T) {
 		}, func(s *Session) {
 			s.Reset(l.Resources, l.Access)
 			// Send token event to flush any system.reset event
-			s.TokenEvent(defaultCID, nil)
+			s.TokenEvent(mock.CID, nil)
 
 			if l.Expected != nil {
 				s.GetMsg(t).
@@ -132,7 +132,7 @@ func TestServiceReset(t *testing.T) {
 					AssertPayload(t, l.Expected)
 			}
 
-			s.GetMsg(t).AssertSubject(t, "conn."+defaultCID+".token")
+			s.GetMsg(t).AssertSubject(t, "conn."+mock.CID+".token")
 		})
 	}
 }

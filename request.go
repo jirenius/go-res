@@ -44,6 +44,7 @@ type AccessRequest interface {
 	AccessDenied()
 	AccessGranted()
 	NotFound()
+	InvalidQuery(message string)
 	Error(err *Error)
 	RawToken() json.RawMessage
 	ParseToken(interface{})
@@ -56,6 +57,7 @@ type ModelRequest interface {
 	Model(model interface{})
 	QueryModel(model interface{}, query string)
 	NotFound()
+	InvalidQuery(message string)
 	Error(err *Error)
 	Timeout(d time.Duration)
 	ForValue() bool
@@ -67,6 +69,7 @@ type CollectionRequest interface {
 	Collection(collection interface{})
 	QueryCollection(collection interface{}, query string)
 	NotFound()
+	InvalidQuery(message string)
 	Error(err *Error)
 	Timeout(d time.Duration)
 	ForValue() bool
@@ -80,6 +83,7 @@ type GetRequest interface {
 	Collection(collection interface{})
 	QueryCollection(collection interface{}, query string)
 	NotFound()
+	InvalidQuery(message string)
 	Error(err *Error)
 	Timeout(d time.Duration)
 	ForValue() bool
@@ -98,6 +102,7 @@ type CallRequest interface {
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
+	InvalidQuery(message string)
 	Error(err *Error)
 	Timeout(d time.Duration)
 }
@@ -114,6 +119,7 @@ type NewRequest interface {
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
+	InvalidQuery(message string)
 	Error(err *Error)
 	Timeout(d time.Duration)
 }
@@ -135,6 +141,7 @@ type AuthRequest interface {
 	NotFound()
 	MethodNotFound()
 	InvalidParams(message string)
+	InvalidQuery(message string)
 	Error(err *Error)
 	Timeout(d time.Duration)
 	TokenEvent(t interface{})
@@ -147,6 +154,7 @@ var (
 	responseNotFound        = []byte(`{"error":{"code":"system.notFound","message":"Not found"}}`)
 	responseMethodNotFound  = []byte(`{"error":{"code":"system.methodNotFound","message":"Method not found"}}`)
 	responseInvalidParams   = []byte(`{"error":{"code":"system.invalidParams","message":"Invalid parameters"}}`)
+	responseInvalidQuery    = []byte(`{"error":{"code":"system.invalidQuery","message":"Invalid query"}}`)
 	responseMissingResponse = []byte(`{"error":{"code":"system.internalError","message":"Internal error: missing response"}}`)
 	responseMissingQuery    = []byte(`{"error":{"code":"system.internalError","message":"Internal error: missing query"}}`)
 	responseAccessGranted   = []byte(`{"result":{"get":true,"call":"*"}}`)
@@ -258,6 +266,16 @@ func (r *Request) InvalidParams(message string) {
 	}
 }
 
+// InvalidQuery sends a system.invalidQuery response.
+// An empty message will default to "Invalid query".
+func (r *Request) InvalidQuery(message string) {
+	if message == "" {
+		r.reply(responseInvalidQuery)
+	} else {
+		r.error(&Error{Code: CodeInvalidQuery, Message: message})
+	}
+}
+
 // Access sends a successful response.
 // The get flag tells if the client has access to get (read) the resource.
 // The call string is a comma separated list of methods that the client can
@@ -301,9 +319,6 @@ func (r *Request) QueryModel(model interface{}, query string) {
 
 // model sends a successful model response for the get request.
 func (r *Request) model(model interface{}, query string) {
-	if query != "" && r.query == "" {
-		panic("res: query model response on non-query request")
-	}
 	// [TODO] Marshal model to a json.RawMessage to see if it is a JSON object
 	r.success(modelResponse{Model: model, Query: query})
 }
@@ -324,9 +339,6 @@ func (r *Request) QueryCollection(collection interface{}, query string) {
 
 // collection sends a successful collection response for the get request.
 func (r *Request) collection(collection interface{}, query string) {
-	if query != "" && r.query == "" {
-		panic("res: query collection response on non-query request")
-	}
 	// [TODO] Marshal collection to a json.RawMessage to see if it is a JSON array
 	r.success(collectionResponse{Collection: collection, Query: query})
 }
@@ -434,7 +446,6 @@ func (r *Request) reply(payload []byte) {
 func (r *Request) executeHandler() {
 	// Recover from panics inside handlers
 	defer func() {
-		r.inGet = false
 		v := recover()
 		if v == nil {
 			return
@@ -481,7 +492,6 @@ func (r *Request) executeHandler() {
 		}
 		hs.Access(r)
 	case "get":
-		r.inGet = true
 		if hs.Get == nil {
 			r.reply(responseNotFound)
 			return

@@ -21,7 +21,7 @@ func TestRoute(t *testing.T) {
 		})
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.foo.model", newRequest())
+		inb := s.Request("get.test.foo.model", mock.Request())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
 	})
 }
@@ -40,7 +40,7 @@ func TestMount(t *testing.T) {
 		s.Mount("foo", m)
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.foo.model", newRequest())
+		inb := s.Request("get.test.foo.model", mock.Request())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
 	})
 }
@@ -59,7 +59,7 @@ func TestMountToRoot(t *testing.T) {
 		s.Mount("", m)
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.foo.model", newRequest())
+		inb := s.Request("get.test.foo.model", mock.Request())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
 	})
 }
@@ -78,7 +78,7 @@ func TestMountRootMux(t *testing.T) {
 		s.Mount("foo", m)
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.foo.model", newRequest())
+		inb := s.Request("get.test.foo.model", mock.Request())
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
 	})
 }
