@@ -79,7 +79,6 @@ func TestQueryEventFailedSubscribe(t *testing.T) {
 	var done func()
 
 	runTestAsync(t, func(s *Session) {
-		s.SetQueryEventDuration(time.Millisecond)
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.Model(mock.Model)
@@ -482,5 +481,111 @@ func TestInvalidQueryRequest(t *testing.T) {
 				break
 			}
 		}
+	}, withGnatsd)
+}
+
+// Test Invalid QueryRequests gets an internal error response
+func TestInvalidQueryResponse(t *testing.T) {
+	tbl := []struct {
+		RID                 string
+		QueryRequestHandler func(t *testing.T, r res.QueryRequest)
+	}{
+		// Collection response on query model
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.Collection(mock.Collection)
+			})
+		}},
+		// Model response on query collection
+		{"test.collection", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.Model(mock.Model)
+			})
+		}},
+		// Change event on query collection
+		{"test.collection", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.ChangeEvent(map[string]interface{}{"foo": "bar"})
+			})
+		}},
+		// Add event on query model
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.AddEvent("foo", 0)
+			})
+		}},
+		// Remove event on query model
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.RemoveEvent(0)
+			})
+		}},
+		// Unserializable change value
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			r.ChangeEvent(map[string]interface{}{"foo": mock.UnserializableValue})
+		}},
+		// Unserializable add value
+		{"test.collection", func(t *testing.T, r res.QueryRequest) {
+			r.AddEvent(mock.UnserializableValue, 0)
+		}},
+		// Unserializable model
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			r.Model(mock.UnserializableValue)
+		}},
+		// Unserializable collection
+		{"test.collection", func(t *testing.T, r res.QueryRequest) {
+			r.Collection(mock.UnserializableValue)
+		}},
+		// Unserializable error
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			r.Error(mock.UnserializableError)
+		}},
+	}
+
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			r.QueryModel(mock.Model, mock.NormalizedQuery)
+		}))
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			r.QueryCollection(mock.Collection, mock.NormalizedQuery)
+		}))
+	}, func(s *Session) {
+		ch := make(chan bool, 1)
+		for i, l := range tbl {
+			func() {
+				defer func() { ch <- true }()
+
+				s.With(l.RID, func(r res.Resource) {
+					r.QueryEvent(func(r res.QueryRequest) {
+						if r != nil {
+							l.QueryRequestHandler(t, r)
+						}
+					})
+				})
+
+				// Assert a query event for the resource
+				subj := s.GetMsg(t).
+					AssertSubject(t, "event."+l.RID+".query").
+					PathPayload(t, "subject").(string)
+
+				// Send query request to the subject
+				inb := s.Request(subj, mock.QueryRequest())
+				resp := s.GetMsg(t).AssertSubject(t, inb)
+				// Make sure we have an internal error
+				resp.AssertErrorCode(t, res.CodeInternalError)
+			}()
+			select {
+			case <-ch:
+			case <-time.After(timeoutDuration):
+				if t == nil {
+					t.Fatal("expected query request to get a query response, but it timed out")
+				}
+			}
+			if t.Failed() {
+				t.Logf("failed on test idx %d", i)
+				break
+			}
+		}
+		close(ch)
 	}, withGnatsd)
 }
