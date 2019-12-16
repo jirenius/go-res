@@ -60,6 +60,37 @@ func TestAccessError(t *testing.T) {
 	})
 }
 
+// Test calling InvalidQuery with no message on an access request results in system.invalidQuery
+func TestAccessInvalidQuery_EmptyMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			r.InvalidQuery("")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", mock.QueryRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrInvalidQuery)
+	})
+}
+
+// Test calling InvalidQuery on an access request results in system.invalidQuery
+func TestAccessInvalidQuery_CustomMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			r.InvalidQuery(mock.ErrorMessage)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", mock.QueryRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, &res.Error{
+				Code:    res.CodeInvalidQuery,
+				Message: mock.ErrorMessage,
+			})
+	})
+}
+
 // Test that panicing in an access request results in system.internalError
 func TestPanicOnAccess(t *testing.T) {
 	runTest(t, func(s *Session) {

@@ -26,11 +26,11 @@ func TestNew(t *testing.T) {
 func TestNewRequestGetters(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, "CID", r.CID(), defaultCID)
+			AssertEqual(t, "CID", r.CID(), mock.CID)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 	})
@@ -123,18 +123,47 @@ func TestNewError(t *testing.T) {
 	})
 }
 
+// Test calling InvalidQuery with no message on a new request results in system.invalidQuery
+func TestNewInvalidQuery_EmptyMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.New(func(r res.NewRequest) {
+			r.InvalidQuery("")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.new", mock.Request())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrInvalidQuery)
+	})
+}
+
+// Test calling InvalidQuery on a new request results in system.invalidQuery
+func TestNewInvalidQuery_CustomMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.New(func(r res.NewRequest) {
+			r.InvalidQuery(mock.ErrorMessage)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.new", nil)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, &res.Error{
+				Code:    res.CodeInvalidQuery,
+				Message: mock.ErrorMessage,
+			})
+	})
+}
+
 // Test calling RawParams on a new request with parameters
 func TestNewRawParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, "RawParams", r.RawParams(), params)
+			AssertEqual(t, "RawParams", r.RawParams(), mock.Params)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Params = params
+		req := mock.DefaultRequest()
+		req.Params = mock.Params
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -150,7 +179,7 @@ func TestNewRawParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -160,16 +189,14 @@ func TestNewRawParamsWithNilParams(t *testing.T) {
 
 // Test calling RawToken on a new request with token
 func TestNewRawToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.New(func(r res.NewRequest) {
-			AssertEqual(t, "RawToken", r.RawToken(), token)
+			AssertEqual(t, "RawToken", r.RawToken(), mock.Token)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Token = token
+		req := mock.DefaultRequest()
+		req.Token = mock.Token
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -185,7 +212,7 @@ func TestNewRawTokenWithNoToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -195,7 +222,6 @@ func TestNewRawTokenWithNoToken(t *testing.T) {
 
 // Test calling ParseParams on a new request with parameters
 func TestNewParseParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
 	var p struct {
 		Foo string `json:"foo"`
 		Baz int    `json:"baz"`
@@ -209,8 +235,8 @@ func TestNewParseParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Params = params
+		req := mock.DefaultRequest()
+		req.Params = mock.Params
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -233,7 +259,7 @@ func TestNewParseParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -243,7 +269,6 @@ func TestNewParseParamsWithNilParams(t *testing.T) {
 
 // Test calling ParseToken on a new request with token
 func TestNewParseToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
 	var o struct {
 		User string `json:"user"`
 		ID   int    `json:"id"`
@@ -257,8 +282,8 @@ func TestNewParseToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Token = token
+		req := mock.DefaultRequest()
+		req.Token = mock.Token
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -281,7 +306,7 @@ func TestNewParseTokenWithNilToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.collection.new", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).

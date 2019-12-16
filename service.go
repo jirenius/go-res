@@ -14,6 +14,9 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
+// Targetted RES protocol version
+const protocolVersion = "1.1.1"
+
 // The size of the in channel receiving messages from NATS Server.
 const inChannelSize = 256
 
@@ -233,6 +236,11 @@ func (s *Service) SetOnError(f func(*Service, string)) {
 // Logger returns the logger.
 func (s *Service) Logger() logger.Logger {
 	return s.logger
+}
+
+// ProtocolVersion returns the supported RES protocol version.
+func (s *Service) ProtocolVersion() string {
+	return protocolVersion
 }
 
 // infof logs a formatted info entry.

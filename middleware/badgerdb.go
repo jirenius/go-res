@@ -429,7 +429,6 @@ func (b *badgerDB) applyDelete(r res.Resource) (interface{}, error) {
 		return nil
 	})
 	if err != nil {
-		println("From 1", err)
 		return nil, err
 	}
 
@@ -442,7 +441,6 @@ func (b *badgerDB) applyDelete(r res.Resource) (interface{}, error) {
 		// This might cause panic in any OnDelete handlers, when trying to type assert
 		// the value. But then the delete event is at least propagated properly.
 
-		println("From 2")
 		return json.RawMessage(dta), nil
 	}
 	return v.Elem().Interface(), nil

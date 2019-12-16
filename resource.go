@@ -83,6 +83,12 @@ type Resource interface {
 	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
 	ReaccessEvent()
 
+	// ResetEvent sends a reset event to signal that the resource's data has changed.
+	// It will invalidate any previous get response sent for the resource.
+	// See the protocol specification for more information:
+	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
+	ResetEvent()
+
 	// QueryEvent sends a query event to signal that the query resource's underlying data has been modified.
 	// See the protocol specification for more information:
 	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-event
@@ -102,7 +108,6 @@ type resource struct {
 	pathParams map[string]string
 	query      string
 	group      string
-	inGet      bool
 	h          Handler
 	s          *Service
 }
@@ -156,11 +161,6 @@ func (r *resource) ParseQuery() url.Values {
 // defined, it returns a nil interface and a *Error type error.
 // Panics if called from within a Get handler.
 func (r *resource) Value() (interface{}, error) {
-	// Panic if the getRequest is called within Get handler.
-	if r.inGet {
-		panic("Value() called from within get handler")
-	}
-
 	gr := &getRequest{resource: r}
 	gr.executeHandler()
 	return gr.value, gr.err
@@ -272,6 +272,11 @@ func (r *resource) RemoveEvent(idx int) {
 // ReaccessEvent sends a reaccess event.
 func (r *resource) ReaccessEvent() {
 	r.s.rawEvent("event."+r.rname+".reaccess", nil)
+}
+
+// ResetEvent sends a system.reset event for the specific resource.
+func (r *resource) ResetEvent() {
+	r.s.Reset([]string{r.ResourceName()}, nil)
 }
 
 // QueryEvent sends a query event on the resource, calling the

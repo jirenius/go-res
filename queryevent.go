@@ -16,6 +16,7 @@ const queryEventChannelSize = 10
 type QueryRequest interface {
 	Resource
 	NotFound()
+	InvalidQuery(message string)
 	Error(err *Error)
 	Timeout(d time.Duration)
 }
@@ -65,6 +66,16 @@ func (qr *queryRequest) RemoveEvent(idx int) {
 // NotFound sends a system.notFound response for the query request.
 func (qr *queryRequest) NotFound() {
 	qr.reply(responseNotFound)
+}
+
+// InvalidQuery sends a system.invalidQuery response for the query request.
+// An empty message will default to "Invalid query".
+func (qr *queryRequest) InvalidQuery(message string) {
+	if message == "" {
+		qr.reply(responseInvalidQuery)
+	} else {
+		qr.error(&Error{Code: CodeInvalidQuery, Message: message})
+	}
 }
 
 // Error sends a custom error response for the query request.

@@ -1,7 +1,6 @@
 package test
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -11,27 +10,25 @@ import (
 
 // Test that the model is sent on get request
 func TestGetModel(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("model.foo", res.GetModel(func(r res.ModelRequest) {
 			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeModel)
-			r.Model(json.RawMessage(model))
+			r.Model(mock.Model)
 		}))
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.model.foo", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		inb := s.Request("get.test.model.foo", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 
 		// Test getting the model with missing part
-		inb = s.Request("get.test.model", newRequest())
+		inb = s.Request("get.test.model", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
 
 		// Test getting the model with extra part
-		inb = s.Request("get.test.model.foo.bar", newRequest())
+		inb = s.Request("get.test.model.foo.bar", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -40,27 +37,25 @@ func TestGetModel(t *testing.T) {
 
 // Test that the collection is sent on get request
 func TestGetCollection(t *testing.T) {
-	collection := resource["test.collection"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("collection.foo", res.GetCollection(func(r res.CollectionRequest) {
 			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeCollection)
-			r.Collection(json.RawMessage(collection))
+			r.Collection(mock.Collection)
 		}))
 	}, func(s *Session) {
 		// Test getting the collection
-		inb := s.Request("get.test.collection.foo", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"collection":`+collection+`}}`))
+		inb := s.Request("get.test.collection.foo", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.CollectionResponse)
 
 		// Test getting the collection with missing part
-		inb = s.Request("get.test.collection", newRequest())
+		inb = s.Request("get.test.collection", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
 
 		// Test getting the collection with extra part
-		inb = s.Request("get.test.collection.foo.bar", newRequest())
+		inb = s.Request("get.test.collection.foo.bar", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -69,55 +64,49 @@ func TestGetCollection(t *testing.T) {
 
 // Test that the model is sent on get request
 func TestGetResource(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("model.foo", res.GetResource(func(r res.GetRequest) {
 			AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 			AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeUnset)
-			r.Model(json.RawMessage(model))
+			r.Model(mock.Model)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.model.foo", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		inb := s.Request("get.test.model.foo", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test ResourceType returns TypeModel when using res.Model
 func TestGetResourceTypedModel(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("model.foo",
 			res.Model,
 			res.GetResource(func(r res.GetRequest) {
 				AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 				AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeModel)
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 		)
 	}, func(s *Session) {
-		inb := s.Request("get.test.model.foo", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		inb := s.Request("get.test.model.foo", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test ResourceType returns TypeCollection when using res.Collection
 func TestGetResourceTypedCollection(t *testing.T) {
-	collection := resource["test.collection"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("collection.foo",
 			res.Collection,
 			res.GetResource(func(r res.GetRequest) {
 				AssertEqual(t, "r.ForValue()", r.ForValue(), false)
 				AssertEqual(t, "r.ResourceType()", r.ResourceType(), res.TypeCollection)
-				r.Collection(json.RawMessage(collection))
+				r.Collection(mock.Collection)
 			}),
 		)
 	}, func(s *Session) {
-		inb := s.Request("get.test.collection.foo", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"collection":`+collection+`}}`))
+		inb := s.Request("get.test.collection.foo", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.CollectionResponse)
 	})
 }
 
@@ -130,7 +119,7 @@ func TestGetModelNotFound(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.model", newRequest())
+		inb := s.Request("get.test.model", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -150,7 +139,7 @@ func TestGetCollectionNotFound(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.collection", newRequest())
+		inb := s.Request("get.test.collection", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrNotFound)
@@ -169,7 +158,7 @@ func TestGetModelError(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.model", newRequest())
+			inb := s.Request("get.test.model", mock.Request())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertError(t, res.ErrMethodNotFound)
@@ -185,11 +174,73 @@ func TestGetCollectionError(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.collection", newRequest())
+			inb := s.Request("get.test.collection", mock.Request())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertError(t, res.ErrMethodNotFound)
 		}
+	})
+}
+
+// Test calling InvalidQuery with no message on an model get request results in system.invalidQuery
+func TestModelInvalidQuery_EmptyMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			r.InvalidQuery("")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model", mock.QueryRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrInvalidQuery)
+	})
+}
+
+// Test calling InvalidQuery on an model get request results in system.invalidQuery
+func TestModelInvalidQuery_CustomMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			r.InvalidQuery(mock.ErrorMessage)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model", mock.QueryRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, &res.Error{
+				Code:    res.CodeInvalidQuery,
+				Message: mock.ErrorMessage,
+			})
+	})
+}
+
+// Test calling InvalidQuery with no message on an collection get request results in system.invalidQuery
+func TestCollectionInvalidQuery_EmptyMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			r.InvalidQuery("")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection", mock.QueryRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrInvalidQuery)
+	})
+}
+
+// Test calling InvalidQuery on an collection get request results in system.invalidQuery
+func TestCollectionInvalidQuery_CustomMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			r.InvalidQuery(mock.ErrorMessage)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection", mock.QueryRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, &res.Error{
+				Code:    res.CodeInvalidQuery,
+				Message: mock.ErrorMessage,
+			})
 	})
 }
 
@@ -201,7 +252,7 @@ func TestPanicOnGetModel(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.model", newRequest())
+			inb := s.Request("get.test.model", mock.Request())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertErrorCode(t, "system.internalError")
@@ -216,7 +267,7 @@ func TestPanicWithErrorOnGetModel(t *testing.T) {
 			panic(res.ErrMethodNotFound)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.model", newRequest())
+		inb := s.Request("get.test.model", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrMethodNotFound)
@@ -230,7 +281,7 @@ func TestPanicWithOsErrorOnGetModel(t *testing.T) {
 			panic(errors.New("panic"))
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.model", newRequest())
+		inb := s.Request("get.test.model", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertErrorCode(t, res.CodeInternalError)
@@ -245,7 +296,7 @@ func TestPanicWithGenericValueOnGetModel(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.model", newRequest())
+			inb := s.Request("get.test.model", mock.Request())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertErrorCode(t, "system.internalError")
@@ -261,7 +312,7 @@ func TestPanicOnGetCollection(t *testing.T) {
 		}))
 	}, func(s *Session) {
 		for i := 0; i < 10; i++ {
-			inb := s.Request("get.test.collection", newRequest())
+			inb := s.Request("get.test.collection", mock.Request())
 			s.GetMsg(t).
 				AssertSubject(t, inb).
 				AssertErrorCode(t, "system.internalError")
@@ -276,7 +327,7 @@ func TestPanicWithErrorOnGetCollection(t *testing.T) {
 			panic(res.ErrMethodNotFound)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.collection", newRequest())
+		inb := s.Request("get.test.collection", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrMethodNotFound)
@@ -290,7 +341,7 @@ func TestPanicWithOsErrorOnGetCollection(t *testing.T) {
 			panic(errors.New("panic"))
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.collection", newRequest())
+		inb := s.Request("get.test.collection", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertErrorCode(t, res.CodeInternalError)
@@ -304,7 +355,7 @@ func TestPanicWithGenericValueOnGetCollection(t *testing.T) {
 			panic(42)
 		}))
 	}, func(s *Session) {
-		inb := s.Request("get.test.collection", newRequest())
+		inb := s.Request("get.test.collection", mock.Request())
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertErrorCode(t, res.CodeInternalError)
@@ -314,23 +365,22 @@ func TestPanicWithGenericValueOnGetCollection(t *testing.T) {
 // Test sending multiple get model requests for the same resource
 // and assert they are handled in order
 func TestMultipleGetModel(t *testing.T) {
-	model := resource["test.model"]
 	const requestCount = 100
 
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.Model(json.RawMessage(model))
+			r.Model(mock.Model)
 		}))
 	}, func(s *Session) {
 		inbs := make([]string, requestCount)
 
 		// Test getting the model
 		for i := 0; i < requestCount; i++ {
-			inbs[i] = s.Request("get.test.model", newRequest())
+			inbs[i] = s.Request("get.test.model", mock.Request())
 		}
 
 		for _, inb := range inbs {
-			s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+			s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 		}
 	})
 }
@@ -338,23 +388,22 @@ func TestMultipleGetModel(t *testing.T) {
 // Test sending multiple get collection requests for the same resource
 // and assert they are handled in order
 func TestMultipleGetCollection(t *testing.T) {
-	collection := resource["test.collection"]
 	const requestCount = 100
 
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			r.Collection(json.RawMessage(collection))
+			r.Collection(mock.Collection)
 		}))
 	}, func(s *Session) {
 		inbs := make([]string, requestCount)
 
 		// Test getting the collection
 		for i := 0; i < requestCount; i++ {
-			inbs[i] = s.Request("get.test.collection", newRequest())
+			inbs[i] = s.Request("get.test.collection", mock.Request())
 		}
 
 		for _, inb := range inbs {
-			s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"collection":`+collection+`}}`))
+			s.GetMsg(t).Equals(t, inb, mock.CollectionResponse)
 		}
 	})
 }
@@ -362,16 +411,14 @@ func TestMultipleGetCollection(t *testing.T) {
 // Test sending multiple get model requests for the same resource
 // and assert they are handled in order
 func TestMultipleGetDifferentResources(t *testing.T) {
-	model := resource["test.model"]
-	collection := resource["test.collection"]
 	const requestCount = 50
 
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
-			r.Model(json.RawMessage(model))
+			r.Model(mock.Model)
 		}))
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
-			r.Collection(json.RawMessage(collection))
+			r.Collection(mock.Collection)
 		}))
 	}, func(s *Session) {
 		minbs := make([]string, requestCount)
@@ -379,8 +426,8 @@ func TestMultipleGetDifferentResources(t *testing.T) {
 
 		// Test getting the resources
 		for i := 0; i < requestCount; i++ {
-			minbs[i] = s.Request("get.test.model", newRequest())
-			cinbs[i] = s.Request("get.test.collection", newRequest())
+			minbs[i] = s.Request("get.test.model", mock.Request())
+			cinbs[i] = s.Request("get.test.collection", mock.Request())
 		}
 
 		var mi, ci int
@@ -388,10 +435,10 @@ func TestMultipleGetDifferentResources(t *testing.T) {
 			m := s.GetMsg(t)
 			switch {
 			case mi < requestCount && minbs[mi] == m.Subject:
-				m.AssertResult(t, json.RawMessage(`{"model":`+model+`}`))
+				m.AssertPayload(t, mock.ModelResponse)
 				mi++
 			case ci < requestCount && cinbs[ci] == m.Subject:
-				m.AssertResult(t, json.RawMessage(`{"collection":`+collection+`}`))
+				m.AssertPayload(t, mock.CollectionResponse)
 				ci++
 			default:
 				t.Fatalf("expected message subject to be a for a collection or model request, but got %#v", m.Subject)
@@ -465,5 +512,49 @@ func TestGetCollectionRequestTimeoutWithDurationLessThanZero(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("get.test.collection", nil)
 		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
+	})
+}
+
+func TestGetModelQuery_WithQueryModel_SendsQueryModelResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo", res.GetModel(func(r res.ModelRequest) {
+			r.QueryModel(mock.Model, mock.NormalizedQuery)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model.foo", mock.QueryRequest())
+		s.GetMsg(t).Equals(t, inb, mock.QueryModelResponse)
+	})
+}
+
+func TestGetCollectionQuery_WithQueryCollection_SendsQueryCollectionResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection.foo", res.GetCollection(func(r res.CollectionRequest) {
+			r.QueryCollection(mock.Collection, mock.NormalizedQuery)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection.foo", mock.QueryRequest())
+		s.GetMsg(t).Equals(t, inb, mock.QueryCollectionResponse)
+	})
+}
+
+func TestGetModelQuery_WithoutQueryModel_SendsQueryModelResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo", res.GetModel(func(r res.ModelRequest) {
+			r.QueryModel(mock.Model, mock.NormalizedQuery)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model.foo", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.QueryModelResponse)
+	})
+}
+
+func TestGetCollectionQuery_WithoutQueryCollection_SendsQueryCollectionResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("collection.foo", res.GetCollection(func(r res.CollectionRequest) {
+			r.QueryCollection(mock.Collection, mock.NormalizedQuery)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.collection.foo", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.QueryCollectionResponse)
 	})
 }

@@ -16,15 +16,20 @@ type getRequest struct {
 	err     error
 }
 
+func (r *getRequest) Value() (interface{}, error) {
+	panic("Value() called within get request handler")
+}
+
+func (r *getRequest) RequireValue() interface{} {
+	panic("RequireValue() called within get request handler")
+}
+
 func (r *getRequest) Model(model interface{}) {
 	r.reply()
 	r.value = model
 }
 
 func (r *getRequest) QueryModel(model interface{}, query string) {
-	if query != "" && r.query == "" {
-		panic("res: query model response on non-query get request")
-	}
 	r.reply()
 	r.value = model
 }
@@ -35,15 +40,20 @@ func (r *getRequest) Collection(collection interface{}) {
 }
 
 func (r *getRequest) QueryCollection(collection interface{}, query string) {
-	if query != "" && r.query == "" {
-		panic("res: query model response on non-query get request")
-	}
 	r.reply()
 	r.value = collection
 }
 
 func (r *getRequest) NotFound() {
 	r.Error(ErrNotFound)
+}
+
+func (r *getRequest) InvalidQuery(message string) {
+	if message == "" {
+		r.Error(ErrInvalidQuery)
+	} else {
+		r.Error(&Error{Code: CodeInvalidQuery, Message: message})
+	}
 }
 
 func (r *getRequest) Error(err *Error) {
@@ -67,11 +77,8 @@ func (r *getRequest) reply() {
 }
 
 func (r *getRequest) executeHandler() {
-	r.inGet = true
 	// Recover from panics inside handlers
 	defer func() {
-		r.inGet = false
-
 		v := recover()
 		if v == nil {
 			return

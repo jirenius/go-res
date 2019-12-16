@@ -10,15 +10,13 @@ import (
 
 // Test call response with result
 func TestCall(t *testing.T) {
-	result := `{"foo":"bar","zoo":42}`
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			r.OK(json.RawMessage(result))
+			r.OK(mock.Result)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":`+result+`}`))
+		s.GetMsg(t).Equals(t, inb, mock.ResultResponse)
 	})
 }
 
@@ -27,11 +25,11 @@ func TestCallRequestGetters(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("foo", func(r res.CallRequest) {
 			AssertEqual(t, "Method", r.Method(), "foo")
-			AssertEqual(t, "CID", r.CID(), defaultCID)
+			AssertEqual(t, "CID", r.CID(), mock.CID)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.foo", req)
 		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 	})
@@ -78,7 +76,7 @@ func TestCallMethodNotFound(t *testing.T) {
 }
 
 // Test calling InvalidParams with no message on a call request results in system.invalidParams
-func TestCallDefaultInvalidParams(t *testing.T) {
+func TestCallInvalidParams_EmptyMessage(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.InvalidParams("")
@@ -92,10 +90,10 @@ func TestCallDefaultInvalidParams(t *testing.T) {
 }
 
 // Test calling InvalidParams on a call request results in system.invalidParams
-func TestCallInvalidParams(t *testing.T) {
+func TestCallInvalidParams_CustomMessage(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			r.InvalidParams("foo")
+			r.InvalidParams(mock.ErrorMessage)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("call.test.model.method", nil)
@@ -103,7 +101,38 @@ func TestCallInvalidParams(t *testing.T) {
 			AssertSubject(t, inb).
 			AssertError(t, &res.Error{
 				Code:    res.CodeInvalidParams,
-				Message: "foo",
+				Message: mock.ErrorMessage,
+			})
+	})
+}
+
+// Test calling InvalidQuery with no message on a call request results in system.invalidQuery
+func TestCallInvalidQuery_EmptyMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.InvalidQuery("")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", mock.Request())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrInvalidQuery)
+	})
+}
+
+// Test calling InvalidQuery on a call request results in system.invalidQuery
+func TestCallInvalidQuery_CustomMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.InvalidQuery(mock.ErrorMessage)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, &res.Error{
+				Code:    res.CodeInvalidQuery,
+				Message: mock.ErrorMessage,
 			})
 	})
 }
@@ -124,16 +153,14 @@ func TestCallError(t *testing.T) {
 
 // Test calling RawParams on a call request with parameters
 func TestCallRawParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, "RawParams", r.RawParams(), params)
+			AssertEqual(t, "RawParams", r.RawParams(), mock.Params)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Params = params
+		req := mock.DefaultRequest()
+		req.Params = mock.Params
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -149,7 +176,7 @@ func TestCallRawParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -159,16 +186,14 @@ func TestCallRawParamsWithNilParams(t *testing.T) {
 
 // Test calling RawToken on a call request with token
 func TestCallRawToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, "RawToken", r.RawToken(), token)
+			AssertEqual(t, "RawToken", r.RawToken(), mock.Token)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Token = token
+		req := mock.DefaultRequest()
+		req.Token = mock.Token
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -184,7 +209,7 @@ func TestCallRawTokenWithNoToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -194,7 +219,6 @@ func TestCallRawTokenWithNoToken(t *testing.T) {
 
 // Test calling ParseParams on a call request with parameters
 func TestCallParseParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
 	var p struct {
 		Foo string `json:"foo"`
 		Baz int    `json:"baz"`
@@ -208,8 +232,8 @@ func TestCallParseParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Params = params
+		req := mock.DefaultRequest()
+		req.Params = mock.Params
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -232,7 +256,7 @@ func TestCallParseParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -242,7 +266,6 @@ func TestCallParseParamsWithNilParams(t *testing.T) {
 
 // Test calling ParseToken on a call request with token
 func TestCallParseToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
 	var o struct {
 		User string `json:"user"`
 		ID   int    `json:"id"`
@@ -256,8 +279,8 @@ func TestCallParseToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Token = token
+		req := mock.DefaultRequest()
+		req.Token = mock.Token
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -280,7 +303,7 @@ func TestCallParseTokenWithNilToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).

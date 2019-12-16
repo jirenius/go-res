@@ -275,17 +275,16 @@ func TestApplyRemoveErrorCausesPanic(t *testing.T) {
 // Test ApplyCreate is called on create event.
 func TestApplyCreateEvent(t *testing.T) {
 	called := false
-	model := map[string]interface{}{"foo": "bar"}
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
-				r.CreateEvent(model)
+				r.CreateEvent(mock.Model)
 				AssertEqual(t, "called", called, true)
 				r.OK(nil)
 			}),
 			res.ApplyCreate(func(r res.Resource, value interface{}) error {
 				called = true
-				AssertEqual(t, "value", value, model)
+				AssertEqual(t, "value", value, mock.Model)
 				AssertEqual(t, "ResourceName", r.ResourceName(), "test.model")
 				return nil
 			}),
@@ -300,20 +299,19 @@ func TestApplyCreateEvent(t *testing.T) {
 // Test ApplyCreateEvent sends a create event, using With.
 func TestApplyCreateEventUsingWith(t *testing.T) {
 	called := false
-	model := map[string]interface{}{"foo": "bar"}
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.GetResource(func(r res.GetRequest) { r.NotFound() }),
 			res.ApplyCreate(func(r res.Resource, value interface{}) error {
 				called = true
-				AssertEqual(t, "value", value, model)
+				AssertEqual(t, "value", value, mock.Model)
 				AssertEqual(t, "ResourceName", r.ResourceName(), "test.model")
 				return nil
 			}),
 		)
 	}, func(s *Session) {
 		AssertNoError(t, s.With("test.model", func(r res.Resource) {
-			r.CreateEvent(map[string]interface{}{"foo": "bar"})
+			r.CreateEvent(mock.Model)
 			AssertEqual(t, "called", called, true)
 		}))
 		s.GetMsg(t).AssertSubject(t, "event.test.model.create")
@@ -322,12 +320,11 @@ func TestApplyCreateEventUsingWith(t *testing.T) {
 
 // Test ApplyCreate error causes panic.
 func TestApplyCreateErrorCausesPanic(t *testing.T) {
-	model := map[string]interface{}{"foo": "bar"}
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				AssertPanicNoRecover(t, func() {
-					r.CreateEvent(model)
+					r.CreateEvent(mock.Model)
 				})
 			}),
 			res.ApplyCreate(func(r res.Resource, value interface{}) error {
@@ -343,7 +340,6 @@ func TestApplyCreateErrorCausesPanic(t *testing.T) {
 // Test ApplyDeleteEvent sends a delete event.
 func TestApplyDeleteEvent(t *testing.T) {
 	called := false
-	model := map[string]interface{}{"foo": "bar"}
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
@@ -354,7 +350,7 @@ func TestApplyDeleteEvent(t *testing.T) {
 			res.ApplyDelete(func(r res.Resource) (interface{}, error) {
 				called = true
 				AssertEqual(t, "ResourceName", r.ResourceName(), "test.model")
-				return model, nil
+				return mock.Model, nil
 			}),
 		)
 	}, func(s *Session) {
@@ -367,14 +363,13 @@ func TestApplyDeleteEvent(t *testing.T) {
 // Test ApplyDeleteEvent sends a delete event, using With.
 func TestApplyDeleteEventUsingWith(t *testing.T) {
 	called := false
-	model := map[string]interface{}{"foo": "bar"}
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.GetResource(func(r res.GetRequest) { r.NotFound() }),
 			res.ApplyDelete(func(r res.Resource) (interface{}, error) {
 				called = true
 				AssertEqual(t, "ResourceName", r.ResourceName(), "test.model")
-				return model, nil
+				return mock.Model, nil
 			}),
 		)
 	}, func(s *Session) {
