@@ -209,3 +209,35 @@ func TestAccessDeniedHandler(t *testing.T) {
 			AssertError(t, res.ErrAccessDenied)
 	})
 }
+
+// Test that an access request without any access handler gives no response
+func TestAccess_WithoutAccessHandler_SendsNoResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			r.Model(mock.Model)
+		}))
+		s.Handle("collection", res.Access(func(r res.AccessRequest) {
+			r.AccessGranted()
+		}))
+	}, func(s *Session) {
+		s.Request("access.test.model", mock.DefaultRequest())
+		inb := s.Request("access.test.collection", mock.DefaultRequest())
+		// Validate that the response is for the collection access, and not model access
+		s.GetMsg(t).AssertSubject(t, inb)
+	})
+}
+
+// Test that multiple responses to access request causes panic
+func TestAccess_WithMultipleResponses_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			r.AccessGranted()
+			AssertPanic(t, func() {
+				r.AccessDenied()
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.AccessGrantedResponse)
+	})
+}

@@ -8,6 +8,13 @@ import (
 	res "github.com/jirenius/go-res"
 )
 
+// Test that the service returns the correct protocol version
+func TestProtocolVersion(t *testing.T) {
+	runTest(t, func(s *Session) {
+		AssertEqual(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.0")
+	}, nil, withoutReset)
+}
+
 // Test that the service can be served without error
 func TestStart(t *testing.T) {
 	runTest(t, func(s *Session) {

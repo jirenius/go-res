@@ -15,6 +15,8 @@ const queryEventChannelSize = 10
 // QueryRequest has methods for responding to query requests.
 type QueryRequest interface {
 	Resource
+	Model(model interface{})
+	Collection(collection interface{})
 	NotFound()
 	InvalidQuery(message string)
 	Error(err *Error)
@@ -25,7 +27,6 @@ type queryRequest struct {
 	resource
 	msg     *nats.Msg
 	events  []resEvent
-	err     *Error
 	replied bool // Flag telling if a reply has been made
 }
 
@@ -36,9 +37,35 @@ type queryEvent struct {
 	cb  func(r QueryRequest)
 }
 
-// ChangeEvent adds a change event to the query response
+// Model sends a model response for the query request.
+// The model represents the current state of query model
+// for the given query.
+// Only valid for a query model resource.
+func (qr *queryRequest) Model(model interface{}) {
+	if qr.h.Type == TypeCollection {
+		panic("res: model response not allowed on query collections")
+	}
+	qr.success(modelResponse{Model: model})
+}
+
+// Collection sends a collection response for the query request.
+// The collection represents the current state of query collection
+// for the given query.
+// Only valid for a query collection resource.
+func (qr *queryRequest) Collection(collection interface{}) {
+	if qr.h.Type == TypeModel {
+		panic("res: collection response not allowed on query models")
+	}
+	qr.success(collectionResponse{Collection: collection})
+}
+
+// ChangeEvent adds a change event to the query response.
 // If ev is empty, no event is added.
+// Only valid for a query model resource.
 func (qr *queryRequest) ChangeEvent(ev map[string]interface{}) {
+	if qr.h.Type == TypeCollection {
+		panic("res: change event not allowed on query collections")
+	}
 	if len(ev) == 0 {
 		return
 	}
@@ -47,7 +74,11 @@ func (qr *queryRequest) ChangeEvent(ev map[string]interface{}) {
 
 // AddEvent adds an add event to the query response,
 // adding the value v at index idx.
+// Only valid for a query collection resource.
 func (qr *queryRequest) AddEvent(v interface{}, idx int) {
+	if qr.h.Type == TypeModel {
+		panic("res: add event not allowed on query models")
+	}
 	if idx < 0 {
 		panic("res: add event idx less than zero")
 	}
@@ -56,7 +87,11 @@ func (qr *queryRequest) AddEvent(v interface{}, idx int) {
 
 // RemoveEvent adds a remove event to the query response,
 // removing the value at index idx.
+// Only valid for a query collection resource.
 func (qr *queryRequest) RemoveEvent(idx int) {
+	if qr.h.Type == TypeModel {
+		panic("res: remove event not allowed on query models")
+	}
 	if idx < 0 {
 		panic("res: remove event idx less than zero")
 	}
@@ -193,6 +228,17 @@ func (qr *queryRequest) error(e *Error) {
 	if err != nil {
 		data = responseInternalError
 	}
+	qr.reply(data)
+}
+
+// success sends a successful response as a reply.
+func (qr *queryRequest) success(result interface{}) {
+	data, err := json.Marshal(successResponse{Result: result})
+	if err != nil {
+		qr.error(ToError(err))
+		return
+	}
+
 	qr.reply(data)
 }
 

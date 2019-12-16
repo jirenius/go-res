@@ -14,8 +14,8 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
-// Targetted RES protocol version
-const protocolVersion = "1.1.1"
+// Supported RES protocol version
+const protocolVersion = "1.2.0"
 
 // The size of the in channel receiving messages from NATS Server.
 const inChannelSize = 256
@@ -58,6 +58,8 @@ type CollectionHandler func(CollectionRequest)
 type CallHandler func(CallRequest)
 
 // NewHandler is a function called on new resource call requests
+//
+// Deprecated: Use CallHandler with Resource response instead; deprecated in RES protocol v1.2.0
 type NewHandler func(NewRequest)
 
 // AuthHandler is a function called on resource auth requests
@@ -98,6 +100,8 @@ type Handler struct {
 	Call map[string]CallHandler
 
 	// New handler for new call requests
+	//
+	// Deprecated: Use Call with Resource response instead; deprecated in RES protocol v1.2.0
 	New NewHandler
 
 	// Auth handler for auth requests
@@ -307,15 +311,11 @@ func GetResource(h GetHandler) Option {
 }
 
 // Call sets a handler for resource call requests.
-// Panics if the method is one of the pre-defined call methods, set, or new.
-// For pre-defined call methods, the matching handlers, Set, and New
-// should be used instead.
+// Panics if the method is the pre-defined call method set.
+// For pre-defined set call methods, the handler Set should be used instead.
 func Call(method string, h CallHandler) Option {
 	if !isValidPart(method) {
 		panic("res: invalid method name: " + method)
-	}
-	if method == "new" {
-		panic("res: new handler should be registered using the New method")
 	}
 	return OptionFunc(func(hs *Handler) {
 		if hs.Call == nil {
@@ -335,6 +335,8 @@ func Set(h CallHandler) Option {
 }
 
 // New sets a handler for new resource requests.
+//
+// Deprecated: Use Call with Resource response instead; deprecated in RES protocol v1.2.0
 func New(h NewHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.New != nil {
@@ -442,7 +444,7 @@ func (s *Service) SetReset(resources, access []string) *Service {
 // prefixed with its own path if one was provided when creating the service
 // (eg. "serviceName.>"), or to all resources if no name was provided.
 // It will take resource ownership if it has at least one registered handler has a
-// Get, Call, Auth, or New handler method not being nil.
+// Get, Call, or Auth handler method not being nil.
 // It will take access ownership if it has at least one registered handler with the
 // Access method not being nil.
 //

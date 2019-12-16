@@ -17,6 +17,10 @@ type successResponse struct {
 	Result interface{} `json:"result"`
 }
 
+type resourceResponse struct {
+	Resource Ref `json:"resource"`
+}
+
 type errorResponse struct {
 	Error *Error `json:"error"`
 }

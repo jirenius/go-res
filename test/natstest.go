@@ -276,6 +276,7 @@ func (c *MockConn) GetMsg(t *testing.T) *Msg {
 	return nil
 }
 
+// FailNextSubscription flags that the next subscription attempt should fail.
 func (c *MockConn) FailNextSubscription() {
 	c.mu.Lock()
 	defer c.mu.Unlock()

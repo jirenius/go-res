@@ -159,7 +159,6 @@ func (r *resource) ParseQuery() url.Values {
 // Value gets the resource value as provided from the Get resource handlers.
 // If it fails to get the resource value, or no get handler is
 // defined, it returns a nil interface and a *Error type error.
-// Panics if called from within a Get handler.
 func (r *resource) Value() (interface{}, error) {
 	gr := &getRequest{resource: r}
 	gr.executeHandler()
@@ -213,7 +212,8 @@ func (r *resource) Event(event string, payload interface{}) {
 
 // ChangeEvent sends a change event.
 // If ev is empty, no event is sent.
-// Panics if the resource is not a Model.
+//
+// Only valid for a model resource.
 func (r *resource) ChangeEvent(ev map[string]interface{}) {
 	if r.h.Type == TypeCollection {
 		panic("res: change event not allowed on Collections")
@@ -234,10 +234,11 @@ func (r *resource) ChangeEvent(ev map[string]interface{}) {
 }
 
 // AddEvent sends an add event, adding the value v at index idx.
-// Panics if the resource is not a Collection.
+//
+// Only valid for a collection resource.
 func (r *resource) AddEvent(v interface{}, idx int) {
 	if r.h.Type == TypeModel {
-		panic("res: add event not allowed on Models")
+		panic("res: add event not allowed on models")
 	}
 	if idx < 0 {
 		panic("res: add event idx less than zero")
@@ -252,10 +253,11 @@ func (r *resource) AddEvent(v interface{}, idx int) {
 }
 
 // RemoveEvent sends an remove event, removing the value at index idx.
-// Panics if the resource is not a Collection.
+//
+// Only valid for a collection resource.
 func (r *resource) RemoveEvent(idx int) {
 	if r.h.Type == TypeModel {
-		panic("res: remove event not allowed on Models")
+		panic("res: remove event not allowed on models")
 	}
 	if idx < 0 {
 		panic("res: remove event idx less than zero")

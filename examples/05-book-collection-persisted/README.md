@@ -26,7 +26,7 @@ http://localhost:8085
 
 ## Things to try out
 
-### BadgerDB persistance
+### BadgerDB persistence
 Run the client and make changes to the list of books. Restart the service and observe that all changes are persisted.
 
 ## API

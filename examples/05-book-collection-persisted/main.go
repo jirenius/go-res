@@ -62,7 +62,7 @@ func main() {
 		res.Collection,
 		res.Access(res.AccessGranted),
 		badgerDB.WithType([]res.Ref(nil)),
-		res.New(newBookHandler),
+		res.Call("new", newBookHandler),
 		res.Call("delete", deleteBookHandler),
 	)
 
@@ -123,7 +123,7 @@ func setBookHandler(r res.CallRequest) {
 	r.OK(nil)
 }
 
-func newBookHandler(r res.NewRequest) {
+func newBookHandler(r res.CallRequest) {
 	books := r.RequireValue().([]res.Ref)
 
 	var p struct {
@@ -161,7 +161,7 @@ func newBookHandler(r res.NewRequest) {
 	r.AddEvent(ref, len(books))
 
 	// Respond with a reference to the newly created book model
-	r.New(ref)
+	r.Resource(rid)
 }
 
 func deleteBookHandler(r res.CallRequest) {

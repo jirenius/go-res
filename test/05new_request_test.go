@@ -13,6 +13,7 @@ func TestNew(t *testing.T) {
 	rid := "model.12"
 
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.New(res.Ref(rid))
 		}))
@@ -25,6 +26,7 @@ func TestNew(t *testing.T) {
 // Test NewRequest getter methods
 func TestNewRequestGetters(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			AssertEqual(t, "CID", r.CID(), mock.CID)
 			r.NotFound()
@@ -39,6 +41,7 @@ func TestNewRequestGetters(t *testing.T) {
 // Test new response with empty reference RID
 func TestNewWithNil(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.New("")
 		}))
@@ -53,6 +56,7 @@ func TestNewWithNil(t *testing.T) {
 // Test calling NotFound on a new request results in system.notFound
 func TestNewNotFound(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.NotFound()
 		}))
@@ -67,6 +71,7 @@ func TestNewNotFound(t *testing.T) {
 // Test calling MethodNotFound on a new request results in system.newNotFound
 func TestNewMethodNotFound(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.MethodNotFound()
 		}))
@@ -81,6 +86,7 @@ func TestNewMethodNotFound(t *testing.T) {
 // Test calling InvalidParams with no message on a new request results in system.invalidParams
 func TestNewDefaultInvalidParams(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.InvalidParams("")
 		}))
@@ -95,6 +101,7 @@ func TestNewDefaultInvalidParams(t *testing.T) {
 // Test calling InvalidParams on a new request results in system.invalidParams
 func TestNewInvalidParams(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.InvalidParams("foo")
 		}))
@@ -112,6 +119,7 @@ func TestNewInvalidParams(t *testing.T) {
 // Test calling Error on a new request results in given error
 func TestNewError(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.Error(res.ErrTimeout)
 		}))
@@ -126,6 +134,7 @@ func TestNewError(t *testing.T) {
 // Test calling InvalidQuery with no message on a new request results in system.invalidQuery
 func TestNewInvalidQuery_EmptyMessage(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("model", res.New(func(r res.NewRequest) {
 			r.InvalidQuery("")
 		}))
@@ -140,6 +149,7 @@ func TestNewInvalidQuery_EmptyMessage(t *testing.T) {
 // Test calling InvalidQuery on a new request results in system.invalidQuery
 func TestNewInvalidQuery_CustomMessage(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("model", res.New(func(r res.NewRequest) {
 			r.InvalidQuery(mock.ErrorMessage)
 		}))
@@ -157,6 +167,7 @@ func TestNewInvalidQuery_CustomMessage(t *testing.T) {
 // Test calling RawParams on a new request with parameters
 func TestNewRawParams(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			AssertEqual(t, "RawParams", r.RawParams(), mock.Params)
 			r.NotFound()
@@ -174,6 +185,7 @@ func TestNewRawParams(t *testing.T) {
 // Test calling RawParams on a new request with no parameters
 func TestNewRawParamsWithNilParams(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			AssertEqual(t, "RawParams", r.RawParams(), nil)
 			r.NotFound()
@@ -190,6 +202,7 @@ func TestNewRawParamsWithNilParams(t *testing.T) {
 // Test calling RawToken on a new request with token
 func TestNewRawToken(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			AssertEqual(t, "RawToken", r.RawToken(), mock.Token)
 			r.NotFound()
@@ -207,6 +220,7 @@ func TestNewRawToken(t *testing.T) {
 // Test calling RawToken on a new request with no token
 func TestNewRawTokenWithNoToken(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			AssertEqual(t, "RawToken", r.RawToken(), nil)
 			r.NotFound()
@@ -228,6 +242,7 @@ func TestNewParseParams(t *testing.T) {
 	}
 
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.ParseParams(&p)
 			AssertEqual(t, "p.Foo", p.Foo, "bar")
@@ -252,6 +267,7 @@ func TestNewParseParamsWithNilParams(t *testing.T) {
 	}
 
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.ParseParams(&p)
 			AssertEqual(t, "p.Foo", p.Foo, "")
@@ -275,6 +291,7 @@ func TestNewParseToken(t *testing.T) {
 	}
 
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.ParseToken(&o)
 			AssertEqual(t, "o.User", o.User, "foo")
@@ -299,6 +316,7 @@ func TestNewParseTokenWithNilToken(t *testing.T) {
 	}
 
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("collection", res.New(func(r res.NewRequest) {
 			r.ParseToken(&o)
 			AssertEqual(t, "o.User", o.User, "")
@@ -314,15 +332,36 @@ func TestNewParseTokenWithNilToken(t *testing.T) {
 	})
 }
 
-// Test registering a new handler using the Call method causes panic
-func TestRegisteringNewCallPanics(t *testing.T) {
+// Test registering a new handler using the Call method does not cause panic
+func TestRegisteringNewCall(t *testing.T) {
 	runTest(t, func(s *Session) {
-		AssertPanic(t, func() {
-			s.Handle("model", res.Call("new", func(r res.CallRequest) {
-				r.OK(nil)
-			}))
-		})
-	}, nil, withoutReset)
+		s.Handle("model", res.Call("new", func(r res.CallRequest) {
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		req := mock.DefaultRequest()
+		inb := s.Request("call.test.model.new", req)
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
+	})
+}
+
+// Test registered call new method is overridden by a new handler
+func TestRegisteringNewCallOverriddenByNewHandler(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model",
+			res.Call("new", func(r res.CallRequest) {
+				r.OK(res.Ref("call.handler"))
+			}),
+			//lint:ignore SA1019 to allow test of deprecated feature
+			res.New(func(r res.NewRequest) {
+				r.New("new.handler")
+			}),
+		)
+	}, func(s *Session) {
+		req := mock.DefaultRequest()
+		inb := s.Request("call.test.model.new", req)
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"rid":"new.handler"}}`))
+	})
 }
 
 // Test registering multiple new handlers causes panic
@@ -330,9 +369,11 @@ func TestRegisteringMultipleNewHandlersPanics(t *testing.T) {
 	runTest(t, func(s *Session) {
 		AssertPanic(t, func() {
 			s.Handle("model",
+				//lint:ignore SA1019 to allow test of deprecated feature
 				res.New(func(r res.NewRequest) {
 					r.NotFound()
 				}),
+				//lint:ignore SA1019 to allow test of deprecated feature
 				res.New(func(r res.NewRequest) {
 					r.NotFound()
 				}),
@@ -344,6 +385,7 @@ func TestRegisteringMultipleNewHandlersPanics(t *testing.T) {
 // Test that Timeout sends the pre-response with timeout
 func TestNewRequestTimeout(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("model", res.New(func(r res.NewRequest) {
 			r.Timeout(time.Second * 42)
 			r.NotFound()
@@ -358,6 +400,7 @@ func TestNewRequestTimeout(t *testing.T) {
 // Test that Timeout panics if duration is less than zero
 func TestNewRequestTimeoutWithDurationLessThanZero(t *testing.T) {
 	runTest(t, func(s *Session) {
+		//lint:ignore SA1019 to allow test of deprecated feature
 		s.Handle("model", res.New(func(r res.NewRequest) {
 			panicked := true
 			defer func() {
