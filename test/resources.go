@@ -32,6 +32,7 @@ type Mock struct {
 	ResultResponse          json.RawMessage
 	CustomError             *res.Error
 	Error                   error
+	AccessGrantedResponse   json.RawMessage
 	// Unserializables
 	UnserializableValue interface{}
 	UnserializableError *res.Error
@@ -74,6 +75,7 @@ var mock = Mock{
 	json.RawMessage(`{"result":{"foo":"bar","zoo":42}}`),                                             // ResultResponse
 	&res.Error{Code: "test.custom", Message: "Custom error", Data: map[string]string{"foo": "bar"}},  // CustomError
 	errors.New("custom error"),                                                                       // Error
+	json.RawMessage(`{"result":{"get":true,"call":"*"}}`),                                            // AccessGrantedResponse
 	// Unserializables
 	func() {}, // UnserializableValue
 	&res.Error{Code: "test.unserializable", Message: "Unserializable", Data: func() {}}, // UnserializableError

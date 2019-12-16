@@ -558,3 +558,30 @@ func TestGetCollectionQuery_WithoutQueryCollection_SendsQueryCollectionResponse(
 		s.GetMsg(t).Equals(t, inb, mock.QueryCollectionResponse)
 	})
 }
+
+// Test that a get request without any get handler gives error system.notFound
+func TestGet_WithoutGetHandler_SendsNotFoundError(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("dummy", func(r res.CallRequest) {
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model", mock.Request())
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
+	})
+}
+
+// Test that multiple responses to get request causes panic
+func TestGet_WithMultipleResponses_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			r.Model(mock.Model)
+			AssertPanic(t, func() {
+				r.NotFound()
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("get.test.model", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
+	})
+}

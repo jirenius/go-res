@@ -420,3 +420,30 @@ func TestAuthRequestNilTokenEvent(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
 	})
 }
+
+// Test auth request with an unset method returns error system.methodNotFound
+func TestAuthRequest_UnknownMethod_ErrorMethodNotFound(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.unset", mock.AuthRequest())
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrMethodNotFound)
+	})
+}
+
+// Test that multiple responses to auth request causes panic
+func TestAuth_WithMultipleResponses_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Auth("method", func(r res.AuthRequest) {
+			r.OK(nil)
+			AssertPanic(t, func() {
+				r.MethodNotFound()
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("auth.test.model.method", mock.Request())
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
+	})
+}

@@ -403,3 +403,30 @@ func TestCallRequestTimeoutWithDurationLessThanZero(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
 	})
 }
+
+// Test call request with an unset method returns error system.methodNotFound
+func TestCallRequest_UnknownMethod_ErrorMethodNotFound(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.unset", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrMethodNotFound)
+	})
+}
+
+// Test that multiple responses to call request causes panic
+func TestCall_WithMultipleResponses_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.OK(nil)
+			AssertPanic(t, func() {
+				r.MethodNotFound()
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", mock.Request())
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
+	})
+}
