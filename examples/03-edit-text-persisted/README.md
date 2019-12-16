@@ -25,7 +25,7 @@ http://localhost:8083
 
 ## Things to try out
 
-### BadgerDB persistance
+### BadgerDB persistence
 Run the client and make edits to the text. Restart the service and observe all changes are persisted.
 
 ## API

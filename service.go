@@ -14,7 +14,7 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
-// Targetted RES protocol version
+// Supported RES protocol version
 const protocolVersion = "1.2.0"
 
 // The size of the in channel receiving messages from NATS Server.

@@ -27,7 +27,6 @@ type queryRequest struct {
 	resource
 	msg     *nats.Msg
 	events  []resEvent
-	err     *Error
 	replied bool // Flag telling if a reply has been made
 }
 

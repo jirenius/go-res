@@ -12,7 +12,7 @@ to perform tasks such as:
 * provide helpers for complex live queries
 
 Currently, only the BadgerDB middleware is created, to demonstrate
-database persistance.
+database persistence.
 
 Usage
 

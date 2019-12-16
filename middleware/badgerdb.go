@@ -10,7 +10,7 @@ import (
 	res "github.com/jirenius/go-res"
 )
 
-// BadgerDB provides persistance to BadgerDB for the res Handlers.
+// BadgerDB provides persistence to BadgerDB for the res Handlers.
 //
 // It will set the GetResource and Apply* handlers to load, store, and update the resources
 // in the database, using the resource ID as key value.
@@ -288,6 +288,9 @@ func (b *badgerDB) applyAdd(r res.Resource, value interface{}, idx int) error {
 
 		// Add value to collection
 		dta, err = json.Marshal(value)
+		if err != nil {
+			return err
+		}
 		c = append(c, nil)
 		copy(c[idx+1:], c[idx:])
 		c[idx] = json.RawMessage(dta)

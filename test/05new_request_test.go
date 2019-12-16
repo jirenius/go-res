@@ -332,15 +332,36 @@ func TestNewParseTokenWithNilToken(t *testing.T) {
 	})
 }
 
-// Test registering a new handler using the Call method causes panic
-func TestRegisteringNewCallPanics(t *testing.T) {
+// Test registering a new handler using the Call method does not cause panic
+func TestRegisteringNewCall(t *testing.T) {
 	runTest(t, func(s *Session) {
-		AssertPanic(t, func() {
-			s.Handle("model", res.Call("new", func(r res.CallRequest) {
-				r.OK(nil)
-			}))
-		})
-	}, nil, withoutReset)
+		s.Handle("model", res.Call("new", func(r res.CallRequest) {
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		req := mock.DefaultRequest()
+		inb := s.Request("call.test.model.new", req)
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
+	})
+}
+
+// Test registered call new method is overridden by a new handler
+func TestRegisteringNewCallOverriddenByNewHandler(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model",
+			res.Call("new", func(r res.CallRequest) {
+				r.OK(res.Ref("call.handler"))
+			}),
+			//lint:ignore SA1019 to allow test of deprecated feature
+			res.New(func(r res.NewRequest) {
+				r.New("new.handler")
+			}),
+		)
+	}, func(s *Session) {
+		req := mock.DefaultRequest()
+		inb := s.Request("call.test.model.new", req)
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"rid":"new.handler"}}`))
+	})
 }
 
 // Test registering multiple new handlers causes panic

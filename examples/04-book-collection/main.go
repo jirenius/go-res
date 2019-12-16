@@ -62,7 +62,7 @@ func main() {
 		"books",
 		res.Access(res.AccessGranted),
 		res.GetCollection(getBooksHandler),
-		res.New(newBookHandler),
+		res.Call("new", newBookHandler),
 		res.Call("delete", deleteBookHandler),
 	)
 
@@ -142,7 +142,7 @@ func getBooksHandler(r res.CollectionRequest) {
 	r.Collection(books)
 }
 
-func newBookHandler(r res.NewRequest) {
+func newBookHandler(r res.CallRequest) {
 	var p struct {
 		Title  string `json:"title"`
 		Author string `json:"author"`
@@ -172,7 +172,7 @@ func newBookHandler(r res.NewRequest) {
 	books = append(books, ref)
 
 	// Respond with a reference to the newly created book model
-	r.New(ref)
+	r.Resource(rid)
 }
 
 func deleteBookHandler(r res.CallRequest) {
