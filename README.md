@@ -49,23 +49,24 @@ func main() {
 | [Edit Text](examples/02-edit-text/) | Single text field that is updated in real time.
 | [Edit Text Persisted](examples/03-edit-text-persisted/) | Edit Text example persisting changes using BadgerDB middleware.
 | [Book Collection](examples/04-book-collection/) | List of book titles & authors that can be edited by many.
-| [Book Collection Persisted](examples/04-book-collection-persisted/) | Book Collection example persisting changes using BadgerBD middleware.
+| [Book Collection Persisted](examples/05-book-collection-persisted/) | Book Collection example persisting changes using BadgerBD middleware.
+| [Search Query](examples/06-search-query/) | Make live queries against a large customer database.
 
 > **Note**
 >
 > Above examples are complete with both service and client.
 
-## Middleware <a href="http://godoc.org/github.com/jirenius/go-res/middleware"><img src="https://godoc.org/github.com/jirenius/go-res/middleware?status.svg" alt="GoDoc"></a>
+## Middleware
 
-The `middleware` sub-package contains middleware that adds handler functions to a `res.Handler`, to perform tasks such as:
+The *middleware* subfolder contains packages that adds handler functions to a `res.Handler`, to perform tasks such as:
 
-* storing, loading and updating persisted data
+* store, load and update persisted data
 * synchronize changes between multiple service instances
-* provide helpers for complex live queries
+* perform live queries with indexed searches
 
-| Name | Description
-| --- | ---
-| `middleware.BadgerDB` | Stores and updates resources in a BadgerDB using the events.
+| Name | Description | Documentation
+| --- | --- | ---
+| [resbadger](middleware/resbadger) | BadgerDB storage middleware. | <a href="http://godoc.org/github.com/jirenius/go-res/middleware/resbadger"><img src="https://godoc.org/github.com/jirenius/go-res/middleware/resbadger?status.svg" alt="GoDoc"></a>
 
 ## Usage
 
