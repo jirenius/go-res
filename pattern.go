@@ -8,6 +8,9 @@ type Pattern string
 
 // IsValid returns true if the pattern is valid, otherwise false.
 func (p Pattern) IsValid() bool {
+	if len(p) == 0 {
+		return true
+	}
 	start := true
 	alone := false
 	emptytag := false

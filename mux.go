@@ -1,7 +1,5 @@
 package res
 
-import "strings"
-
 // Code inspired, and partly borrowed, from SubList in nats-server
 // https://github.com/nats-io/nats-server/blob/master/server/sublist.go
 
@@ -192,6 +190,10 @@ func (m *Mux) Route(subpath string, fn func(m *Mux)) *Mux {
 // add inserts new handlers for a given pattern.
 // An invalid pattern, or a pattern already registered will cause panic.
 func (m *Mux) add(pattern string, hs *regHandler) {
+	if !Pattern(pattern).IsValid() {
+		panic(invalidPattern)
+	}
+
 	n, params := m.fetch(pattern, nil)
 
 	if n.hs != nil {
@@ -472,5 +474,5 @@ func traverse(n *node, path string, cb func(h Handler, path string)) {
 }
 
 func isValidPath(p string) bool {
-	return p == "" || (Ref(p).IsValid() && !strings.ContainsRune(p, '$'))
+	return p == "" || Pattern(p).IsValid() && Pattern(p).IndexWildcard() == -1
 }

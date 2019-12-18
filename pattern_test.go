@@ -6,6 +6,7 @@ func TestPatternIsValid_ValidPattern_ReturnsTrue(t *testing.T) {
 	tbl := []struct {
 		Pattern string
 	}{
+		{""},
 		{"test"},
 		{"test.model"},
 		{"test.model.foo"},
@@ -46,7 +47,6 @@ func TestPatternIsValid_InvalidPattern_ReturnsFalse(t *testing.T) {
 	tbl := []struct {
 		Pattern string
 	}{
-		{""},
 		{"."},
 		{".test"},
 		{"test."},
