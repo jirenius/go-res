@@ -21,6 +21,7 @@ type Mux struct {
 	root   *node
 	parent *Mux
 	mountp string
+	s      *Service // Registered service
 }
 
 // A registered handler
@@ -81,6 +82,44 @@ func (m *Mux) FullPath() string {
 	return mergePattern(mergePattern(m.parent.path, m.mountp), m.path)
 }
 
+// Register registers the mux to a service.
+// Will panic if already registered, or mounted to another mux.
+func (m *Mux) Register(s *Service) {
+	if m.parent != nil {
+		panic("res: already mounted")
+	}
+	if m.s != nil {
+		panic("res: already registered to a service")
+	}
+	m.s = s
+	m.callOnRegister()
+}
+
+// registeredService returns the service registered to the if the mux or
+// an ancenstor of the mux.
+func (m *Mux) registeredService() *Service {
+	if m.parent != nil {
+		return m.parent.registeredService()
+	}
+	return m.s
+}
+
+// callOnRegister traverses the node tree for all handlers, and calls any
+// OnRegister callback.
+// If the mux or its ancestors are not registered to a service, it will
+// do nothing.
+func (m *Mux) callOnRegister() {
+	s := m.registeredService()
+	if s == nil {
+		return
+	}
+	traverse(m.root, m.FullPath(), func(h Handler, path string) {
+		if h.OnRegister != nil {
+			h.OnRegister(s, path)
+		}
+	})
+}
+
 // Handle registers the handler functions for the given resource pattern.
 //
 // A pattern may contain placeholders that acts as wildcards, and will be
@@ -122,6 +161,9 @@ func (m *Mux) Mount(path string, sub *Mux) {
 	if sub.parent != nil {
 		panic("res: already mounted")
 	}
+	if sub.s != nil {
+		panic("res: already registered to a service")
+	}
 	spath := mergePattern(path, sub.path)
 	if spath == "" {
 		panic("res: attempting to mount to root")
@@ -133,6 +175,8 @@ func (m *Mux) Mount(path string, sub *Mux) {
 	sub.mountp = path
 	sub.root.mounted = true
 	sub.parent = m
+
+	sub.callOnRegister()
 }
 
 // Route create a new Mux and mounts it to the given subpath.
@@ -155,6 +199,14 @@ func (m *Mux) add(pattern string, hs *regHandler) {
 	}
 	n.params = params
 	n.hs = hs
+
+	// Try call OnRegister callback
+	if hs.Handler.OnRegister != nil {
+		s := m.registeredService()
+		if s != nil {
+			hs.Handler.OnRegister(s, mergePattern(m.FullPath(), pattern))
+		}
+	}
 }
 
 // fetch get the node for a given pattern (not including Mux path).
@@ -399,6 +451,24 @@ func contains(n *node, test func(h Handler) bool) bool {
 	}
 
 	return false
+}
+
+func traverse(n *node, path string, cb func(h Handler, path string)) {
+	if n == nil {
+		return
+	}
+	if n.hs != nil {
+		cb(n.hs.Handler, path)
+	}
+	// Add separator
+	if len(path) > 0 {
+		path += "."
+	}
+	traverse(n.wild, path+">", cb)
+	traverse(n.param, path+"*", cb)
+	for k, nn := range n.nodes {
+		traverse(nn, path+k, cb)
+	}
 }
 
 func isValidPath(p string) bool {

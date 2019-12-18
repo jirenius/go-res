@@ -53,14 +53,14 @@ func (r *Ref) UnmarshalJSON(b []byte) error {
 // IsValid returns true if the reference RID is valid, otherwise false.
 func (r Ref) IsValid() bool {
 	start := true
-	for _, r := range r {
-		if r == '?' {
+	for _, c := range r {
+		if c == '?' {
 			return !start
 		}
-		if r < 33 || r > 126 || r == '*' || r == '>' {
+		if c < 33 || c > 126 || c == '*' || c == '>' {
 			return false
 		}
-		if r == '.' {
+		if c == '.' {
 			if start {
 				return false
 			}

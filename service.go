@@ -129,6 +129,13 @@ type Handler struct {
 	// a parameter placeholder name in the resource pattern.
 	// If empty, the resource name will be used as identifier.
 	Group string
+
+	// OnRegister is callback that is to be call when the handler
+	// has been registered to a service.
+	//
+	// The pattern string is the full resource pattern for the
+	// resource, including any service name or mount paths.
+	OnRegister func(service *Service, pattern string)
 }
 
 const (
@@ -185,11 +192,13 @@ type Service struct {
 // If name is an empty string, the Service will by default handle all resources
 // for all namespaces. Use SetReset to limit the namespace scope.
 func NewService(name string) *Service {
-	return &Service{
+	s := &Service{
 		Mux:           NewMux(name),
 		logger:        logger.NewStdLogger(),
 		queryDuration: defaultQueryEventDuration,
 	}
+	s.Mux.Register(s)
+	return s
 }
 
 // SetLogger sets the logger.
@@ -419,6 +428,25 @@ func ApplyDelete(h ApplyDeleteHandler) Option {
 func Group(group string) Option {
 	return OptionFunc(func(hs *Handler) {
 		hs.Group = group
+	})
+}
+
+// OnRegister sets a callback to be called when the handler is registered
+// to a service.
+//
+// If a callback is already registered, the new callback will be called
+// after the previous one.
+func OnRegister(callback func(service *Service, pattern string)) Option {
+	return OptionFunc(func(hs *Handler) {
+		if hs.OnRegister != nil {
+			prevcb := hs.OnRegister
+			hs.OnRegister = func(service *Service, pattern string) {
+				prevcb(service, pattern)
+				callback(service, pattern)
+			}
+		} else {
+			hs.OnRegister = callback
+		}
 	})
 }
 

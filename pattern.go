@@ -81,3 +81,24 @@ func (p Pattern) Matches(s string) bool {
 	}
 	return si == sl
 }
+
+// IndexWildcard returns the index of the first instance of a wild card (*, >, or $tag)
+// in pattern, or -1 if no wildcard is present.
+//
+// Behavior is undefined for an invalid pattern.
+func (p Pattern) IndexWildcard() int {
+	start := true
+	for i, c := range p {
+		if c == '.' {
+			start = true
+		} else {
+			if start && ((c == '>' && i == len(p)-1) ||
+				c == '*' ||
+				c == '$') {
+				return i
+			}
+			start = false
+		}
+	}
+	return -1
+}

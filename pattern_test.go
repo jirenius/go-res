@@ -38,7 +38,6 @@ func TestPatternIsValid_ValidPattern_ReturnsTrue(t *testing.T) {
 	for _, r := range tbl {
 		if !Pattern(r.Pattern).IsValid() {
 			t.Errorf("Pattern(%#v).IsValid() did not return true", r.Pattern)
-			continue
 		}
 	}
 }
@@ -81,7 +80,6 @@ func TestPatternIsValid_InvalidPattern_ReturnsFalse(t *testing.T) {
 	for _, r := range tbl {
 		if Pattern(r.Pattern).IsValid() {
 			t.Errorf("Pattern(%#v).IsValid() did not return false", r.Pattern)
-			continue
 		}
 	}
 }
@@ -125,7 +123,6 @@ func TestPatternMatches_MatchingPattern_ReturnsTrue(t *testing.T) {
 	for _, r := range tbl {
 		if !Pattern(r.Pattern).Matches(r.ResourceName) {
 			t.Errorf("Pattern(%#v).Matches(%#v) did not return true", r.Pattern, r.ResourceName)
-			continue
 		}
 	}
 }
@@ -169,7 +166,48 @@ func TestPatternMatches_NonMatchingPattern_ReturnsFalse(t *testing.T) {
 	for _, r := range tbl {
 		if Pattern(r.Pattern).Matches(r.ResourceName) {
 			t.Errorf("Pattern(%#v).Matches(%#v) did not return false", r.Pattern, r.ResourceName)
-			continue
+		}
+	}
+}
+
+func TestPatternIndexWildcard_ValidPattern_ReturnsIndex(t *testing.T) {
+	tbl := []struct {
+		Pattern string
+		Index   int
+	}{
+		{"test", -1},
+		{"test.model", -1},
+		{"test.model.foo", -1},
+		{"test$.model", -1},
+
+		{">", 0},
+		{"test.>", 5},
+		{"test.model.>", 11},
+
+		{"*", 0},
+		{"test.*", 5},
+		{"*.model", 0},
+		{"test.*.foo", 5},
+		{"test.model.*", 11},
+		{"*.model.foo", 0},
+		{"test.*.*", 5},
+
+		{"$foo", 0},
+		{"test.$foo", 5},
+		{"$foo.model", 0},
+		{"test.$foo.foo", 5},
+		{"test.model.$foo", 11},
+		{"test.$foo.$bar", 5},
+
+		{"test.*.>", 5},
+		{"test.$foo.>", 5},
+		{"*.$foo.>", 0},
+	}
+
+	for _, r := range tbl {
+		idx := Pattern(r.Pattern).IndexWildcard()
+		if idx != r.Index {
+			t.Errorf("Expected Pattern(%#v).IndexWildcard() to return %d, but it returned %d", r.Pattern, r.Index, idx)
 		}
 	}
 }
