@@ -41,6 +41,7 @@ type Mock struct {
 	CustomErrorCode string
 	Query           string
 	NormalizedQuery string
+	IntValue        int
 }
 
 var mock = Mock{
@@ -84,6 +85,7 @@ var mock = Mock{
 	"test.custom",              // CustomErrorCode
 	"zoo=baz&foo=bar",          // Query
 	"foo=bar&zoo=baz&limit=10", // NormalizedQuery
+	42,                         // IntValue
 }
 
 func (m *Mock) DefaultRequest() *request {

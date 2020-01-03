@@ -1,5 +1,11 @@
 package res
 
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
 // Code inspired, and partly borrowed, from SubList in nats-server
 // https://github.com/nats-io/nats-server/blob/master/server/sublist.go
 
@@ -22,6 +28,51 @@ type Mux struct {
 	s      *Service // Registered service
 }
 
+// Event represents an event emitted by resource.
+type Event struct {
+	// Name of the event.
+	Name string
+
+	// Resource emitting the event.
+	Resource Resource
+
+	// New property values for the model emitting the event.
+	// * Only valid for "change" events.
+	NewValues map[string]interface{}
+
+	// Old property values for the model emitting the event.
+	// * Only valid for "change" events.
+	// * Value will be Delete for new properties.
+	OldValues map[string]interface{}
+
+	// Value being added or removed from
+	// the collection emitting the event.
+	// * Only valid for "add" and "remove" events.
+	// * Only set for "remove" events if an ApplyRemove handler is defined.
+	Value interface{}
+
+	// Index position where the value is added or removed from
+	// the collection emitting the event.
+	// * Only valid for "add" and "remove" events.
+	Idx int
+
+	// Data for the created or deleted resource.
+	// * Only valid for "create" and "delete" events.
+	// * Only set for "delete" events if an ApplyDelete handler is defined.
+	Data interface{}
+
+	// Payload of a custom event.
+	Payload interface{}
+}
+
+// Match is a handler matching a resource name.
+type Match struct {
+	Handler   Handler
+	Listeners []func(*Event)
+	Params    map[string]string
+	Group     string
+}
+
 // A registered handler
 type regHandler struct {
 	Handler
@@ -32,12 +83,13 @@ type regHandler struct {
 // to the next nodes, including wildcards.
 // Only one instance of handlers may exist per node.
 type node struct {
-	hs      *regHandler // Handlers on this node
-	params  []pathParam // path parameters for the handlers
-	nodes   map[string]*node
-	param   *node
-	wild    *node // Wild card node
-	mounted bool
+	hs        *regHandler // Handlers on this node
+	params    []pathParam // path parameters for the handlers
+	nodes     map[string]*node
+	param     *node
+	wild      *node // Wild card node
+	mounted   bool
+	listeners []func(*Event)
 }
 
 // A pathParam represent a parameter part of the resource name.
@@ -48,7 +100,7 @@ type pathParam struct {
 
 // Matchin handlers instance to a resource name
 type nodeMatch struct {
-	hs       *regHandler
+	n        *node
 	params   map[string]string
 	mountIdx int
 }
@@ -66,7 +118,7 @@ func NewMux(path string) *Mux {
 }
 
 // Path returns the path that prefix all resource handlers,
-// not including the any pattern derived from being mounted.
+// not including the pattern derived from being mounted.
 func (m *Mux) Path() string {
 	return m.path
 }
@@ -111,9 +163,10 @@ func (m *Mux) callOnRegister() {
 	if s == nil {
 		return
 	}
-	traverse(m.root, m.FullPath(), func(h Handler, path string) {
-		if h.OnRegister != nil {
-			h.OnRegister(s, path)
+	fp := m.FullPath()
+	traverse(m.root, make([]string, 0, 32), 0, func(n *node, path []string, mountIdx int) {
+		if n.hs.OnRegister != nil {
+			n.hs.OnRegister(s, mergePattern(fp, pathSliceToString(n, path, mountIdx)))
 		}
 	})
 }
@@ -148,6 +201,18 @@ func (m *Mux) AddHandler(pattern string, hs Handler) {
 	}
 
 	m.add(pattern, &h)
+}
+
+// AddListener adds a listener for events that occurs on resources
+// matching the exact pattern.
+func (m *Mux) AddListener(pattern string, handler func(*Event)) {
+	if handler == nil {
+		panic("nil event handler")
+	}
+
+	n, params := m.fetch(pattern, nil)
+	setAndValidateParams(n, params)
+	n.listeners = append(n.listeners, handler)
 }
 
 // Mount attaches another Mux at a given path.
@@ -187,6 +252,21 @@ func (m *Mux) Route(subpath string, fn func(m *Mux)) *Mux {
 	return sub
 }
 
+// ValidateListeners validates that all patterns with event listeners
+// has registered handlers, or panics if a handler is missing.
+func (m *Mux) ValidateListeners() (err error) {
+	var errs []string
+	traverse(m.root, make([]string, 0, 32), 0, func(n *node, path []string, mountIdx int) {
+		if n.hs == nil && n.listeners != nil {
+			errs = append(errs, "no handler registered for pattern: "+mergePattern(m.FullPath(), pathSliceToString(n, path, mountIdx)))
+		}
+	})
+	if err != nil {
+		return errors.New(strings.Join(errs, "\n"))
+	}
+	return nil
+}
+
 // add inserts new handlers for a given pattern.
 // An invalid pattern, or a pattern already registered will cause panic.
 func (m *Mux) add(pattern string, hs *regHandler) {
@@ -199,8 +279,13 @@ func (m *Mux) add(pattern string, hs *regHandler) {
 	if n.hs != nil {
 		panic("res: registration already done for pattern " + mergePattern(m.path, pattern))
 	}
-	n.params = params
+	setAndValidateParams(n, params)
 	n.hs = hs
+
+	// Register listeners
+	for pattern, handler := range hs.Listeners {
+		m.AddListener(pattern, handler)
+	}
 
 	// Try call OnRegister callback
 	if hs.Handler.OnRegister != nil {
@@ -299,9 +384,9 @@ func (m *Mux) fetch(pattern string, mount *node) (*node, []pathParam) {
 }
 
 // GetHandler parses the resource name and gets the registered handler,
-// path params, and group ID.
-// Returns the matching handler, or an error if not found.
-func (m *Mux) GetHandler(rname string) (Handler, map[string]string, string, error) {
+// event listeners, path params, and group ID.
+// Returns the matching handler, or nil if not found.
+func (m *Mux) GetHandler(rname string) *Match {
 	var tokens []string
 	subrname := rname
 	pl := len(m.path)
@@ -309,12 +394,12 @@ func (m *Mux) GetHandler(rname string) (Handler, map[string]string, string, erro
 		rl := len(rname)
 		if pl == rl {
 			if m.path != rname {
-				return Handler{}, nil, "", errHandlerNotFound
+				return nil
 			}
 			subrname = ""
 		} else {
 			if pl > rl || (rname[0:pl] != m.path) || rname[pl] != '.' {
-				return Handler{}, nil, "", errHandlerNotFound
+				return nil
 			}
 			subrname = rname[pl+1:]
 		}
@@ -322,10 +407,14 @@ func (m *Mux) GetHandler(rname string) (Handler, map[string]string, string, erro
 
 	if len(subrname) == 0 {
 		if m.root.hs == nil {
-			return Handler{}, nil, "", errHandlerNotFound
+			return nil
 		}
 
-		return m.root.hs.Handler, nil, m.root.hs.group.toString(rname, nil), nil
+		return &Match{
+			Handler:   m.root.hs.Handler,
+			Listeners: m.root.listeners,
+			Group:     m.root.hs.group.toString(rname, nil),
+		}
 	}
 
 	tokens = make([]string, 0, 32)
@@ -340,11 +429,16 @@ func (m *Mux) GetHandler(rname string) (Handler, map[string]string, string, erro
 
 	var nm nodeMatch
 	matchNode(m.root, tokens, 0, 0, &nm)
-	if nm.hs == nil {
-		return Handler{}, nil, "", errHandlerNotFound
+	if nm.n == nil || nm.n.hs == nil {
+		return nil
 	}
 
-	return nm.hs.Handler, nm.params, nm.hs.group.toString(rname, tokens[nm.mountIdx:]), nil
+	return &Match{
+		Handler:   nm.n.hs.Handler,
+		Listeners: nm.n.listeners,
+		Params:    nm.params,
+		Group:     nm.n.hs.group.toString(rname, tokens[nm.mountIdx:]),
+	}
 }
 
 func matchNode(l *node, toks []string, i int, mi int, nm *nodeMatch) bool {
@@ -361,7 +455,7 @@ func matchNode(l *node, toks []string, i int, mi int, nm *nodeMatch) bool {
 			if len(toks) == i {
 				// Check if this node has handlers
 				if n.hs != nil {
-					nm.hs = n.hs
+					nm.n = n
 					nm.mountIdx = mi
 					// Check if we have path parameters for the handlers
 					if len(n.params) > 0 {
@@ -390,7 +484,7 @@ func matchNode(l *node, toks []string, i int, mi int, nm *nodeMatch) bool {
 	// Check full wild card
 	if l.wild != nil {
 		n = l.wild
-		nm.hs = n.hs
+		nm.n = n
 		nm.mountIdx = mi
 		if len(n.params) > 0 {
 			// Create a map with path parameter values
@@ -441,38 +535,62 @@ func contains(n *node, test func(h Handler) bool) bool {
 	if n.wild != nil && n.wild.hs != nil && test(n.wild.hs.Handler) {
 		return true
 	}
-
 	if n.param != nil && ((n.param.hs != nil && test(n.param.hs.Handler)) || contains(n.param, test)) {
 		return true
 	}
-
 	for _, nn := range n.nodes {
 		if (nn.hs != nil && test(nn.hs.Handler)) || contains(nn, test) {
 			return true
 		}
 	}
-
 	return false
 }
 
-func traverse(n *node, path string, cb func(h Handler, path string)) {
+func traverse(n *node, path []string, mountIdx int, cb func(*node, []string, int)) {
 	if n == nil {
 		return
 	}
 	if n.hs != nil {
-		cb(n.hs.Handler, path)
+		cb(n, path, mountIdx)
 	}
-	// Add separator
-	if len(path) > 0 {
-		path += "."
+	if n.mounted {
+		mountIdx = len(path)
 	}
-	traverse(n.wild, path+">", cb)
-	traverse(n.param, path+"*", cb)
+	traverse(n.wild, append(path, ">"), mountIdx, cb)
+	traverse(n.param, append(path, "*"), mountIdx, cb)
 	for k, nn := range n.nodes {
-		traverse(nn, path+k, cb)
+		traverse(nn, append(path, k), mountIdx, cb)
 	}
 }
 
 func isValidPath(p string) bool {
 	return p == "" || Pattern(p).IsValid() && Pattern(p).IndexWildcard() == -1
+}
+
+func setAndValidateParams(n *node, params []pathParam) {
+	if n.params == nil {
+		n.params = params
+		return
+	}
+
+	if len(n.params) != len(params) {
+		panic("path param count mismatches previously set path params")
+	}
+
+	// Assert the params being set equals those previously set
+	for i, p := range params {
+		np := n.params[i]
+		if p.name != np.name || p.idx != np.idx {
+			panic(fmt.Sprintf("part param tokens (%+v) mismatch those previously set (%+v).", params, n.params))
+		}
+	}
+}
+
+func pathSliceToString(n *node, path []string, mountIdx int) string {
+	cp := make([]string, len(path))
+	copy(cp, path)
+	for _, pp := range n.params {
+		cp[pp.idx+mountIdx] = "$" + pp.name
+	}
+	return strings.Join(cp, ".")
 }

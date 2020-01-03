@@ -294,7 +294,7 @@ func AssertEqual(t *testing.T, name string, result, expected interface{}, ctx ..
 		if len(ctx) > 0 {
 			str = "\nin " + fmt.Sprint(ctx...)
 		}
-		t.Errorf("expected %s to be:\n\t%s\nbut got:\n\t%s%s", name, bj, aj, str)
+		t.Fatalf("expected %s to be:\n\t%s\nbut got:\n\t%s%s", name, bj, aj, str)
 		return false
 	}
 
@@ -308,7 +308,7 @@ func AssertTrue(t *testing.T, expectation string, isTrue bool, ctx ...interface{
 		if len(ctx) > 0 {
 			str = "\nin " + fmt.Sprint(ctx...)
 		}
-		t.Errorf("expected %s%s", expectation, str)
+		t.Fatalf("expected %s%s", expectation, str)
 		return false
 	}
 
