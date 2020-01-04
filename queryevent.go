@@ -131,6 +131,7 @@ func (qr *queryRequest) Timeout(d time.Duration) {
 // startQueryListener listens for query requests and passes them on to a worker.
 func (qe *queryEvent) startQueryListener() {
 	for m := range qe.ch {
+		m := m
 		qe.r.s.runWith(qe.r.Group(), func() {
 			qe.handleQueryRequest(m)
 		})

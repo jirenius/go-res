@@ -20,7 +20,7 @@ import (
 	"strings"
 
 	"github.com/dgraph-io/badger"
-	"github.com/jirenius/go-res/middleware"
+	"github.com/jirenius/go-res/middleware/resbadger"
 
 	"github.com/jirenius/go-res"
 	"github.com/rs/xid"
@@ -42,7 +42,7 @@ func main() {
 	defer db.Close()
 
 	// Create badgerDB middleware for res.Service
-	badgerDB := middleware.BadgerDB{DB: db}
+	badgerDB := resbadger.BadgerDB{DB: db}
 
 	// Create a new RES Service
 	s := res.NewService("library")
@@ -50,18 +50,20 @@ func main() {
 	// Add handlers for "library.book.$id" models
 	s.Handle(
 		"book.$id",
-		res.Model,
 		res.Access(res.AccessGranted),
-		badgerDB.WithType(Book{}),
+		badgerDB.
+			Model().
+			WithType(Book{}),
 		res.Set(setBookHandler),
 	)
 
 	// Add handlers for "library.books" collection
 	s.Handle(
 		"books",
-		res.Collection,
 		res.Access(res.AccessGranted),
-		badgerDB.WithType([]res.Ref(nil)),
+		badgerDB.
+			Collection().
+			WithType([]res.Ref{}),
 		res.Call("new", newBookHandler),
 		res.Call("delete", deleteBookHandler),
 	)
@@ -203,6 +205,7 @@ func deleteBookHandler(r res.CallRequest) {
 // onServe bootstraps an empty database with some initial books.
 func onServe(s *res.Service) {
 	s.With("library.books", func(r res.Resource) {
+		// Exit if library books already exists
 		_, err := r.Value()
 		if err != res.ErrNotFound {
 			return

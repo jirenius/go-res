@@ -13,7 +13,7 @@ import (
 
 	"github.com/dgraph-io/badger"
 	res "github.com/jirenius/go-res"
-	"github.com/jirenius/go-res/middleware"
+	"github.com/jirenius/go-res/middleware/resbadger"
 )
 
 func main() {
@@ -26,12 +26,12 @@ func main() {
 
 	s := res.NewService("text")
 	s.Handle("shared",
-		// Define resource type.
-		res.Model,
 		// Allow everone to access this resource
 		res.Access(res.AccessGranted),
-		// BadgerDB middleware adds a GetResource and ApplyChange handler
-		middleware.BadgerDB{DB: db, Default: map[string]interface{}{"message": "Hello, BadgerDB!"}},
+		// BadgerDB middleware sets type and adds a GetResource and ApplyChange handler
+		resbadger.BadgerDB{DB: db}.
+			Model().
+			WithDefault(map[string]interface{}{"message": "Hello, BadgerDB!"}),
 
 		// Handle setting of the message
 		res.Set(func(r res.CallRequest) {
