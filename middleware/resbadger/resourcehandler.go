@@ -20,7 +20,6 @@ type resourceHandler struct {
 
 var (
 	errUnknownType           = res.InternalError(errors.New("unknown type"))
-	errMismatchingType       = res.InternalError(errors.New("mismatching resource type"))
 	errIndexOutOfRange       = res.InternalError(errors.New("index out of range"))
 	errResourceAlreadyExists = res.InternalError(errors.New("resource already exists"))
 )
@@ -184,7 +183,7 @@ func (b *resourceHandler) applyChange(r res.Resource, changes map[string]interfa
 				afterKey := idx.Key(afterValue)
 
 				// Do nothing if key hasn't change; before and after is equal
-				if bytes.Compare(beforeKey, afterKey) == 0 {
+				if bytes.Equal(beforeKey, afterKey) {
 					continue
 				}
 
@@ -255,6 +254,9 @@ func (b *resourceHandler) applyAdd(r res.Resource, value interface{}, idx int) e
 
 		// Add value to collection
 		dta, err = json.Marshal(value)
+		if err != nil {
+			return err
+		}
 		c = append(c, nil)
 		copy(c[idx+1:], c[idx:])
 		c[idx] = json.RawMessage(dta)

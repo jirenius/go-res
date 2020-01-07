@@ -7,12 +7,12 @@ import (
 	res "github.com/jirenius/go-res"
 )
 
-type ModelDto struct {
-	Id  int    `json:"id"`
+type modelDto struct {
+	ID  int    `json:"id"`
 	Foo string `json:"foo"`
 }
 
-type Mock struct {
+type mockData struct {
 	// Request info
 	CID        string
 	Host       string
@@ -22,7 +22,7 @@ type Mock struct {
 	Params     json.RawMessage
 	Token      json.RawMessage
 	// Resources
-	Model                   *ModelDto
+	Model                   *modelDto
 	ModelResponse           json.RawMessage
 	QueryModelResponse      json.RawMessage
 	Collection              []interface{}
@@ -44,7 +44,7 @@ type Mock struct {
 	IntValue        int
 }
 
-var mock = Mock{
+var mock = mockData{
 	// Request info
 	"testcid",   // CID
 	"local",     // Host
@@ -66,7 +66,7 @@ var mock = Mock{
 	json.RawMessage(`{"foo":"bar","baz":42}`), // Params
 	json.RawMessage(`{"user":"foo","id":42}`), // Token
 	// Resources
-	&ModelDto{Id: 42, Foo: "bar"},                                                                    // Model
+	&modelDto{ID: 42, Foo: "bar"},                                                                    // Model
 	json.RawMessage(`{"result":{"model":{"id":42,"foo":"bar"}}}`),                                    // ModelResponse
 	json.RawMessage(`{"result":{"model":{"id":42,"foo":"bar"},"query":"foo=bar&zoo=baz&limit=10"}}`), // QueryModelResponse
 	[]interface{}{42, "foo", nil},                                                                    // Collection
@@ -88,23 +88,23 @@ var mock = Mock{
 	42,                         // IntValue
 }
 
-func (m *Mock) DefaultRequest() *request {
+func (m *mockData) DefaultRequest() *request {
 	return &request{
 		CID: m.CID,
 	}
 }
 
-func (m *Mock) QueryRequest() *request {
+func (m *mockData) QueryRequest() *request {
 	return &request{
 		Query: m.Query,
 	}
 }
 
-func (m *Mock) Request() *request {
+func (m *mockData) Request() *request {
 	return &request{}
 }
 
-func (m *Mock) AuthRequest() *request {
+func (m *mockData) AuthRequest() *request {
 	return &request{
 		CID:        m.CID,
 		Header:     m.Header,

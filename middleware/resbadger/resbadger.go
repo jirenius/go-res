@@ -1,9 +1,6 @@
 package resbadger
 
 import (
-	"encoding/json"
-	"reflect"
-
 	"github.com/dgraph-io/badger"
 )
 
@@ -14,12 +11,6 @@ import (
 type BadgerDB struct {
 	// BadgerDB database
 	DB *badger.DB
-}
-
-type badgerDB struct {
-	rawDefault json.RawMessage
-	t          reflect.Type
-	BadgerDB
 }
 
 // Model returns a middleware builder of type Model.
