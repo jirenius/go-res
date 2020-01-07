@@ -330,7 +330,7 @@ func TestMuxGetHandler_MatchingPath_ReturnsHandler(t *testing.T) {
 		m := res.NewMux(l.Path)
 		m.Handle(l.Pattern, res.GetResource(func(r res.GetRequest) { called++ }))
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 	}
@@ -344,7 +344,7 @@ func TestMuxGetHandler_MatchingPathAddedBeforeMount_ReturnsHandler(t *testing.T)
 		sub.Handle(l.Pattern, res.GetResource(func(r res.GetRequest) { called++ }))
 		m.Mount("sub", sub)
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 	}
@@ -358,7 +358,7 @@ func TestMuxGetHandler_MatchingPathAddedAfterMount_ReturnsHandler(t *testing.T) 
 		m.Mount("sub", sub)
 		m.Handle("sub."+l.Pattern, res.GetResource(func(r res.GetRequest) { called++ }))
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 	}
@@ -373,7 +373,7 @@ func TestMuxGetHandler_ListenersOnMatchingPath_ReturnsListeners(t *testing.T) {
 		m.AddListener(l.Pattern, func(ev *res.Event) { called1++ })
 		m.AddListener(l.Pattern, func(ev *res.Event) { called2++ })
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to be nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		AssertEqual(t, "len(mh.Listeners)", len(mh.Listeners), 2, "test ", i)
 		AssertTrue(t, "cb1 not to be called", called1 == 0, "test ", i)
 		mh.Listeners[0](nil)
@@ -395,7 +395,7 @@ func TestMuxGetHandler_ListenersMatchingPathAddedBeforeMount_ReturnsListeners(t 
 		m.Mount("sub", sub)
 		m.Handle("sub."+l.Pattern, res.Model)
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to be nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		AssertEqual(t, "len(mh.Listeners)", len(mh.Listeners), 2, "test ", i)
 		AssertTrue(t, "cb1 not to be called", called1 == 0, "test ", i)
 		mh.Listeners[0](nil)
@@ -417,7 +417,7 @@ func TestMuxGetHandler_ListenersMatchingPathAddedAfterMount_ReturnsListeners(t *
 		m.AddListener("sub."+l.Pattern, func(ev *res.Event) { called1++ })
 		m.AddListener("sub."+l.Pattern, func(ev *res.Event) { called2++ })
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to be nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		AssertEqual(t, "len(mh.Listeners)", len(mh.Listeners), 2, "test ", i)
 		AssertTrue(t, "cb1 not to be called", called1 == 0, "test ", i)
 		mh.Listeners[0](nil)
@@ -507,7 +507,7 @@ func TestGetHandlerWithMatchingPathAndGroupReturnsHandler(t *testing.T) {
 		m := res.NewMux(l.Pattern)
 		m.Handle(l.Path, res.Group(l.Group), res.GetResource(func(r res.GetRequest) { called++ }))
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		AssertEqual(t, "group", mh.Group, l.ExpectedGroup)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
@@ -560,7 +560,7 @@ func TestGetHandlerWithMatchingPathAndGroupOnMountedMuxReturnsHandler(t *testing
 		sub.Handle(l.Path, res.Group(l.Group), res.GetResource(func(r res.GetRequest) { called++ }))
 		m.Mount("sub", sub)
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		AssertEqual(t, "group", mh.Group, l.ExpectedGroup)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
@@ -608,7 +608,7 @@ func TestGetHandlerMoreSpecificPath(t *testing.T) {
 		m.Handle(l.SpecificPath, res.GetResource(func(r res.GetRequest) { specificCalled++ }))
 		m.Handle(l.WildcardPath, res.GetResource(func(r res.GetRequest) { wildcardCalled++ }))
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "specificCalled", specificCalled, 1, "test ", i)
 		AssertEqual(t, "wildcardCalled", wildcardCalled, 0, "test ", i)
@@ -639,7 +639,7 @@ func TestMountToSubpath(t *testing.T) {
 		sub.Handle(l.HandlerPattern, res.GetResource(func(r res.GetRequest) { called++ }))
 		m.Mount(l.MountPattern, sub)
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 	}
@@ -713,7 +713,7 @@ func TestGetHandlerFromMountedChildMux(t *testing.T) {
 		sub.Handle(l.HandlerPattern, res.GetResource(func(r res.GetRequest) { called++ }))
 		m.Mount("sub", sub)
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 		AssertEqual(t, "pathParams", mh.Params, json.RawMessage(l.ExpectedParams), "test ", i)
@@ -729,7 +729,7 @@ func TestGetHandlerAddedAfterBeingMounted(t *testing.T) {
 		m.Mount("sub", sub)
 		m.Handle("sub."+l.HandlerPattern, res.GetResource(func(r res.GetRequest) { called++ }))
 		mh := m.GetHandler(l.ResourceName)
-		AssertTrue(t, "*Match not to equal nil", mh != nil, "test ", i)
+		AssertNotNil(t, mh, "test ", i)
 		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 		AssertEqual(t, "pathParams", mh.Params, json.RawMessage(l.ExpectedParams), "test ", i)
@@ -842,6 +842,25 @@ func TestMuxOnRegister_WithService_CallsCallback(t *testing.T) {
 		}))
 		AssertTrue(t, "callback to be called", called, fmt.Sprintf("test #%d", i+1))
 	}
+}
+
+func TestMuxOnRegister_MultipleListenersWithService_CallsCallbacks(t *testing.T) {
+
+	s := res.NewService("test")
+	called1 := 0
+	called2 := 0
+	s.Handle("model",
+		res.OnRegister(func(service *res.Service, pattern string) {
+			called1++
+			AssertEqual(t, "pattern", pattern, "test.model")
+		}),
+		res.OnRegister(func(service *res.Service, pattern string) {
+			called2++
+			AssertEqual(t, "pattern", pattern, "test.model")
+		}),
+	)
+	AssertTrue(t, "callback 1 to be called once", called1 == 1)
+	AssertTrue(t, "callback 2 to be called once", called2 == 1)
 }
 
 func TestMuxOnRegister_BeforeMountingToService_CallsCallback(t *testing.T) {

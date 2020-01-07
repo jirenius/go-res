@@ -447,3 +447,16 @@ func TestAuth_WithMultipleResponses_CausesPanic(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
 	})
 }
+
+func TestAuthRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo",
+			res.Auth("method", func(r res.AuthRequest) { r.OK(nil) }),
+		)
+	}, func(s *Session) {
+		inb := s.RequestRaw("auth.test.model.foo.method", mock.BrokenJSON)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
+	})
+}

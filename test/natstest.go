@@ -396,6 +396,30 @@ func AssertPanicNoRecover(t *testing.T, cb func()) {
 	panicking = false
 }
 
+// AssertNil expects that a value is nil, otherwise it
+// logs an error with t.Fatalf.
+func AssertNil(t *testing.T, v interface{}, ctx ...interface{}) {
+	if v != nil && !reflect.ValueOf(v).IsNil() {
+		var str string
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected non-nil but got nil%s", str)
+	}
+}
+
+// AssertNotNil expects that a value is non-nil, otherwise it
+// logs an error with t.Fatalf.
+func AssertNotNil(t *testing.T, v interface{}, ctx ...interface{}) {
+	if v == nil || reflect.ValueOf(v).IsNil() {
+		var str string
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected nil but got %+v%s", v, str)
+	}
+}
+
 // Equals asserts that the message has the expected subject and payload
 func (m *Msg) Equals(t *testing.T, subject string, payload interface{}) *Msg {
 	m.AssertSubject(t, subject)
