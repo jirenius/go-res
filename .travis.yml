@@ -3,10 +3,9 @@ go:
 - 1.13.x
 - 1.12.x
 - 1.11.x
-env:
-- GO111MODULE=off
+  env: GO111MODULE=off
 install:
-- GO111MODULES=on go get -t ./...
+- go get -t ./...
 - if [[ "$TRAVIS_GO_VERSION" =~ ^1\.13\. ]]; then ./scripts/install-checks.sh; fi
 before_script:
 - if [[ "$TRAVIS_GO_VERSION" =~ ^1\.13\. ]]; then ./scripts/check.sh; fi
