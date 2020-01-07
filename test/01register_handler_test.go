@@ -97,3 +97,40 @@ func TestPanicOnInvalidPatternRegistration(t *testing.T) {
 		}, nil, withoutReset)
 	}
 }
+
+func TestHandler_InvalidHandlerOption_CausesPanic(t *testing.T) {
+	tbl := []func(){
+		func() { res.Call("foo.bar", func(r res.CallRequest) {}) },
+		func() { res.Auth("foo.bar", func(r res.AuthRequest) {}) },
+	}
+
+	for _, l := range tbl {
+		runTest(t, func(s *Session) {
+			AssertPanic(t, func() {
+				l()
+			})
+		}, nil, withoutReset)
+	}
+}
+
+func TestHandler_InvalidHandlerOptions_CausesPanic(t *testing.T) {
+	tbl := [][]res.Option{
+		{res.Model, res.Model},
+		{res.Collection, res.Collection},
+		{res.Model, res.Collection},
+		{res.Collection, res.Model},
+		{res.ApplyChange(func(r res.Resource, c map[string]interface{}) (map[string]interface{}, error) { return nil, nil }), res.ApplyChange(func(r res.Resource, c map[string]interface{}) (map[string]interface{}, error) { return nil, nil })},
+		{res.ApplyAdd(func(r res.Resource, v interface{}, idx int) error { return nil }), res.ApplyAdd(func(r res.Resource, v interface{}, idx int) error { return nil })},
+		{res.ApplyRemove(func(r res.Resource, idx int) (interface{}, error) { return nil, nil }), res.ApplyRemove(func(r res.Resource, idx int) (interface{}, error) { return nil, nil })},
+		{res.ApplyCreate(func(r res.Resource, v interface{}) error { return nil }), res.ApplyCreate(func(r res.Resource, v interface{}) error { return nil })},
+		{res.ApplyDelete(func(r res.Resource) (interface{}, error) { return nil, nil }), res.ApplyDelete(func(r res.Resource) (interface{}, error) { return nil, nil })},
+	}
+
+	for _, l := range tbl {
+		runTest(t, func(s *Session) {
+			AssertPanic(t, func() {
+				s.Handle("model", l...)
+			})
+		}, nil, withoutReset)
+	}
+}

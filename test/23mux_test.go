@@ -844,6 +844,25 @@ func TestMuxOnRegister_WithService_CallsCallback(t *testing.T) {
 	}
 }
 
+func TestMuxOnRegister_MultipleListenersWithService_CallsCallbacks(t *testing.T) {
+
+	s := res.NewService("test")
+	called1 := 0
+	called2 := 0
+	s.Handle("model",
+		res.OnRegister(func(service *res.Service, pattern string) {
+			called1++
+			AssertEqual(t, "pattern", pattern, "test.model")
+		}),
+		res.OnRegister(func(service *res.Service, pattern string) {
+			called2++
+			AssertEqual(t, "pattern", pattern, "test.model")
+		}),
+	)
+	AssertTrue(t, "callback 1 to be called once", called1 == 1)
+	AssertTrue(t, "callback 2 to be called once", called2 == 1)
+}
+
 func TestMuxOnRegister_BeforeMountingToService_CallsCallback(t *testing.T) {
 	tbl := []struct {
 		Path         string

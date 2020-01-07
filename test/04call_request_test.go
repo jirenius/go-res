@@ -430,3 +430,16 @@ func TestCall_WithMultipleResponses_CausesPanic(t *testing.T) {
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
 	})
 }
+
+func TestCallRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo",
+			res.Call("method", func(r res.CallRequest) { r.OK(nil) }),
+		)
+	}, func(s *Session) {
+		inb := s.RequestRaw("call.test.model.foo.method", mock.BrokenJSON)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
+	})
+}

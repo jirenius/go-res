@@ -241,3 +241,17 @@ func TestAccess_WithMultipleResponses_CausesPanic(t *testing.T) {
 		s.GetMsg(t).Equals(t, inb, mock.AccessGrantedResponse)
 	})
 }
+
+func TestAccessRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo",
+			res.GetModel(func(r res.ModelRequest) { r.NotFound() }),
+			res.Access(res.AccessGranted),
+		)
+	}, func(s *Session) {
+		inb := s.RequestRaw("access.test.model.foo", mock.BrokenJSON)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
+	})
+}

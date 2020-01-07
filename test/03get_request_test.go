@@ -526,6 +526,19 @@ func TestGetModelQuery_WithQueryModel_SendsQueryModelResponse(t *testing.T) {
 	})
 }
 
+func TestGetRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo", res.GetModel(func(r res.ModelRequest) {
+			r.NotFound()
+		}))
+	}, func(s *Session) {
+		inb := s.RequestRaw("get.test.model.foo", mock.BrokenJSON)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
+	})
+}
+
 func TestGetCollectionQuery_WithQueryCollection_SendsQueryCollectionResponse(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection.foo", res.GetCollection(func(r res.CollectionRequest) {

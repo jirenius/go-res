@@ -9,28 +9,28 @@ import (
 )
 
 // Test that the service returns the correct protocol version
-func TestProtocolVersion(t *testing.T) {
+func TestServiceProtocolVersion(t *testing.T) {
 	runTest(t, func(s *Session) {
 		AssertEqual(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.0")
 	}, nil, withoutReset)
 }
 
 // Test that the service can be served without error
-func TestStart(t *testing.T) {
+func TestServiceStart(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, nil)
 }
 
 // Test that service can be served without logger
-func TestWithoutLogger(t *testing.T) {
+func TestServiceWithoutLogger(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, nil, withLogger(nil))
 }
 
 // Test that Logger returns the logger set with SetLogger
-func TestServiceLogger(t *testing.T) {
+func TestServiceSetLogger(t *testing.T) {
 	l := newMemLogger()
 	runTest(t, func(s *Session) {
 		if s.Logger() != l {
@@ -41,7 +41,7 @@ func TestServiceLogger(t *testing.T) {
 }
 
 // Test that With returns an error if there is no registered pattern matching the resource
-func TestServiceWithWithoutMatchingPattern(t *testing.T) {
+func TestServiceWith_WithoutMatchingPattern(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("collection", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session) {
@@ -70,7 +70,7 @@ func TestServiceSetReset(t *testing.T) {
 }
 
 // Test that TokenEvent sends a connection token event.
-func TestServiceTokenEvent(t *testing.T) {
+func TestServiceTokenEvent_WithObjectToken_SendsToken(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session) {
@@ -82,7 +82,7 @@ func TestServiceTokenEvent(t *testing.T) {
 }
 
 // Test that TokenEvent with nil sends a connection token event with a nil token.
-func TestServiceNilTokenEvent(t *testing.T) {
+func TestServiceTokenEvent_WithNilToken_SendsNilToken(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session) {
@@ -92,7 +92,7 @@ func TestServiceNilTokenEvent(t *testing.T) {
 }
 
 // Test that TokenEvent with an invalid cid causes panic.
-func TestServiceTokenEventWithInvalidCID(t *testing.T) {
+func TestServiceTokenEvent_WithInvalidCID_CausesPanic(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, func(s *Session) {
@@ -145,8 +145,7 @@ func TestServiceReset(t *testing.T) {
 	}
 }
 
-// Test OnServe is called on serve
-func TestOnServeIsCalledOnServe(t *testing.T) {
+func TestServiceSetOnServe_ValidCallback_IsCalledOnServe(t *testing.T) {
 	ch := make(chan bool)
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
@@ -164,8 +163,7 @@ func TestOnServeIsCalledOnServe(t *testing.T) {
 	})
 }
 
-// Test OnServe
-func TestOnErrorIsCalledOnError(t *testing.T) {
+func TestServiceSetOnError_ValidCallback_IsCalledOnError(t *testing.T) {
 	ch := make(chan bool)
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
@@ -182,4 +180,65 @@ func TestOnErrorIsCalledOnError(t *testing.T) {
 			}
 		}
 	}, withoutReset)
+}
+
+func TestServiceResource_WithMatchingResource_ReturnsResource(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.$id", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
+		resource, err := s.Resource("test.model.foo")
+		AssertNoError(t, err)
+		AssertNotNil(t, resource)
+		AssertEqual(t, "ResourceName", resource.ResourceName(), "test.model.foo")
+		AssertEqual(t, "PathParams", resource.PathParams(), map[string]string{"id": "foo"})
+	})
+}
+
+func TestServiceResource_WithNonMatchingResource_ReturnsError(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.$id", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
+		resource, err := s.Resource("test.model")
+		AssertError(t, err)
+		AssertNil(t, resource)
+	})
+}
+
+func TestServiceWithResource_WithMatchingResource_CallsCallback(t *testing.T) {
+	ch := make(chan bool)
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Group("foo"), res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
+		resource, err := s.Resource("test.model")
+		AssertNoError(t, err)
+		s.WithResource(resource, func() {
+			close(ch)
+		})
+		select {
+		case <-ch:
+		case <-time.After(timeoutDuration):
+			if t == nil {
+				t.Fatal("expected WithResource callback to be called, but it wasn't")
+			}
+		}
+	})
+}
+
+func TestServiceWithGroup_WithMatchingResource_CallsCallback(t *testing.T) {
+	ch := make(chan bool)
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Group("foo"), res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *Session) {
+		s.WithGroup("foo", func(serv *res.Service) {
+			AssertTrue(t, "param to be service instance", serv == s.Service)
+			close(ch)
+		})
+		select {
+		case <-ch:
+		case <-time.After(timeoutDuration):
+			if t == nil {
+				t.Fatal("expected WithGroup callback to be called, but it wasn't")
+			}
+		}
+	})
 }

@@ -33,6 +33,7 @@ type mockData struct {
 	CustomError             *res.Error
 	Error                   error
 	AccessGrantedResponse   json.RawMessage
+	BrokenJSON              []byte
 	// Unserializables
 	UnserializableValue interface{}
 	UnserializableError *res.Error
@@ -77,6 +78,7 @@ var mock = mockData{
 	&res.Error{Code: "test.custom", Message: "Custom error", Data: map[string]string{"foo": "bar"}},  // CustomError
 	errors.New("custom error"),                                                                       // Error
 	json.RawMessage(`{"result":{"get":true,"call":"*"}}`),                                            // AccessGrantedResponse
+	[]byte(`{]`), // BrokenJSON
 	// Unserializables
 	func() {}, // UnserializableValue
 	&res.Error{Code: "test.unserializable", Message: "Unserializable", Data: func() {}}, // UnserializableError
