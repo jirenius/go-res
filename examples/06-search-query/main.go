@@ -6,29 +6,9 @@ import (
 	"net/http"
 
 	"github.com/dgraph-io/badger"
-	"github.com/jirenius/go-res/logger"
 
 	"github.com/jirenius/go-res"
 )
-
-func printDB(db *badger.DB) {
-	db.Update(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
-		for it.Rewind(); it.Valid(); it.Next() {
-			// Load item and unmarshal it
-			item := it.Item()
-			err := item.Value(func(value []byte) error {
-				fmt.Printf("[%s] %s\n", string(item.Key()), string(value))
-				return nil
-			})
-			if err != nil {
-				panic(err)
-			}
-		}
-		return nil
-	})
-}
 
 func main() {
 	// // Create badger DB
@@ -38,11 +18,8 @@ func main() {
 	}
 	defer db.Close()
 
-	printDB(db)
 	// Create a new RES Service
 	s := res.NewService("search")
-
-	s.SetLogger(logger.NewStdLogger().SetTrace(true))
 
 	// Add handlers
 	s.Handle("countries", countriesHandler{})
