@@ -40,6 +40,15 @@ func main() {
    s.ListenAndServe("nats://localhost:4222")
 }
 ```
+> **Prerequisite**
+>
+> [Install](https://resgate.io/docs/get-started/installation/) *NATS Server* and *Resgate*. Can be done with 3 docker commands:
+> ```text
+> docker network create res
+> docker run -d --name nats -p 4222:4222 --net res nats
+> docker run --name resgate -p 8080:8080 --net res resgateio/resgate --nats nats://nats:4222
+> ```
+
 
 ## Examples
 
