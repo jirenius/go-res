@@ -18,7 +18,7 @@ const (
 )
 
 // Definition of the indexes for the customer models.
-var customerIndexes = &resbadger.Indexes{
+var customerIdxs = &resbadger.IndexSet{
 	Indexes: []resbadger.Index{
 		// Index on lower case name
 		resbadger.Index{
@@ -54,7 +54,7 @@ func (h customerHandler) SetOption(hs *res.Handler) {
 	m := resbadger.BadgerDB{DB: h.DB}.
 		Model().
 		WithType(Customer{}).
-		WithIndexes(customerIndexes)
+		WithIndexSet(customerIdxs)
 	m.SetOption(hs)
 	res.Call("set", h.setCustomer).SetOption(hs)
 	res.Call("delete", h.deleteCustomer).SetOption(hs)

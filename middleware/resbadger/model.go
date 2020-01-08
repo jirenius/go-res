@@ -19,8 +19,8 @@ type Model struct {
 	// Type used to marshal into when calling r.Value() or r.RequireValue().
 	// Defaults to map[string]interface{} if not set.
 	Type interface{}
-	// Indexes defines a set of indexes to be created for the model.
-	Indexes *Indexes
+	// IndexSet defines a set of indexes to be created for the model.
+	IndexSet *IndexSet
 }
 
 // WithDefault returns a new BadgerDB value with the Default resource value set to i.
@@ -35,13 +35,13 @@ func (o Model) WithType(v interface{}) Model {
 	return o
 }
 
-// WithIndexes returns a new Model value with the Indexes set to idx.
-func (o Model) WithIndexes(idxs *Indexes) Model {
-	o.Indexes = idxs
+// WithIndexSet returns a new Model value with the IndexSet set to idxs.
+func (o Model) WithIndexSet(idxs *IndexSet) Model {
+	o.IndexSet = idxs
 	return o
 }
 
-// RebuildIndexes drops existing index and creates new entries for the
+// RebuildIndexes drops existing indexes and creates new entries for the
 // models with the given resource pattern.
 //
 // The resource pattern should be the full pattern, including
@@ -50,7 +50,7 @@ func (o Model) WithIndexes(idxs *Indexes) Model {
 // 	test.resource.>
 func (o Model) RebuildIndexes(pattern string) error {
 	// Quick exit in case no index exists
-	if len(o.Indexes.Indexes) == 0 {
+	if len(o.IndexSet.Indexes) == 0 {
 		return nil
 	}
 
@@ -60,7 +60,7 @@ func (o Model) RebuildIndexes(pattern string) error {
 	}
 
 	// Drop existing index entries
-	for _, idx := range o.Indexes.Indexes {
+	for _, idx := range o.IndexSet.Indexes {
 		err := o.BadgerDB.DB.DropPrefix([]byte(idx.Name))
 		if err != nil {
 			return err
@@ -96,7 +96,7 @@ func (o Model) RebuildIndexes(pattern string) error {
 				return err
 			}
 			// Loop through indexes and generate a new entry per index
-			for _, idx := range o.Indexes.Indexes {
+			for _, idx := range o.IndexSet.Indexes {
 				rname := item.KeyCopy(nil)
 				idxKey := idx.getKey(rname, idx.Key(v.Elem().Interface()))
 				err = txn.SetEntry(&badger.Entry{Key: idxKey, Value: nil, UserMeta: typeIndex})
@@ -120,7 +120,7 @@ func (o Model) SetOption(hs *res.Handler) {
 
 	b := resourceHandler{
 		def:      o.Default,
-		idxs:     o.Indexes,
+		idxs:     o.IndexSet,
 		BadgerDB: o.BadgerDB,
 	}
 

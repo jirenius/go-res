@@ -2,10 +2,8 @@ package resbadger
 
 import (
 	"bytes"
-	"fmt"
 	"net/url"
 
-	"github.com/dgraph-io/badger"
 	res "github.com/jirenius/go-res"
 )
 
@@ -13,34 +11,34 @@ import (
 type QueryCollection struct {
 	// BadgerDB middleware
 	BadgerDB BadgerDB
-	// Indexes defines a set of indexes to be used with query requests.
-	Indexes *Indexes
+	// IndexSet defines a set of indexes to be used with query requests.
+	IndexSet *IndexSet
 	// QueryCallback takes a query request and returns an IndexQuery used for searching.
 	QueryCallback QueryCallback
 }
 
-// QueryCallback is called for each query request
-type QueryCallback func(idxs *Indexes, rname string, params map[string]string, query url.Values) (*IndexQuery, error)
+// QueryCallback is called for each query request.
+// It returns an index query and a normalized query string, or an error.
+//
+// If the normalized query string is empty, the initial query string is used as normalized query.
+type QueryCallback func(idxs *IndexSet, rname string, params map[string]string, query url.Values) (*IndexQuery, string, error)
 
 type queryCollection struct {
 	BadgerDB
-	indexes       *Indexes
-	queryCallback func(idxs *Indexes, rname string, params map[string]string, query url.Values) (*IndexQuery, error)
+	idxs          *IndexSet
+	queryCallback QueryCallback
 	pattern       string
 	s             *res.Service
 }
 
-// Max initial buffer size for results, and default size for limit set to -1.
-var resultBufSize = 256
-
-// WithIndexes returns a new QueryCollection value with the Indexes set to idx.
-func (o QueryCollection) WithIndexes(idxs *Indexes) QueryCollection {
-	o.Indexes = idxs
+// WithIndexSet returns a new QueryCollection value with the IndexSet set to idxs.
+func (o QueryCollection) WithIndexSet(idxs *IndexSet) QueryCollection {
+	o.IndexSet = idxs
 	return o
 }
 
 // WithQueryCallback returns a new QueryCollection value with the QueryCallback set to callback.
-func (o QueryCollection) WithQueryCallback(callback func(idxs *Indexes, rname string, params map[string]string, query url.Values) (*IndexQuery, error)) QueryCollection {
+func (o QueryCollection) WithQueryCallback(callback QueryCallback) QueryCollection {
 	o.QueryCallback = callback
 	return o
 }
@@ -54,20 +52,20 @@ func (o QueryCollection) SetOption(hs *res.Handler) {
 		panic("middleware: no badger DB set")
 	}
 
-	if o.Indexes == nil {
+	if o.IndexSet == nil {
 		panic("resbadger: no indexes set")
 	}
 
 	qc := queryCollection{
 		BadgerDB:      o.BadgerDB,
-		indexes:       o.Indexes,
+		idxs:          o.IndexSet,
 		queryCallback: o.QueryCallback,
 	}
 
 	res.Collection.SetOption(hs)
 	res.GetResource(qc.getQueryCollection).SetOption(hs)
 	res.OnRegister(qc.onRegister).SetOption(hs)
-	o.Indexes.Listen(qc.onIndexUpdate)
+	o.IndexSet.Listen(qc.onIndexUpdate)
 }
 
 func (qc *queryCollection) onRegister(service *res.Service, pattern string) {
@@ -88,7 +86,7 @@ func (qc *queryCollection) onIndexUpdate(r res.Resource, before, after interface
 			return
 		}
 
-		iq, err := qc.queryCallback(qc.indexes, r.ResourceName(), r.PathParams(), qreq.ParseQuery())
+		iq, _, err := qc.queryCallback(qc.idxs, qcr.ResourceName(), qcr.PathParams(), qreq.ParseQuery())
 		if err != nil {
 			qreq.Error(res.InternalError(err))
 			return
@@ -115,7 +113,7 @@ func (qc *queryCollection) onIndexUpdate(r res.Resource, before, after interface
 			}
 		}
 		if wasMatch || isMatch {
-			collection, err := qc.fetchCollection(iq)
+			collection, err := iq.FetchCollection(qc.DB)
 			if err != nil {
 				qreq.Error(res.ToError(err))
 			}
@@ -126,91 +124,21 @@ func (qc *queryCollection) onIndexUpdate(r res.Resource, before, after interface
 
 // getQueryCollection is a get handler for a query request.
 func (qc *queryCollection) getQueryCollection(r res.GetRequest) {
-	iq, err := qc.queryCallback(qc.indexes, r.ResourceName(), r.PathParams(), r.ParseQuery())
+	iq, normalizedQuery, err := qc.queryCallback(qc.idxs, r.ResourceName(), r.PathParams(), r.ParseQuery())
 	if err != nil {
 		r.Error(res.ToError(err))
 		return
 	}
 
-	collection, err := qc.fetchCollection(iq)
+	collection, err := iq.FetchCollection(qc.DB)
 	if err != nil {
 		r.Error(res.ToError(err))
 		return
 	}
 
 	// Get normalized query, or default to the initial query.
-	normalizedQuery := iq.NormalizedQuery
 	if normalizedQuery == "" {
 		normalizedQuery = r.Query()
 	}
 	r.QueryCollection(collection, normalizedQuery)
-}
-
-// fetchCollection fetches a collection that matches the IndexQuery iq.
-func (qc *queryCollection) fetchCollection(iq *IndexQuery) ([]res.Ref, error) {
-	offset := iq.Offset
-	limit := iq.Limit
-
-	// Quick exit if we are fetching zero items
-	if limit == 0 {
-		return nil, nil
-	}
-
-	// Prepare a slice to store the results in
-	buf := resultBufSize
-	if limit > 0 && limit < resultBufSize {
-		buf = limit
-	}
-	result := make([]res.Ref, 0, buf)
-
-	queryPrefix := iq.Index.getQuery(iq.KeyPrefix)
-	qplen := len(queryPrefix)
-
-	filter := iq.FilterKeys
-	namelen := len(iq.Index.Name) + 1
-
-	if err := qc.DB.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
-		defer it.Close()
-		for it.Seek(queryPrefix); it.ValidForPrefix(queryPrefix); it.Next() {
-			k := it.Item().Key()
-			idx := bytes.LastIndexByte(k, ridSeparator)
-			if idx < 0 {
-				return fmt.Errorf("index entry [%s] is invalid", k)
-			}
-			// Validate that a query with ?-mark isn't mistaken for a hit
-			// when matching the ? separator for the resource ID.
-			if qplen > idx {
-				continue
-			}
-
-			// If we have a key filter, validate against it
-			if filter != nil {
-				if !filter(k[namelen:idx]) {
-					continue
-				}
-			}
-
-			// Skip until we reach the offset we are searching from
-			if offset > 0 {
-				offset--
-				continue
-			}
-
-			// Add resource ID reference to result
-			result = append(result, res.Ref(k[idx+1:]))
-
-			limit--
-			if limit == 0 {
-				return nil
-			}
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return result, nil
 }

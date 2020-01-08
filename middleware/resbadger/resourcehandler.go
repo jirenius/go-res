@@ -14,7 +14,7 @@ type resourceHandler struct {
 	def        interface{}
 	rawDefault json.RawMessage
 	t          reflect.Type
-	idxs       *Indexes
+	idxs       *IndexSet
 	BadgerDB
 }
 

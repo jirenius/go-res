@@ -1,8 +1,10 @@
 package resbadger
 
 import (
+	"bytes"
 	"fmt"
 
+	"github.com/dgraph-io/badger"
 	res "github.com/jirenius/go-res"
 )
 
@@ -30,29 +32,12 @@ type Index struct {
 	Key func(interface{}) []byte
 }
 
-// Indexes represents a set of indexes for a model resource.
-type Indexes struct {
-	// List of indices
+// IndexSet represents a set of indexes for a model resource.
+type IndexSet struct {
+	// List of indexes
 	Indexes []Index
 	// Index listener callbacks to be called on changes in the index.
 	listeners []func(r res.Resource, before, after interface{})
-}
-
-const ridSeparator = byte(0)
-
-// Listen adds a callback listening to the changes that have affected one or more index entries.
-//
-// The model before value will be nil if the model was created, or if previously not indexed.
-// The model after value will be nil if the model was deleted, or if no longer indexed.
-func (i *Indexes) Listen(cb func(r res.Resource, before, after interface{})) {
-	i.listeners = append(i.listeners, cb)
-}
-
-// triggerListeners calls the callback of each registered listener.
-func (i *Indexes) triggerListeners(r res.Resource, before, after interface{}) {
-	for _, cb := range i.listeners {
-		cb(r, before, after)
-	}
 }
 
 // IndexQuery represents a query towards an index.
@@ -65,14 +50,36 @@ type IndexQuery struct {
 	FilterKeys func(key []byte) bool
 	// Offset from which item to start.
 	Offset int
-	// Limit how many items to read. 0 means unlimited.
+	// Limit how many items to read. Negative means unlimited.
 	Limit int
-	// Normalized query
-	NormalizedQuery string
+}
+
+// Byte that separates the index key prefix from the resource ID.
+const ridSeparator = byte(0)
+
+// Max initial buffer size for results, and default size for limit set to -1.
+const resultBufSize = 256
+
+// Max int value.
+const maxInt = int(^uint(0) >> 1)
+
+// Listen adds a callback listening to the changes that have affected one or more index entries.
+//
+// The model before value will be nil if the model was created, or if previously not indexed.
+// The model after value will be nil if the model was deleted, or if no longer indexed.
+func (i *IndexSet) Listen(cb func(r res.Resource, before, after interface{})) {
+	i.listeners = append(i.listeners, cb)
+}
+
+// triggerListeners calls the callback of each registered listener.
+func (i *IndexSet) triggerListeners(r res.Resource, before, after interface{}) {
+	for _, cb := range i.listeners {
+		cb(r, before, after)
+	}
 }
 
 // GetIndex returns an index by name, or an error if not found.
-func (i *Indexes) GetIndex(name string) (Index, error) {
+func (i *IndexSet) GetIndex(name string) (Index, error) {
 	for _, idx := range i.Indexes {
 		if idx.Name == name {
 			return idx, nil
@@ -102,4 +109,78 @@ func (idx Index) getQuery(keyPrefix []byte) []byte {
 	offset++
 	copy(b[offset:], keyPrefix)
 	return b
+}
+
+// FetchCollection fetches a collection of resource references based on the query.
+func (iq *IndexQuery) FetchCollection(db *badger.DB) ([]res.Ref, error) {
+	offset := iq.Offset
+	limit := iq.Limit
+
+	// Quick exit if we are fetching zero items
+	if limit == 0 {
+		return nil, nil
+	}
+
+	// Set "unlimited" limit to max int value
+	if limit < 0 {
+		limit = maxInt
+	}
+
+	// Prepare a slice to store the results in
+	buf := resultBufSize
+	if limit > 0 && limit < resultBufSize {
+		buf = limit
+	}
+	result := make([]res.Ref, 0, buf)
+
+	queryPrefix := iq.Index.getQuery(iq.KeyPrefix)
+	qplen := len(queryPrefix)
+
+	filter := iq.FilterKeys
+	namelen := len(iq.Index.Name) + 1
+
+	if err := db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Seek(queryPrefix); it.ValidForPrefix(queryPrefix); it.Next() {
+			k := it.Item().Key()
+			idx := bytes.LastIndexByte(k, ridSeparator)
+			if idx < 0 {
+				return fmt.Errorf("index entry [%s] is invalid", k)
+			}
+			// Validate that a query with ?-mark isn't mistaken for a hit
+			// when matching the ? separator for the resource ID.
+			if qplen > idx {
+				continue
+			}
+
+			// If we have a key filter, validate against it
+			if filter != nil {
+				if !filter(k[namelen:idx]) {
+					continue
+				}
+			}
+
+			// Skip until we reach the offset we are searching from
+			if offset > 0 {
+				offset--
+				continue
+			}
+
+			// Add resource ID reference to result
+			result = append(result, res.Ref(k[idx+1:]))
+
+			limit--
+			if limit == 0 {
+				return nil
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }

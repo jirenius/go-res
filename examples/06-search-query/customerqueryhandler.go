@@ -26,7 +26,7 @@ func (h customerQueryHandler) SetOption(hs *res.Handler) {
 	hs.Group = "customers"
 	resbadger.BadgerDB{DB: h.DB}.
 		QueryCollection().
-		WithIndexes(customerIndexes).
+		WithIndexSet(customerIdxs).
 		WithQueryCallback(h.queryCallback).
 		SetOption(hs)
 	res.Call("newCustomer", h.newCustomer).SetOption(hs)
@@ -59,11 +59,11 @@ func (h customerQueryHandler) newCustomer(r res.CallRequest) {
 // queryCallback is a callback that gets a query string from a request
 // and returns an index query that is used by the resbadger middleware to
 // fetch the matching customers.
-func (h customerQueryHandler) queryCallback(idxs *resbadger.Indexes, rname string, params map[string]string, query url.Values) (*resbadger.IndexQuery, error) {
+func (h customerQueryHandler) queryCallback(idxs *resbadger.IndexSet, rname string, params map[string]string, query url.Values) (*resbadger.IndexQuery, string, error) {
 	// Parse the query string
 	name, country, from, limit, errMsg := h.parseQuery(query)
 	if errMsg != "" {
-		return nil, &res.Error{Code: res.CodeInvalidQuery, Message: errMsg}
+		return nil, "", &res.Error{Code: res.CodeInvalidQuery, Message: errMsg}
 	}
 
 	// Get the index and prefix for this search
@@ -82,7 +82,7 @@ func (h customerQueryHandler) queryCallback(idxs *resbadger.Indexes, rname strin
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Create a normalized query string with the properties in a set order.
@@ -91,12 +91,11 @@ func (h customerQueryHandler) queryCallback(idxs *resbadger.Indexes, rname strin
 	normalizedQuery := fmt.Sprintf("name=%s&country=%s&from=%d&limit=%d", url.QueryEscape(name), url.QueryEscape(country), from, limit)
 
 	return &resbadger.IndexQuery{
-		Index:           idx,
-		KeyPrefix:       prefix,
-		Offset:          from,
-		Limit:           limit,
-		NormalizedQuery: normalizedQuery,
-	}, nil
+		Index:     idx,
+		KeyPrefix: prefix,
+		Offset:    from,
+		Limit:     limit,
+	}, normalizedQuery, nil
 }
 
 // parseQuery validates and returns the values out of the provided url.Values.

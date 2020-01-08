@@ -33,9 +33,3 @@ func (o BadgerDB) WithDB(db *badger.DB) BadgerDB {
 	o.DB = db
 	return o
 }
-
-// // WithIndexQueryCollection returns a new BadgerDB value with the IndexQueryCollection set to cb.
-// func (o BadgerDB) WithIndexQueryCollection(cb func(idxs *Indexes, rname string, params map[string]string, q url.Values) (*IndexQuery, error)) BadgerDB {
-// 	o.IndexQueryCollection = cb
-// 	return o
-// }
