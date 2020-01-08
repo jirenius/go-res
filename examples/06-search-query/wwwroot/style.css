@@ -1,0 +1,238 @@
+﻿/* Global */
+body {
+    background: #eee;
+    font-family: 'Open Sans', sans-serif;
+    padding: 0;
+    margin: 0;
+}
+
+h1, h2, h3 {
+    font-family: 'Encode Sans', sans-serif;
+}
+
+h1 {
+    margin: 0;
+    padding: 0;
+    line-height: 28px;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+h3 {
+    font-weight: 700;
+    font-size: 1.2em;
+    color: #5a5d93;
+    margin: 0 0 8px 0;
+}
+
+.shadow {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+}
+
+button {
+    display: inline-block;
+    border: none;
+    color: #006;
+    background: none;
+    border-radius: 2px;
+    margin-left: 6px;
+    padding: 4px 8px;
+}
+
+    button:focus {
+        outline: 0;
+    }
+
+    button:hover:enabled {
+        background: rgba(0,0,0,0.12);
+    }
+
+    button:disabled {
+        color: #aaa;
+    }
+
+    button.primary:enabled {
+        background: #5a5d93;
+        color: #fff
+    }
+
+    button.primary:hover:enabled {
+        background: #7477ad;
+    }
+
+/* Header */
+.header {
+    background: #161925;
+    color: #91aec1;
+    padding: 14px 1em;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+}
+
+a.logo:link, a.logo:visited {
+    text-decoration: inherit;
+    color: inherit;
+}
+
+.logo, .header-title {
+    line-height: 34px;
+    font-size: 24px;
+}
+
+.logo-img {
+    vertical-align: middle;
+    margin-right: 14px;
+}
+
+.logo-res {
+    font-weight: 700;
+    color: #91aec1;
+}
+
+.logo-gate {
+    color: #5a5d93;
+}
+
+.top {
+    max-width: 800px;
+    margin: 1em 1em;
+}
+
+.customers {
+    max-width: 800px;
+    margin: 0 1em;
+}
+
+.search {
+    margin: 1em 0;
+    line-height: 2em;
+}
+
+    .search label {
+        margin-right: 10px;
+    }
+
+label {
+    display: inline-block;
+    font-weight: bold;
+}
+
+    label span {
+        display: inline-block;
+        width: 75px;
+    }
+
+.error {
+    color: #800;
+}
+
+.new {
+    float: right;
+}
+
+/* Card */
+.list-item {
+    padding: 8px 0;
+}
+
+.card {
+    background: #fff;
+    padding: 1em 1em;
+    box-sizing: border-box;
+}
+
+.action {
+    float: right
+}
+
+.author {
+    font-style: italic;
+}
+
+.avatar::before {
+    content: "👤";
+    font-size: 3em;
+    position: relative;
+    top: -8px;
+    float: left;
+    margin-right: 16px;
+}
+
+.country {
+    display: inline-block;
+    width: 158px;
+}
+
+    .country::before {
+        content: "🌍";
+        margin-right: 8px;
+    }
+
+.email {
+    display: inline-block;
+}
+
+    .email::before {
+        content: "📧";
+        margin-right: 8px;
+    }
+
+/* Modal */
+.modal {
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: #c4e1f4;
+    margin: 15% auto;
+    padding: 16px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 480px;
+    position: relative;
+}
+
+.modal-close {
+    float: right;
+}
+
+.edit-input {
+    display: inline-block;
+}
+
+    .edit-input label {
+        display: block;
+    }
+
+        .edit-input label + label {
+            margin-top: 6px;
+        }
+
+    .edit-input input {
+        width: 240px;
+    }
+
+.navigate {
+    margin-bottom: 10px;
+}
+
+.next {
+    width: auto;
+}
+
+.modal .action {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+}
+
+.modal .error {
+    display: inline-block;
+    margin: 8px 48px 0 0;
+}

@@ -11,12 +11,10 @@ import (
 
 // Test QueryEvent sends a query event with a inbox subject
 func TestQueryEvent(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {})
@@ -36,7 +34,6 @@ func TestQueryEvent(t *testing.T) {
 
 // Test QueryEvent expiration causes callback to be called with nil
 func TestQueryEventExpiration(t *testing.T) {
-	model := resource["test.model"]
 	var done func()
 	ch := make(chan struct{})
 
@@ -44,7 +41,7 @@ func TestQueryEventExpiration(t *testing.T) {
 		s.SetQueryEventDuration(time.Millisecond)
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
@@ -79,14 +76,12 @@ func TestSetQueryEventDurationPanicsAfterStart(t *testing.T) {
 
 // Test QueryEvent callback called directly on failed query subscription
 func TestQueryEventFailedSubscribe(t *testing.T) {
-	model := resource["test.model"]
 	var done func()
 
 	runTestAsync(t, func(s *Session) {
-		s.SetQueryEventDuration(time.Millisecond)
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				s.Close()
@@ -109,19 +104,18 @@ func TestQueryEventFailedSubscribe(t *testing.T) {
 
 // Test QueryRequests being received on query event
 func TestQueryRequest(t *testing.T) {
-	model := resource["test.model"]
-	query := "foo=bar"
-
 	events := json.RawMessage(`{"events":[]}`)
 
 	runTest(t, func(s *Session) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
-					AssertEqual(t, "query", r.Query(), query)
+					if r != nil {
+						AssertEqual(t, "query", r.Query(), mock.Query)
+					}
 				})
 				r.OK(nil)
 			}),
@@ -130,7 +124,7 @@ func TestQueryRequest(t *testing.T) {
 		inb := s.Request("call.test.model.method", nil)
 		subj := s.GetMsg(t).PathPayload(t, "subject").(string)
 		s.GetMsg(t).AssertSubject(t, inb)
-		inb = s.Request(subj, json.RawMessage(`{"query":"`+query+`"}`))
+		inb = s.Request(subj, json.RawMessage(`{"query":"`+mock.Query+`"}`))
 		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, events)
 	}, withGnatsd)
 }
@@ -233,6 +227,24 @@ func TestQueryRequestResponse(t *testing.T) {
 			res.ErrNotFound,
 		},
 		{
+			"foo=invalidQuery",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.InvalidQuery("")
+				}
+			},
+			res.ErrInvalidQuery,
+		},
+		{
+			"foo=invalidQuery_with_message",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.InvalidQuery(mock.ErrorMessage)
+				}
+			},
+			&res.Error{Code: res.CodeInvalidQuery, Message: mock.ErrorMessage},
+		},
+		{
 			"foo=error",
 			func(r res.QueryRequest) {
 				if r != nil {
@@ -317,6 +329,44 @@ func TestQueryRequestResponse(t *testing.T) {
 			},
 			res.ErrNotFound,
 		},
+		{
+			"foo=model_response",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.Model(mock.Model)
+				}
+			},
+			json.RawMessage(`{"model":{"id":42,"foo":"bar"}}`),
+		},
+		{
+			"foo=event_with_model_response",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.ChangeEvent(map[string]interface{}{"foo": "bar"})
+					r.Model(mock.Model)
+				}
+			},
+			json.RawMessage(`{"model":{"id":42,"foo":"bar"}}`),
+		},
+		{
+			"foo=collection_response",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.Collection(mock.Collection)
+				}
+			},
+			json.RawMessage(`{"collection":[42,"foo",null]}`),
+		},
+		{
+			"foo=event_with_collection_response",
+			func(r res.QueryRequest) {
+				if r != nil {
+					r.ChangeEvent(map[string]interface{}{"foo": "bar"})
+					r.Collection(mock.Collection)
+				}
+			},
+			json.RawMessage(`{"collection":[42,"foo",null]}`),
+		},
 	}
 	lookup := make(map[string]func(r res.QueryRequest), len(tbl))
 
@@ -339,7 +389,7 @@ func TestQueryRequestResponse(t *testing.T) {
 		// because starting gnatsd takes a couple of seconds
 		for _, l := range tbl {
 			lookup[l.Query] = l.Callback
-			req := newDefaultRequest()
+			req := mock.DefaultRequest()
 			req.Params = json.RawMessage(`"` + l.Query + `"`)
 			inb := s.Request("call.test.model.method", req)
 			subj := s.GetMsg(t).PathPayload(t, "subject").(string)
@@ -419,7 +469,7 @@ func TestInvalidQueryRequest(t *testing.T) {
 		)
 	}, func(s *Session) {
 		for i, l := range tbl {
-			inb := s.Request("call.test.model.method", newDefaultRequest())
+			inb := s.Request("call.test.model.method", mock.DefaultRequest())
 			subj := s.GetMsg(t).PathPayload(t, "subject").(string)
 
 			s.GetMsg(t).AssertSubject(t, inb)
@@ -431,5 +481,111 @@ func TestInvalidQueryRequest(t *testing.T) {
 				break
 			}
 		}
+	}, withGnatsd)
+}
+
+// Test Invalid QueryRequests gets an internal error response
+func TestInvalidQueryResponse(t *testing.T) {
+	tbl := []struct {
+		RID                 string
+		QueryRequestHandler func(t *testing.T, r res.QueryRequest)
+	}{
+		// Collection response on query model
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.Collection(mock.Collection)
+			})
+		}},
+		// Model response on query collection
+		{"test.collection", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.Model(mock.Model)
+			})
+		}},
+		// Change event on query collection
+		{"test.collection", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.ChangeEvent(map[string]interface{}{"foo": "bar"})
+			})
+		}},
+		// Add event on query model
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.AddEvent("foo", 0)
+			})
+		}},
+		// Remove event on query model
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.RemoveEvent(0)
+			})
+		}},
+		// Unserializable change value
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			r.ChangeEvent(map[string]interface{}{"foo": mock.UnserializableValue})
+		}},
+		// Unserializable add value
+		{"test.collection", func(t *testing.T, r res.QueryRequest) {
+			r.AddEvent(mock.UnserializableValue, 0)
+		}},
+		// Unserializable model
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			r.Model(mock.UnserializableValue)
+		}},
+		// Unserializable collection
+		{"test.collection", func(t *testing.T, r res.QueryRequest) {
+			r.Collection(mock.UnserializableValue)
+		}},
+		// Unserializable error
+		{"test.model", func(t *testing.T, r res.QueryRequest) {
+			r.Error(mock.UnserializableError)
+		}},
+	}
+
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			r.QueryModel(mock.Model, mock.NormalizedQuery)
+		}))
+		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
+			r.QueryCollection(mock.Collection, mock.NormalizedQuery)
+		}))
+	}, func(s *Session) {
+		ch := make(chan bool, 1)
+		for i, l := range tbl {
+			func() {
+				defer func() { ch <- true }()
+
+				s.With(l.RID, func(r res.Resource) {
+					r.QueryEvent(func(r res.QueryRequest) {
+						if r != nil {
+							l.QueryRequestHandler(t, r)
+						}
+					})
+				})
+
+				// Assert a query event for the resource
+				subj := s.GetMsg(t).
+					AssertSubject(t, "event."+l.RID+".query").
+					PathPayload(t, "subject").(string)
+
+				// Send query request to the subject
+				inb := s.Request(subj, mock.QueryRequest())
+				resp := s.GetMsg(t).AssertSubject(t, inb)
+				// Make sure we have an internal error
+				resp.AssertErrorCode(t, res.CodeInternalError)
+			}()
+			select {
+			case <-ch:
+			case <-time.After(timeoutDuration):
+				if t == nil {
+					t.Fatal("expected query request to get a query response, but it timed out")
+				}
+			}
+			if t.Failed() {
+				t.Logf("failed on test idx %d", i)
+				break
+			}
+		}
+		close(ch)
 	}, withGnatsd)
 }

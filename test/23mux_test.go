@@ -2,97 +2,150 @@ package test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	res "github.com/jirenius/go-res"
 )
 
+var getMatchingPathTestSets = []struct {
+	Path         string
+	Pattern      string
+	ResourceName string
+}{
+	{"", "model", "model"},
+	{"", "model.foo", "model.foo"},
+	{"", "model.$id", "model.42"},
+	{"", "model.$id.foo", "model.42.foo"},
+	{"", "model.>", "model.foo"},
+	{"", "model.>", "model.foo.bar"},
+	{"", "model.$id.>", "model.42.foo"},
+	{"", "model.$id.>", "model.42.foo.bar"},
+	{"", "$id", "model"},
+	{"", ">", "model.foo"},
+	{"", "$id.>", "model.foo.bar"},
+	{"", "$id.$foo", "model.foo"},
+	{"test", "model", "test.model"},
+	{"test", "model.foo", "test.model.foo"},
+	{"test", "model.$id", "test.model.42"},
+	{"test", "model.$id.foo", "test.model.42.foo"},
+	{"test", "model.>", "test.model.foo"},
+	{"test", "model.>", "test.model.foo.bar"},
+	{"test", "model.$id.>", "test.model.42.foo"},
+	{"test", "model.$id.>", "test.model.42.foo.bar"},
+	{"test", "$id", "test.model"},
+	{"test", ">", "test.model.foo"},
+	{"test", "$id.>", "test.model.foo.bar"},
+	{"test", "$id.$foo", "test.model.foo"},
+}
+
+var getMatchingMountedPathTestSets = []struct {
+	Path         string
+	Pattern      string
+	ResourceName string
+}{
+	{"", "model", "sub.model"},
+	{"", "model.foo", "sub.model.foo"},
+	{"", "model.$id", "sub.model.42"},
+	{"", "model.$id.foo", "sub.model.42.foo"},
+	{"", "model.>", "sub.model.foo"},
+	{"", "model.>", "sub.model.foo.bar"},
+	{"", "model.$id.>", "sub.model.42.foo"},
+	{"", "model.$id.>", "sub.model.42.foo.bar"},
+	{"", "$id", "sub.model"},
+	{"", ">", "sub.model.foo"},
+	{"", "$id.>", "sub.model.foo.bar"},
+	{"", "$id.$foo", "sub.model.foo"},
+	{"test", "model", "test.sub.model"},
+	{"test", "model.foo", "test.sub.model.foo"},
+	{"test", "model.$id", "test.sub.model.42"},
+	{"test", "model.$id.foo", "test.sub.model.42.foo"},
+	{"test", "model.>", "test.sub.model.foo"},
+	{"test", "model.>", "test.sub.model.foo.bar"},
+	{"test", "model.$id.>", "test.sub.model.42.foo"},
+	{"test", "model.$id.>", "test.sub.model.42.foo.bar"},
+	{"test", "$id", "test.sub.model"},
+	{"test", ">", "test.sub.model.foo"},
+	{"test", "$id.>", "test.sub.model.foo.bar"},
+	{"test", "$id.$foo", "test.sub.model.foo"},
+}
+
 // Test Route adds to the path of the the parent
 func TestRoute(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		s.Route("foo", func(m *res.Mux) {
 			m.Handle("model",
 				res.GetModel(func(r res.ModelRequest) {
-					r.Model(json.RawMessage(model))
+					r.Model(mock.Model)
 				}),
 			)
 		})
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.foo.model", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		inb := s.Request("get.test.foo.model", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test Mount Mux to service
 func TestMount(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		m := res.NewMux("")
 		m.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 		)
 		s.Mount("foo", m)
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.foo.model", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		inb := s.Request("get.test.foo.model", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test Mount Mux to service root
 func TestMountToRoot(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		m := res.NewMux("foo")
 		m.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 		)
 		s.Mount("", m)
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.foo.model", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		inb := s.Request("get.test.foo.model", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test Mount root Mux to service
 func TestMountRootMux(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		m := res.NewMux("")
 		m.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
-				r.Model(json.RawMessage(model))
+				r.Model(mock.Model)
 			}),
 		)
 		s.Mount("foo", m)
 	}, func(s *Session) {
 		// Test getting the model
-		inb := s.Request("get.test.foo.model", newRequest())
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":{"model":`+model+`}}`))
+		inb := s.Request("get.test.foo.model", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.ModelResponse)
 	})
 }
 
 // Test Mount root Mux to service root panics
 func TestMountRootMuxToRoot(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		AssertPanic(t, func() {
 			m := res.NewMux("")
 			m.Handle("model",
 				res.GetModel(func(r res.ModelRequest) {
-					r.Model(json.RawMessage(model))
+					r.Model(mock.Model)
 				}),
 			)
 			s.Mount("", m)
@@ -102,14 +155,12 @@ func TestMountRootMuxToRoot(t *testing.T) {
 
 // Test Mount Mux twice panics
 func TestMountMuxTwice(t *testing.T) {
-	model := resource["test.model"]
-
 	runTest(t, func(s *Session) {
 		AssertPanic(t, func() {
 			m := res.NewMux("")
 			m.Handle("model",
 				res.GetModel(func(r res.ModelRequest) {
-					r.Model(json.RawMessage(model))
+					r.Model(mock.Model)
 				}),
 			)
 			s.Mount("foo", m)
@@ -273,46 +324,112 @@ func TestPathWithMountedChild(t *testing.T) {
 	}
 }
 
-// Test GetHandler with matching path returns the registered handler.
-func TestGetHandlerWithMatchingPathReturnsHandler(t *testing.T) {
-	tbl := []struct {
-		Pattern      string
-		Path         string
-		ResourceName string
-	}{
-		{"", "", ""},
-		{"", "model", "model"},
-		{"", "model.foo", "model.foo"},
-		{"", "model.$id", "model.42"},
-		{"", "model.$id.foo", "model.42.foo"},
-		{"", "model.>", "model.foo"},
-		{"", "model.>", "model.foo.bar"},
-		{"", "model.$id.>", "model.42.foo"},
-		{"", "model.$id.>", "model.42.foo.bar"},
-		{"test", "", "test"},
-		{"test", "model", "test.model"},
-		{"test", "model.foo", "test.model.foo"},
-		{"test", "model.$id", "test.model.42"},
-		{"test", "model.$id.foo", "test.model.42.foo"},
-		{"test", "model.>", "test.model.foo"},
-		{"test", "model.>", "test.model.foo.bar"},
-		{"test", "model.$id.>", "test.model.42.foo"},
-		{"test", "model.$id.>", "test.model.42.foo.bar"},
-	}
-
-	for i, l := range tbl {
+func TestMuxGetHandler_MatchingPath_ReturnsHandler(t *testing.T) {
+	for i, l := range getMatchingPathTestSets {
 		called := 0
-		m := res.NewMux(l.Pattern)
-		m.Handle(l.Path, res.GetResource(func(r res.GetRequest) { called++ }))
-		h, _, _, err := m.GetHandler(l.ResourceName)
-		AssertNoError(t, err, "test ", i)
-		h.Get(nil)
+		m := res.NewMux(l.Path)
+		m.Handle(l.Pattern, res.GetResource(func(r res.GetRequest) { called++ }))
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 	}
 }
 
+func TestMuxGetHandler_MatchingPathAddedBeforeMount_ReturnsHandler(t *testing.T) {
+	for i, l := range getMatchingMountedPathTestSets {
+		called := 0
+		m := res.NewMux(l.Path)
+		sub := res.NewMux("")
+		sub.Handle(l.Pattern, res.GetResource(func(r res.GetRequest) { called++ }))
+		m.Mount("sub", sub)
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		mh.Handler.Get(nil)
+		AssertEqual(t, "called", called, 1, "test ", i)
+	}
+}
+
+func TestMuxGetHandler_MatchingPathAddedAfterMount_ReturnsHandler(t *testing.T) {
+	for i, l := range getMatchingMountedPathTestSets {
+		called := 0
+		m := res.NewMux(l.Path)
+		sub := res.NewMux("")
+		m.Mount("sub", sub)
+		m.Handle("sub."+l.Pattern, res.GetResource(func(r res.GetRequest) { called++ }))
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		mh.Handler.Get(nil)
+		AssertEqual(t, "called", called, 1, "test ", i)
+	}
+}
+
+func TestMuxGetHandler_ListenersOnMatchingPath_ReturnsListeners(t *testing.T) {
+	for i, l := range getMatchingPathTestSets {
+		called1 := 0
+		called2 := 0
+		m := res.NewMux(l.Path)
+		m.Handle(l.Pattern, res.Model)
+		m.AddListener(l.Pattern, func(ev *res.Event) { called1++ })
+		m.AddListener(l.Pattern, func(ev *res.Event) { called2++ })
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		AssertEqual(t, "len(mh.Listeners)", len(mh.Listeners), 2, "test ", i)
+		AssertTrue(t, "cb1 not to be called", called1 == 0, "test ", i)
+		mh.Listeners[0](nil)
+		AssertTrue(t, "cb1 to be called once", called1 == 1, "test ", i)
+		AssertTrue(t, "cb2 not to be called", called2 == 0, "test ", i)
+		mh.Listeners[1](nil)
+		AssertTrue(t, "cb2 to be called once", called2 == 1, "test ", i)
+	}
+}
+
+func TestMuxGetHandler_ListenersMatchingPathAddedBeforeMount_ReturnsListeners(t *testing.T) {
+	for i, l := range getMatchingMountedPathTestSets {
+		called1 := 0
+		called2 := 0
+		m := res.NewMux(l.Path)
+		sub := res.NewMux("")
+		sub.AddListener(l.Pattern, func(ev *res.Event) { called1++ })
+		sub.AddListener(l.Pattern, func(ev *res.Event) { called2++ })
+		m.Mount("sub", sub)
+		m.Handle("sub."+l.Pattern, res.Model)
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		AssertEqual(t, "len(mh.Listeners)", len(mh.Listeners), 2, "test ", i)
+		AssertTrue(t, "cb1 not to be called", called1 == 0, "test ", i)
+		mh.Listeners[0](nil)
+		AssertTrue(t, "cb1 to be called once", called1 == 1, "test ", i)
+		AssertTrue(t, "cb2 not to be called", called2 == 0, "test ", i)
+		mh.Listeners[1](nil)
+		AssertTrue(t, "cb2 to be called once", called2 == 1, "test ", i)
+	}
+}
+
+func TestMuxGetHandler_ListenersMatchingPathAddedAfterMount_ReturnsListeners(t *testing.T) {
+	for i, l := range getMatchingMountedPathTestSets {
+		called1 := 0
+		called2 := 0
+		m := res.NewMux(l.Path)
+		sub := res.NewMux("")
+		sub.Handle(l.Pattern, res.Model)
+		m.Mount("sub", sub)
+		m.AddListener("sub."+l.Pattern, func(ev *res.Event) { called1++ })
+		m.AddListener("sub."+l.Pattern, func(ev *res.Event) { called2++ })
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		AssertEqual(t, "len(mh.Listeners)", len(mh.Listeners), 2, "test ", i)
+		AssertTrue(t, "cb1 not to be called", called1 == 0, "test ", i)
+		mh.Listeners[0](nil)
+		AssertTrue(t, "cb1 to be called once", called1 == 1, "test ", i)
+		AssertTrue(t, "cb2 not to be called", called2 == 0, "test ", i)
+		mh.Listeners[1](nil)
+		AssertTrue(t, "cb2 to be called once", called2 == 1, "test ", i)
+	}
+}
+
 // Test GetHandler without matching path returns error.
-func TestGetHandlerWithMismatchingPathReturnsError(t *testing.T) {
+func TestGetHandlerWithMismatchingPathReturnsNil(t *testing.T) {
 	tbl := []struct {
 		Path         string
 		Pattern      string
@@ -341,8 +458,8 @@ func TestGetHandlerWithMismatchingPathReturnsError(t *testing.T) {
 	for i, l := range tbl {
 		m := res.NewMux(l.Path)
 		m.Handle(l.Pattern)
-		_, _, _, err := m.GetHandler(l.ResourceName)
-		AssertError(t, err, "test ", i)
+		mh := m.GetHandler(l.ResourceName)
+		AssertTrue(t, "*Match to equal nil", mh == nil, "test ", i)
 	}
 }
 
@@ -389,10 +506,10 @@ func TestGetHandlerWithMatchingPathAndGroupReturnsHandler(t *testing.T) {
 		called := 0
 		m := res.NewMux(l.Pattern)
 		m.Handle(l.Path, res.Group(l.Group), res.GetResource(func(r res.GetRequest) { called++ }))
-		h, _, g, err := m.GetHandler(l.ResourceName)
-		AssertNoError(t, err, "test ", i)
-		AssertEqual(t, "group", g, l.ExpectedGroup)
-		h.Get(nil)
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		AssertEqual(t, "group", mh.Group, l.ExpectedGroup)
+		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 	}
 }
@@ -442,10 +559,10 @@ func TestGetHandlerWithMatchingPathAndGroupOnMountedMuxReturnsHandler(t *testing
 		sub := res.NewMux("")
 		sub.Handle(l.Path, res.Group(l.Group), res.GetResource(func(r res.GetRequest) { called++ }))
 		m.Mount("sub", sub)
-		h, _, g, err := m.GetHandler(l.ResourceName)
-		AssertNoError(t, err, "test ", i)
-		AssertEqual(t, "group", g, l.ExpectedGroup)
-		h.Get(nil)
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		AssertEqual(t, "group", mh.Group, l.ExpectedGroup)
+		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 	}
 }
@@ -490,9 +607,9 @@ func TestGetHandlerMoreSpecificPath(t *testing.T) {
 		m := res.NewMux(l.Pattern)
 		m.Handle(l.SpecificPath, res.GetResource(func(r res.GetRequest) { specificCalled++ }))
 		m.Handle(l.WildcardPath, res.GetResource(func(r res.GetRequest) { wildcardCalled++ }))
-		h, _, _, err := m.GetHandler(l.ResourceName)
-		AssertNoError(t, err, "test ", i)
-		h.Get(nil)
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		mh.Handler.Get(nil)
 		AssertEqual(t, "specificCalled", specificCalled, 1, "test ", i)
 		AssertEqual(t, "wildcardCalled", wildcardCalled, 0, "test ", i)
 	}
@@ -521,9 +638,9 @@ func TestMountToSubpath(t *testing.T) {
 		sub := res.NewMux(l.SubPattern)
 		sub.Handle(l.HandlerPattern, res.GetResource(func(r res.GetRequest) { called++ }))
 		m.Mount(l.MountPattern, sub)
-		h, _, _, err := m.GetHandler(l.ResourceName)
-		AssertNoError(t, err, "test ", i)
-		h.Get(nil)
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
 	}
 }
@@ -595,11 +712,11 @@ func TestGetHandlerFromMountedChildMux(t *testing.T) {
 		sub := res.NewMux("")
 		sub.Handle(l.HandlerPattern, res.GetResource(func(r res.GetRequest) { called++ }))
 		m.Mount("sub", sub)
-		h, p, _, err := m.GetHandler(l.ResourceName)
-		AssertNoError(t, err, "test ", i)
-		h.Get(nil)
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
-		AssertEqual(t, "pathParams", p, json.RawMessage(l.ExpectedParams), "test ", i)
+		AssertEqual(t, "pathParams", mh.Params, json.RawMessage(l.ExpectedParams), "test ", i)
 	}
 }
 
@@ -611,11 +728,11 @@ func TestGetHandlerAddedAfterBeingMounted(t *testing.T) {
 		sub := res.NewMux("")
 		m.Mount("sub", sub)
 		m.Handle("sub."+l.HandlerPattern, res.GetResource(func(r res.GetRequest) { called++ }))
-		h, p, _, err := m.GetHandler(l.ResourceName)
-		AssertNoError(t, err, "test ", i)
-		h.Get(nil)
+		mh := m.GetHandler(l.ResourceName)
+		AssertNotNil(t, mh, "test ", i)
+		mh.Handler.Get(nil)
 		AssertEqual(t, "called", called, 1, "test ", i)
-		AssertEqual(t, "pathParams", p, json.RawMessage(l.ExpectedParams), "test ", i)
+		AssertEqual(t, "pathParams", mh.Params, json.RawMessage(l.ExpectedParams), "test ", i)
 	}
 }
 
@@ -686,5 +803,141 @@ func TestContainsWithOverlappingPaths(t *testing.T) {
 		AssertTrue(t, "Contains TypeModel to return true", m.Contains(func(h res.Handler) bool { return h.Type == res.TypeModel }), "test ", i)
 		AssertTrue(t, "Contains TypeCollection to return true", m.Contains(func(h res.Handler) bool { return h.Type == res.TypeCollection }), "test ", i)
 		AssertTrue(t, "Contains TypeUnset to return false", !m.Contains(func(h res.Handler) bool { return h.Type == res.TypeUnset }), "test ", i)
+	}
+}
+
+// Test OnRegister on a Handler to be called when adding handler to Mux that is registered to a service.
+func TestMuxOnRegister_WithService_CallsCallback(t *testing.T) {
+	tbl := []struct {
+		Path         string
+		Pattern      string
+		ExpectedPath string
+	}{
+		{"", "model", "model"},
+		{"", "model.foo", "model.foo"},
+		{"", "model.$id", "model.$id"},
+		{"", "model.>", "model.>"},
+		{"", "$id", "$id"},
+		{"", ">", ">"},
+		{"", "$id.>", "$id.>"},
+		{"", "$id.$foo", "$id.$foo"},
+
+		{"test", "model", "test.model"},
+		{"test", "model.foo", "test.model.foo"},
+		{"test", "model.$id", "test.model.$id"},
+		{"test", "model.>", "test.model.>"},
+		{"test", "$id", "test.$id"},
+		{"test", ">", "test.>"},
+		{"test", "$id.>", "test.$id.>"},
+		{"test", "$id.$foo", "test.$id.$foo"},
+	}
+
+	for i, l := range tbl {
+		s := res.NewService(l.Path)
+		called := false
+		s.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string) {
+			called = true
+			AssertTrue(t, "service to be passed as argument", s == service)
+			AssertEqual(t, "pattern", pattern, l.ExpectedPath)
+		}))
+		AssertTrue(t, "callback to be called", called, fmt.Sprintf("test #%d", i+1))
+	}
+}
+
+func TestMuxOnRegister_MultipleListenersWithService_CallsCallbacks(t *testing.T) {
+
+	s := res.NewService("test")
+	called1 := 0
+	called2 := 0
+	s.Handle("model",
+		res.OnRegister(func(service *res.Service, pattern string) {
+			called1++
+			AssertEqual(t, "pattern", pattern, "test.model")
+		}),
+		res.OnRegister(func(service *res.Service, pattern string) {
+			called2++
+			AssertEqual(t, "pattern", pattern, "test.model")
+		}),
+	)
+	AssertTrue(t, "callback 1 to be called once", called1 == 1)
+	AssertTrue(t, "callback 2 to be called once", called2 == 1)
+}
+
+func TestMuxOnRegister_BeforeMountingToService_CallsCallback(t *testing.T) {
+	tbl := []struct {
+		Path         string
+		Pattern      string
+		ExpectedPath string
+	}{
+		{"", "model", "sub.model"},
+		{"", "model.foo", "sub.model.foo"},
+		{"", "model.$id", "sub.model.$id"},
+		{"", "model.>", "sub.model.>"},
+		{"", "$id", "sub.$id"},
+		{"", ">", "sub.>"},
+		{"", "$id.>", "sub.$id.>"},
+		{"", "$id.$foo", "sub.$id.$foo"},
+
+		{"test", "model", "test.sub.model"},
+		{"test", "model.foo", "test.sub.model.foo"},
+		{"test", "model.$id", "test.sub.model.$id"},
+		{"test", "model.>", "test.sub.model.>"},
+		{"test", "$id", "test.sub.$id"},
+		{"test", ">", "test.sub.>"},
+		{"test", "$id.>", "test.sub.$id.>"},
+		{"test", "$id.$foo", "test.sub.$id.$foo"},
+	}
+
+	for i, l := range tbl {
+		s := res.NewService(l.Path)
+		m := res.NewMux("")
+		called := false
+		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string) {
+			called = true
+			AssertTrue(t, "service to be passed as argument", s == service)
+			AssertEqual(t, "pattern", pattern, l.ExpectedPath)
+		}))
+		AssertTrue(t, "callback not to be called", !called, fmt.Sprintf("test #%d", i+1))
+		s.Mount("sub", m)
+		AssertTrue(t, "callback to be called", called, fmt.Sprintf("test #%d", i+1))
+	}
+}
+
+func TestMuxOnRegister_AfterMountingToService_CallsCallback(t *testing.T) {
+	tbl := []struct {
+		Path         string
+		Pattern      string
+		ExpectedPath string
+	}{
+		{"", "model", "sub.model"},
+		{"", "model.foo", "sub.model.foo"},
+		{"", "model.$id", "sub.model.$id"},
+		{"", "model.>", "sub.model.>"},
+		{"", "$id", "sub.$id"},
+		{"", ">", "sub.>"},
+		{"", "$id.>", "sub.$id.>"},
+		{"", "$id.$foo", "sub.$id.$foo"},
+
+		{"test", "model", "test.sub.model"},
+		{"test", "model.foo", "test.sub.model.foo"},
+		{"test", "model.$id", "test.sub.model.$id"},
+		{"test", "model.>", "test.sub.model.>"},
+		{"test", "$id", "test.sub.$id"},
+		{"test", ">", "test.sub.>"},
+		{"test", "$id.>", "test.sub.$id.>"},
+		{"test", "$id.$foo", "test.sub.$id.$foo"},
+	}
+
+	for i, l := range tbl {
+		s := res.NewService(l.Path)
+		m := res.NewMux("")
+		s.Mount("sub", m)
+		called := false
+		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string) {
+			called = true
+			AssertTrue(t, "service to be passed as argument", s == service)
+			AssertEqual(t, "pattern", pattern, l.ExpectedPath)
+		}))
+		AssertTrue(t, "callback to be called", called, fmt.Sprintf("test #%d", i+1))
 	}
 }

@@ -83,23 +83,19 @@ func syncCallback(cb func(*Session)) func(s *Session, done func()) {
 }
 
 type runConfig struct {
+	name           string
 	logger         logger.Logger
 	preCallback    func(*Session)
 	callback       func(*Session, func())
 	useGnatsd      bool
-	serveError     bool
 	noReset        bool
 	validateReset  bool
 	resetResources []string
 	resetAccess    []string
 }
 
-func callback(cb func(*Session)) func(*runConfig) {
-	return func(cfg *runConfig) { cfg.callback = syncCallback(cb) }
-}
-
-func asyncCallback(cb func(s *Session, done func())) func(*runConfig) {
-	return func(cfg *runConfig) { cfg.callback = cb }
+func withName(name string) func(*runConfig) {
+	return func(cfg *runConfig) { cfg.name = name }
 }
 
 func withLogger(l logger.Logger) func(*runConfig) {
@@ -107,8 +103,6 @@ func withLogger(l logger.Logger) func(*runConfig) {
 }
 
 func withGnatsd(cfg *runConfig) { cfg.useGnatsd = true }
-
-func withError(cfg *runConfig) { cfg.serveError = true }
 
 func withoutReset(cfg *runConfig) { cfg.noReset = true }
 
@@ -157,6 +151,9 @@ func runTestInternal(t *testing.T, cfg *runConfig) {
 	panicked := true
 	defer func() {
 		if panicked || t.Failed() {
+			if cfg.name != "" {
+				t.Logf("Failed test %s", cfg.name)
+			}
 			l := s.Logger()
 			if l != nil {
 				t.Logf("Trace log:\n%s", l)

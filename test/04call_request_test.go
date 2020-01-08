@@ -8,17 +8,15 @@ import (
 	"github.com/jirenius/go-res"
 )
 
-// Test call response with result
-func TestCall(t *testing.T) {
-	result := `{"foo":"bar","zoo":42}`
-
+// Test call OK response with result
+func TestCallOK(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			r.OK(json.RawMessage(result))
+			r.OK(mock.Result)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":`+result+`}`))
+		s.GetMsg(t).Equals(t, inb, mock.ResultResponse)
 	})
 }
 
@@ -27,18 +25,18 @@ func TestCallRequestGetters(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("foo", func(r res.CallRequest) {
 			AssertEqual(t, "Method", r.Method(), "foo")
-			AssertEqual(t, "CID", r.CID(), defaultCID)
+			AssertEqual(t, "CID", r.CID(), mock.CID)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.foo", req)
 		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 	})
 }
 
-// Test call response with nil result
-func TestCallWithNil(t *testing.T) {
+// Test call OK response with nil result
+func TestCallOKWithNil(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.OK(nil)
@@ -46,6 +44,32 @@ func TestCallWithNil(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("call.test.model.method", nil)
 		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"result":null}`))
+	})
+}
+
+// Test call Resource response with valid resource ID
+func TestCallResource_WithValidRID_SendsResourceResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.Resource("test.foo")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).Equals(t, inb, json.RawMessage(`{"resource":{"rid":"test.foo"}}`))
+	})
+}
+
+// Test call Resource response with invalid resource ID causes panic
+func TestCallResource_WithInvalidRID_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			AssertPanicNoRecover(t, func() {
+				r.Resource("test..foo")
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, res.CodeInternalError)
 	})
 }
 
@@ -78,7 +102,7 @@ func TestCallMethodNotFound(t *testing.T) {
 }
 
 // Test calling InvalidParams with no message on a call request results in system.invalidParams
-func TestCallDefaultInvalidParams(t *testing.T) {
+func TestCallInvalidParams_EmptyMessage(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.InvalidParams("")
@@ -92,10 +116,10 @@ func TestCallDefaultInvalidParams(t *testing.T) {
 }
 
 // Test calling InvalidParams on a call request results in system.invalidParams
-func TestCallInvalidParams(t *testing.T) {
+func TestCallInvalidParams_CustomMessage(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			r.InvalidParams("foo")
+			r.InvalidParams(mock.ErrorMessage)
 		}))
 	}, func(s *Session) {
 		inb := s.Request("call.test.model.method", nil)
@@ -103,7 +127,38 @@ func TestCallInvalidParams(t *testing.T) {
 			AssertSubject(t, inb).
 			AssertError(t, &res.Error{
 				Code:    res.CodeInvalidParams,
-				Message: "foo",
+				Message: mock.ErrorMessage,
+			})
+	})
+}
+
+// Test calling InvalidQuery with no message on a call request results in system.invalidQuery
+func TestCallInvalidQuery_EmptyMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.InvalidQuery("")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", mock.Request())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrInvalidQuery)
+	})
+}
+
+// Test calling InvalidQuery on a call request results in system.invalidQuery
+func TestCallInvalidQuery_CustomMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.InvalidQuery(mock.ErrorMessage)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", nil)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, &res.Error{
+				Code:    res.CodeInvalidQuery,
+				Message: mock.ErrorMessage,
 			})
 	})
 }
@@ -124,16 +179,14 @@ func TestCallError(t *testing.T) {
 
 // Test calling RawParams on a call request with parameters
 func TestCallRawParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, "RawParams", r.RawParams(), params)
+			AssertEqual(t, "RawParams", r.RawParams(), mock.Params)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Params = params
+		req := mock.DefaultRequest()
+		req.Params = mock.Params
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -149,7 +202,7 @@ func TestCallRawParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -159,16 +212,14 @@ func TestCallRawParamsWithNilParams(t *testing.T) {
 
 // Test calling RawToken on a call request with token
 func TestCallRawToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
-
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
-			AssertEqual(t, "RawToken", r.RawToken(), token)
+			AssertEqual(t, "RawToken", r.RawToken(), mock.Token)
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Token = token
+		req := mock.DefaultRequest()
+		req.Token = mock.Token
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -184,7 +235,7 @@ func TestCallRawTokenWithNoToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -194,7 +245,6 @@ func TestCallRawTokenWithNoToken(t *testing.T) {
 
 // Test calling ParseParams on a call request with parameters
 func TestCallParseParams(t *testing.T) {
-	params := json.RawMessage(`{"foo":"bar","baz":42}`)
 	var p struct {
 		Foo string `json:"foo"`
 		Baz int    `json:"baz"`
@@ -208,8 +258,8 @@ func TestCallParseParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Params = params
+		req := mock.DefaultRequest()
+		req.Params = mock.Params
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -232,7 +282,7 @@ func TestCallParseParamsWithNilParams(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -242,7 +292,6 @@ func TestCallParseParamsWithNilParams(t *testing.T) {
 
 // Test calling ParseToken on a call request with token
 func TestCallParseToken(t *testing.T) {
-	token := json.RawMessage(`{"user":"foo","id":42}`)
 	var o struct {
 		User string `json:"user"`
 		ID   int    `json:"id"`
@@ -256,8 +305,8 @@ func TestCallParseToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
-		req.Token = token
+		req := mock.DefaultRequest()
+		req.Token = mock.Token
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -280,7 +329,7 @@ func TestCallParseTokenWithNilToken(t *testing.T) {
 			r.NotFound()
 		}))
 	}, func(s *Session) {
-		req := newDefaultRequest()
+		req := mock.DefaultRequest()
 		inb := s.Request("call.test.model.method", req)
 		s.GetMsg(t).
 			AssertSubject(t, inb).
@@ -352,5 +401,45 @@ func TestCallRequestTimeoutWithDurationLessThanZero(t *testing.T) {
 	}, func(s *Session) {
 		inb := s.Request("call.test.model.method", nil)
 		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, "system.internalError")
+	})
+}
+
+// Test call request with an unset method returns error system.methodNotFound
+func TestCallRequest_UnknownMethod_ErrorMethodNotFound(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.OK(nil)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.unset", nil)
+		s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrMethodNotFound)
+	})
+}
+
+// Test that multiple responses to call request causes panic
+func TestCall_WithMultipleResponses_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Call("method", func(r res.CallRequest) {
+			r.OK(nil)
+			AssertPanic(t, func() {
+				r.MethodNotFound()
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("call.test.model.method", mock.Request())
+		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, nil)
+	})
+}
+
+func TestCallRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo",
+			res.Call("method", func(r res.CallRequest) { r.OK(nil) }),
+		)
+	}, func(s *Session) {
+		inb := s.RequestRaw("call.test.model.foo.method", mock.BrokenJSON)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
 	})
 }

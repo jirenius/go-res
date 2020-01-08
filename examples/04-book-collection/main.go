@@ -8,7 +8,7 @@ edited and deleted by multiple users simultaneously.
 * It allows deleting existing books from the collection with the `delete` method.
 * It verifies that a *title* and *author* is always set.
 * It resets the collection and models on server restart.
-* It serves a web client at http://localhost:8082
+* It serves a web client at http://localhost:8084
 */
 package main
 
@@ -16,8 +16,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
 
 	"github.com/jirenius/go-res"
@@ -64,33 +62,16 @@ func main() {
 		"books",
 		res.Access(res.AccessGranted),
 		res.GetCollection(getBooksHandler),
-		res.New(newBookHandler),
+		res.Call("new", newBookHandler),
 		res.Call("delete", deleteBookHandler),
 	)
 
-	// Start service in separate goroutine
-	stop := make(chan bool)
-	go func() {
-		defer close(stop)
-		if err := s.ListenAndServe("nats://localhost:4222"); err != nil {
-			fmt.Printf("%s\n", err.Error())
-		}
-	}()
-
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	go func() { log.Fatal(http.ListenAndServe(":8082", http.FileServer(http.Dir("./")))) }()
-	fmt.Println("Client at: http://localhost:8082/")
+	go func() { log.Fatal(http.ListenAndServe(":8084", http.FileServer(http.Dir("wwwroot/")))) }()
+	fmt.Println("Client at: http://localhost:8084/")
 
-	// Wait for interrupt signal
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	select {
-	case <-c:
-		// Graceful stop
-		s.Shutdown()
-	case <-stop:
-	}
+	s.ListenAndServe("nats://localhost:4222")
 }
 
 func getBookHandler(r res.ModelRequest) {
@@ -161,7 +142,7 @@ func getBooksHandler(r res.CollectionRequest) {
 	r.Collection(books)
 }
 
-func newBookHandler(r res.NewRequest) {
+func newBookHandler(r res.CallRequest) {
 	var p struct {
 		Title  string `json:"title"`
 		Author string `json:"author"`
@@ -191,7 +172,7 @@ func newBookHandler(r res.NewRequest) {
 	books = append(books, ref)
 
 	// Respond with a reference to the newly created book model
-	r.New(ref)
+	r.Resource(rid)
 }
 
 func deleteBookHandler(r res.CallRequest) {

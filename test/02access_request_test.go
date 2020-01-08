@@ -60,6 +60,37 @@ func TestAccessError(t *testing.T) {
 	})
 }
 
+// Test calling InvalidQuery with no message on an access request results in system.invalidQuery
+func TestAccessInvalidQuery_EmptyMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			r.InvalidQuery("")
+		}))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", mock.QueryRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, res.ErrInvalidQuery)
+	})
+}
+
+// Test calling InvalidQuery on an access request results in system.invalidQuery
+func TestAccessInvalidQuery_CustomMessage(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			r.InvalidQuery(mock.ErrorMessage)
+		}))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", mock.QueryRequest())
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertError(t, &res.Error{
+				Code:    res.CodeInvalidQuery,
+				Message: mock.ErrorMessage,
+			})
+	})
+}
+
 // Test that panicing in an access request results in system.internalError
 func TestPanicOnAccess(t *testing.T) {
 	runTest(t, func(s *Session) {
@@ -176,5 +207,51 @@ func TestAccessDeniedHandler(t *testing.T) {
 		s.GetMsg(t).
 			AssertSubject(t, inb).
 			AssertError(t, res.ErrAccessDenied)
+	})
+}
+
+// Test that an access request without any access handler gives no response
+func TestAccess_WithoutAccessHandler_SendsNoResponse(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
+			r.Model(mock.Model)
+		}))
+		s.Handle("collection", res.Access(func(r res.AccessRequest) {
+			r.AccessGranted()
+		}))
+	}, func(s *Session) {
+		s.Request("access.test.model", mock.DefaultRequest())
+		inb := s.Request("access.test.collection", mock.DefaultRequest())
+		// Validate that the response is for the collection access, and not model access
+		s.GetMsg(t).AssertSubject(t, inb)
+	})
+}
+
+// Test that multiple responses to access request causes panic
+func TestAccess_WithMultipleResponses_CausesPanic(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			r.AccessGranted()
+			AssertPanic(t, func() {
+				r.AccessDenied()
+			})
+		}))
+	}, func(s *Session) {
+		inb := s.Request("access.test.model", mock.Request())
+		s.GetMsg(t).Equals(t, inb, mock.AccessGrantedResponse)
+	})
+}
+
+func TestAccessRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
+	runTest(t, func(s *Session) {
+		s.Handle("model.foo",
+			res.GetModel(func(r res.ModelRequest) { r.NotFound() }),
+			res.Access(res.AccessGranted),
+		)
+	}, func(s *Session) {
+		inb := s.RequestRaw("access.test.model.foo", mock.BrokenJSON)
+		s.GetMsg(t).
+			AssertSubject(t, inb).
+			AssertErrorCode(t, res.CodeInternalError)
 	})
 }

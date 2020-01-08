@@ -1,6 +1,6 @@
 /*
 This is an example of a simple text field that can be edited by multiple clients.
-* It exposes a single resource: "example.shared".
+* It exposes a single resource: "text.shared".
 * It allows setting the resource's Message property through the "set" method.
 * It resets the model on server restart.
 * It serves a web client at http://localhost:8082
@@ -24,9 +24,9 @@ var shared = &Model{Message: "Hello, Go World!"}
 
 func main() {
 	// Create a new RES Service
-	s := res.NewService("example")
+	s := res.NewService("text")
 
-	// Add handlers for "example.shared" resource
+	// Add handlers for "text.shared" resource
 	s.Handle("shared",
 		// Allow everone to access this resource
 		res.Access(res.AccessGranted),

@@ -276,6 +276,7 @@ func (c *MockConn) GetMsg(t *testing.T) *Msg {
 	return nil
 }
 
+// FailNextSubscription flags that the next subscription attempt should fail.
 func (c *MockConn) FailNextSubscription() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -293,7 +294,7 @@ func AssertEqual(t *testing.T, name string, result, expected interface{}, ctx ..
 		if len(ctx) > 0 {
 			str = "\nin " + fmt.Sprint(ctx...)
 		}
-		t.Errorf("expected %s to be:\n%s\nbut got:\n%s%s", name, bj, aj, str)
+		t.Fatalf("expected %s to be:\n\t%s\nbut got:\n\t%s%s", name, bj, aj, str)
 		return false
 	}
 
@@ -307,7 +308,7 @@ func AssertTrue(t *testing.T, expectation string, isTrue bool, ctx ...interface{
 		if len(ctx) > 0 {
 			str = "\nin " + fmt.Sprint(ctx...)
 		}
-		t.Errorf("expected %s%s", expectation, str)
+		t.Fatalf("expected %s%s", expectation, str)
 		return false
 	}
 
@@ -338,6 +339,34 @@ func AssertError(t *testing.T, err error, ctx ...interface{}) {
 	}
 }
 
+// AssertResError expects that err is of type *res.Error and matches rerr.
+func AssertResError(t *testing.T, err error, rerr *res.Error, ctx ...interface{}) {
+	AssertError(t, err, ctx...)
+	var str string
+	v, ok := err.(*res.Error)
+	if !ok {
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected error to be of type *res.Error%s", str)
+	}
+	AssertEqual(t, "error", v, rerr, ctx...)
+}
+
+// AssertErrorCode expects that err is of type *res.Error with given code.
+func AssertErrorCode(t *testing.T, err error, code string, ctx ...interface{}) {
+	AssertError(t, err, ctx...)
+	var str string
+	v, ok := err.(*res.Error)
+	if !ok {
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected error to be of type *res.Error%s", str)
+	}
+	AssertEqual(t, "error code", v.Code, code, ctx...)
+}
+
 // AssertPanic expects the callback function to panic, otherwise
 // logs an error with t.Errorf
 func AssertPanic(t *testing.T, cb func(), ctx ...interface{}) {
@@ -365,6 +394,30 @@ func AssertPanicNoRecover(t *testing.T, cb func()) {
 	}()
 	cb()
 	panicking = false
+}
+
+// AssertNil expects that a value is nil, otherwise it
+// logs an error with t.Fatalf.
+func AssertNil(t *testing.T, v interface{}, ctx ...interface{}) {
+	if v != nil && !reflect.ValueOf(v).IsNil() {
+		var str string
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected non-nil but got nil%s", str)
+	}
+}
+
+// AssertNotNil expects that a value is non-nil, otherwise it
+// logs an error with t.Fatalf.
+func AssertNotNil(t *testing.T, v interface{}, ctx ...interface{}) {
+	if v == nil || reflect.ValueOf(v).IsNil() {
+		var str string
+		if len(ctx) > 0 {
+			str = "\nin " + fmt.Sprint(ctx...)
+		}
+		t.Fatalf("expected nil but got %+v%s", v, str)
+	}
 }
 
 // Equals asserts that the message has the expected subject and payload

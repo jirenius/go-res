@@ -14,6 +14,9 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
+// Supported RES protocol version
+const protocolVersion = "1.2.0"
+
 // The size of the in channel receiving messages from NATS Server.
 const inChannelSize = 256
 
@@ -55,6 +58,8 @@ type CollectionHandler func(CollectionRequest)
 type CallHandler func(CallRequest)
 
 // NewHandler is a function called on new resource call requests
+//
+// Deprecated: Use CallHandler with Resource response instead; deprecated in RES protocol v1.2.0
 type NewHandler func(NewRequest)
 
 // AuthHandler is a function called on resource auth requests
@@ -95,6 +100,8 @@ type Handler struct {
 	Call map[string]CallHandler
 
 	// New handler for new call requests
+	//
+	// Deprecated: Use Call with Resource response instead; deprecated in RES protocol v1.2.0
 	New NewHandler
 
 	// Auth handler for auth requests
@@ -122,6 +129,21 @@ type Handler struct {
 	// a parameter placeholder name in the resource pattern.
 	// If empty, the resource name will be used as identifier.
 	Group string
+
+	// OnRegister is callback that is to be call when the handler
+	// has been registered to a service.
+	//
+	// The pattern string is the full resource pattern for the
+	// resource, including any service name or mount paths.
+	OnRegister func(service *Service, pattern string)
+
+	// Listeners is a map of event listeners, where the key is the
+	// resource pattern being listened on, and the value being
+	// the callback called on events.
+	//
+	// The callback will be called in the context of the resource
+	// emitting the event.
+	Listeners map[string]func(*Event)
 }
 
 const (
@@ -178,11 +200,13 @@ type Service struct {
 // If name is an empty string, the Service will by default handle all resources
 // for all namespaces. Use SetReset to limit the namespace scope.
 func NewService(name string) *Service {
-	return &Service{
+	s := &Service{
 		Mux:           NewMux(name),
 		logger:        logger.NewStdLogger(),
 		queryDuration: defaultQueryEventDuration,
 	}
+	s.Mux.Register(s)
+	return s
 }
 
 // SetLogger sets the logger.
@@ -233,6 +257,11 @@ func (s *Service) SetOnError(f func(*Service, string)) {
 // Logger returns the logger.
 func (s *Service) Logger() logger.Logger {
 	return s.logger
+}
+
+// ProtocolVersion returns the supported RES protocol version.
+func (s *Service) ProtocolVersion() string {
+	return protocolVersion
 }
 
 // infof logs a formatted info entry.
@@ -299,15 +328,11 @@ func GetResource(h GetHandler) Option {
 }
 
 // Call sets a handler for resource call requests.
-// Panics if the method is one of the pre-defined call methods, set, or new.
-// For pre-defined call methods, the matching handlers, Set, and New
-// should be used instead.
+// Panics if the method is the pre-defined call method set.
+// For pre-defined set call methods, the handler Set should be used instead.
 func Call(method string, h CallHandler) Option {
 	if !isValidPart(method) {
 		panic("res: invalid method name: " + method)
-	}
-	if method == "new" {
-		panic("res: new handler should be registered using the New method")
 	}
 	return OptionFunc(func(hs *Handler) {
 		if hs.Call == nil {
@@ -327,6 +352,8 @@ func Set(h CallHandler) Option {
 }
 
 // New sets a handler for new resource requests.
+//
+// Deprecated: Use Call with Resource response instead; deprecated in RES protocol v1.2.0
 func New(h NewHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.New != nil {
@@ -412,6 +439,25 @@ func Group(group string) Option {
 	})
 }
 
+// OnRegister sets a callback to be called when the handler is registered
+// to a service.
+//
+// If a callback is already registered, the new callback will be called
+// after the previous one.
+func OnRegister(callback func(service *Service, pattern string)) Option {
+	return OptionFunc(func(hs *Handler) {
+		if hs.OnRegister != nil {
+			prevcb := hs.OnRegister
+			hs.OnRegister = func(service *Service, pattern string) {
+				prevcb(service, pattern)
+				callback(service, pattern)
+			}
+		} else {
+			hs.OnRegister = callback
+		}
+	})
+}
+
 // SetReset is an alias for SetOwnedResources.
 // Deprecated: Renamed to SetOwnedResources to match API of similar libraries.
 func (s *Service) SetReset(resources, access []string) *Service {
@@ -434,7 +480,7 @@ func (s *Service) SetReset(resources, access []string) *Service {
 // prefixed with its own path if one was provided when creating the service
 // (eg. "serviceName.>"), or to all resources if no name was provided.
 // It will take resource ownership if it has at least one registered handler has a
-// Get, Call, Auth, or New handler method not being nil.
+// Get, Call, or Auth handler method not being nil.
 // It will take access ownership if it has at least one registered handler with the
 // Access method not being nil.
 //
@@ -503,6 +549,13 @@ func (s *Service) Serve(nc Conn) error {
 func (s *Service) serve(nc Conn) error {
 	s.infof("Starting service")
 
+	// Validate that there are resources registered
+	// for all the event listeners.
+	err := s.ValidateListeners()
+	if err != nil {
+		return err
+	}
+
 	// Initialize fields
 	inCh := make(chan *nats.Msg, inChannelSize)
 	workCh := make(chan *work, 1)
@@ -520,7 +573,7 @@ func (s *Service) serve(nc Conn) error {
 
 	atomic.StoreInt32(&s.state, stateStarted)
 
-	err := s.subscribe()
+	err = s.subscribe()
 	if err != nil {
 		s.errorf("Failed to subscribe: %s", err)
 		go s.Shutdown()
@@ -723,20 +776,14 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		rname = rname[:idx]
 	}
 
-	h, params, group, err := s.GetHandler(rname)
-	if err != nil {
-		group = rname
-	}
-	r := resource{
-		rname:      rname,
-		pathParams: params,
-		group:      group,
-		s:          s,
-		h:          h,
+	group := rname
+	mh := s.GetHandler(rname)
+	if mh != nil {
+		group = mh.Group
 	}
 
 	s.runWith(group, func() {
-		s.processRequest(m, rtype, method, r, err)
+		s.processRequest(m, rtype, rname, method, mh)
 	})
 }
 
@@ -804,18 +851,19 @@ func (s *Service) WithGroup(group string, cb func(s *Service)) {
 // Using the returned value from another goroutine may cause race conditions.
 func (s *Service) Resource(rid string) (Resource, error) {
 	rname, q := parseRID(rid)
-	h, params, group, err := s.GetHandler(rname)
-	if err != nil {
-		return nil, err
+	mh := s.GetHandler(rname)
+	if mh == nil {
+		return nil, errHandlerNotFound
 	}
 
 	return &resource{
 		rname:      rname,
-		pathParams: params,
+		pathParams: mh.Params,
 		query:      q,
-		group:      group,
+		group:      mh.Group,
 		s:          s,
-		h:          h,
+		h:          mh.Handler,
+		listeners:  mh.Listeners,
 	}, nil
 }
 
@@ -889,35 +937,44 @@ func parseRID(rid string) (rname string, q string) {
 }
 
 // processRequest is executed by the worker to process an incoming request.
-func (s *Service) processRequest(m *nats.Msg, rtype, method string, res resource, err error) {
-	r := Request{
-		resource: res,
-		rtype:    rtype,
-		method:   method,
-		msg:      m,
-	}
-
-	if err != nil {
+func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *Match) {
+	var r *Request
+	if mh == nil {
+		r = &Request{resource: resource{s: s}, msg: m}
 		r.reply(responseNotFound)
 		return
 	}
 
 	var rc resRequest
-	err = json.Unmarshal(m.Data, &rc)
+	err := json.Unmarshal(m.Data, &rc)
 	if err != nil {
+		r = &Request{resource: resource{s: s}, msg: m}
 		s.errorf("Error unmarshaling incoming request: %s", err)
 		r.error(ToError(err))
 		return
 	}
 
-	r.cid = rc.CID
-	r.params = rc.Params
-	r.token = rc.Token
-	r.header = rc.Header
-	r.host = rc.Host
-	r.remoteAddr = rc.RemoteAddr
-	r.uri = rc.URI
-	r.query = rc.Query
+	r = &Request{
+		resource: resource{
+			rname:      rname,
+			pathParams: mh.Params,
+			group:      mh.Group,
+			s:          s,
+			h:          mh.Handler,
+			listeners:  mh.Listeners,
+			query:      rc.Query,
+		},
+		rtype:      rtype,
+		method:     method,
+		msg:        m,
+		cid:        rc.CID,
+		params:     rc.Params,
+		token:      rc.Token,
+		header:     rc.Header,
+		host:       rc.Host,
+		remoteAddr: rc.RemoteAddr,
+		uri:        rc.URI,
+	}
 
 	r.executeHandler()
 }

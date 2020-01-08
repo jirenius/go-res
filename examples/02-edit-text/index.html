@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>Edit Text Example</title>
+		<link rel="icon" href="data:,">
+		<script src="https://cdn.jsdelivr.net/npm/resclient@latest/dist/resclient.min.js"></script>
+	</head>
+	<body>
+		<p>Try running the client in two separate tabs!</p>
+		<p>Web resource: <a href="http://localhost:8080/api/text/shared" target="_blank">http://localhost:8080/api/text/shared</a></p>
+		<hr />
+		<div id="root"><input id="input" /></div>
+		<script>
+			const ResClient = resclient.default;
+
+			// Creating the client instance.
+			let client = new ResClient('ws://localhost:8080');
+
+			// Get the model from the service.
+			client.get('text.shared').then(model => {
+				// Set value of the input element
+				input.value = model.message;
+
+				// Listen for user input and call set to update the remote model.
+				input.addEventListener('input', () => {
+					model.set({ message: input.value });
+				});
+
+				// Listen for model change events.
+				// The model will be unsubscribed after calling model.off
+				model.on('change', () => {
+					input.value = model.message;
+				});
+			}).catch(err => {
+				root.textContent = err.code == 'system.connectionError'
+					? "Connection error. Are NATS Server and Resgate running?"
+					: err.message;
+			});
+		</script>
+	</body>
+</html>

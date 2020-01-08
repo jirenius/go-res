@@ -10,7 +10,7 @@ import (
 	res "github.com/jirenius/go-res"
 )
 
-// BadgerDB provides persistance to BadgerDB for the res Handlers.
+// BadgerDB provides persistence to BadgerDB for the res Handlers.
 //
 // It will set the GetResource and Apply* handlers to load, store, and update the resources
 // in the database, using the resource ID as key value.
@@ -288,6 +288,9 @@ func (b *badgerDB) applyAdd(r res.Resource, value interface{}, idx int) error {
 
 		// Add value to collection
 		dta, err = json.Marshal(value)
+		if err != nil {
+			return err
+		}
 		c = append(c, nil)
 		copy(c[idx+1:], c[idx:])
 		c[idx] = json.RawMessage(dta)
@@ -429,7 +432,6 @@ func (b *badgerDB) applyDelete(r res.Resource) (interface{}, error) {
 		return nil
 	})
 	if err != nil {
-		println("From 1", err)
 		return nil, err
 	}
 
@@ -442,7 +444,6 @@ func (b *badgerDB) applyDelete(r res.Resource) (interface{}, error) {
 		// This might cause panic in any OnDelete handlers, when trying to type assert
 		// the value. But then the delete event is at least propagated properly.
 
-		println("From 2")
 		return json.RawMessage(dta), nil
 	}
 	return v.Elem().Interface(), nil

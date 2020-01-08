@@ -27,10 +27,9 @@ func TestToErrorWithNoConversion(t *testing.T) {
 
 // Test Error method to return the error message string
 func TestErrorMethod(t *testing.T) {
-	msg := "foo error"
 	e := &res.Error{
-		Code:    "foo.bar",
-		Message: msg,
+		Code:    mock.CustomErrorCode,
+		Message: mock.ErrorMessage,
 	}
-	AssertEqual(t, "Error", e.Error(), msg)
+	AssertEqual(t, "Error", e.Error(), mock.ErrorMessage)
 }

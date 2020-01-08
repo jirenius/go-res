@@ -1,0 +1,31 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1">
+	<title>resgate.io | book collection example</title>
+	<link rel="icon" href="data:,">
+	<link rel="stylesheet" href="style.css">
+	<script src="https://cdn.jsdelivr.net/npm/resclient@latest/dist/resclient.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/modapp-base-component@1.4.0/dist/modapp-base-component.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/modapp-resource-component@1.5.0/dist/modapp-resource-component.min.js"></script>
+</head>
+<body>
+	<div class="header shadow">
+		<div class="header-inner">
+			<a href="https://resgate.io" class="logo"><img class="logo-img" src="https://resgate.io/img/resgate-logo40.svg" /><span class="logo-res">res</span><span class="logo-gate">gate.io</span></a><span class="header-title">&nbsp; |&nbsp;&nbsp;book&nbsp;collection&nbsp;example</span>
+		</div>
+	</div>
+	<div class="top">
+		<div class="new-container">
+			<label for="new-title"><span>Title</span><input id="new-title" /></label>
+			<label for="new-author"><span>Author</span><input id="new-author" /></label>
+			<button id="add-new">Add</button>
+		</div>
+		<div id="error-msg"></div>
+	</div>
+	<hr>
+	<div id="books"></div>
+	<script src="app.js"></script>
+</body>
+</html>

@@ -27,7 +27,7 @@ func TestPathParams(t *testing.T) {
 				r.NotFound()
 			}))
 		}, func(s *Session) {
-			inb := s.Request("get."+l.ResourceName, newRequest())
+			inb := s.Request("get."+l.ResourceName, mock.Request())
 			s.GetMsg(t).AssertSubject(t, inb).AssertError(t, res.ErrNotFound)
 		})
 	}

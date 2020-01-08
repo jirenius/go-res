@@ -1,14 +1,15 @@
 /*
-This is the book collection example with persistance to BadgerDB using its middlware.
+This is the Book Collection example where all changes are persisted using the BadgerDB middleware. By using the BadgerDB middleware, both clients and database can be updated with a single event.
 * It exposes a collection, `library.books`, containing book model references.
 * It exposes book models, `library.book.<BOOK_ID>`, of each book.
-* It allows setting the books' *title* and *author* property through the `set` method.
-* It allows creating new books that are added to the collection with the `new` method.
-* It allows deleting existing books from the collection with the `delete` method.
-* It verifies that a *title* and *author* is always set.
-* It persists all events to the BadgerDB.
-* It bootstraps an empty/non-existing database with some default books.
-* It serves a web client at http://localhost:8083
+* The middleware adds a GetResource handler that loads the resources from the database.
+* The middleware adds a ApplyChange handler that updates the books on change events.
+* The middleware adds a ApplyAdd handler that updates the list on add events.
+* The middleware adds a ApplyRemove handler that updates the list on remove events.
+* The middleware adds a ApplyCreate handler that stores new books on create events.
+* The middleware adds a ApplyDelete handler that deletes books on delete events.
+* It persists all changes to a local BadgerDB database under `./db`.
+* It serves a web client at http://localhost:8085
 */
 package main
 
@@ -16,12 +17,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
 
 	"github.com/dgraph-io/badger"
-	"github.com/jirenius/go-res/middleware"
+	"github.com/jirenius/go-res/middleware/resbadger"
 
 	"github.com/jirenius/go-res"
 	"github.com/rs/xid"
@@ -43,7 +42,7 @@ func main() {
 	defer db.Close()
 
 	// Create badgerDB middleware for res.Service
-	badgerDB := middleware.BadgerDB{DB: db}
+	badgerDB := resbadger.BadgerDB{DB: db}
 
 	// Create a new RES Service
 	s := res.NewService("library")
@@ -51,48 +50,33 @@ func main() {
 	// Add handlers for "library.book.$id" models
 	s.Handle(
 		"book.$id",
-		res.Model,
 		res.Access(res.AccessGranted),
-		badgerDB.WithType(Book{}),
+		badgerDB.
+			Model().
+			WithType(Book{}),
 		res.Set(setBookHandler),
 	)
 
 	// Add handlers for "library.books" collection
 	s.Handle(
 		"books",
-		res.Collection,
 		res.Access(res.AccessGranted),
-		badgerDB.WithType([]res.Ref(nil)),
-		res.New(newBookHandler),
+		badgerDB.
+			Collection().
+			WithType([]res.Ref{}),
+		res.Call("new", newBookHandler),
 		res.Call("delete", deleteBookHandler),
 	)
 
 	// Set on serve handler to bootstrap the data, if needed
 	s.SetOnServe(onServe)
 
-	// Start service in separate goroutine
-	stop := make(chan bool)
-	go func() {
-		defer close(stop)
-		if err := s.ListenAndServe("nats://localhost:4222"); err != nil {
-			fmt.Printf("%s\n", err.Error())
-		}
-	}()
-
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	go func() { log.Fatal(http.ListenAndServe(":8083", http.FileServer(http.Dir("./")))) }()
-	fmt.Println("Client at: http://localhost:8083/")
+	go func() { log.Fatal(http.ListenAndServe(":8085", http.FileServer(http.Dir("wwwroot/")))) }()
+	fmt.Println("Client at: http://localhost:8085/")
 
-	// Wait for interrupt signal
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	select {
-	case <-c:
-		// Graceful stop
-		s.Shutdown()
-	case <-stop:
-	}
+	s.ListenAndServe("nats://localhost:4222")
 }
 
 func setBookHandler(r res.CallRequest) {
@@ -141,7 +125,7 @@ func setBookHandler(r res.CallRequest) {
 	r.OK(nil)
 }
 
-func newBookHandler(r res.NewRequest) {
+func newBookHandler(r res.CallRequest) {
 	books := r.RequireValue().([]res.Ref)
 
 	var p struct {
@@ -179,7 +163,7 @@ func newBookHandler(r res.NewRequest) {
 	r.AddEvent(ref, len(books))
 
 	// Respond with a reference to the newly created book model
-	r.New(ref)
+	r.Resource(rid)
 }
 
 func deleteBookHandler(r res.CallRequest) {
@@ -221,6 +205,7 @@ func deleteBookHandler(r res.CallRequest) {
 // onServe bootstraps an empty database with some initial books.
 func onServe(s *res.Service) {
 	s.With("library.books", func(r res.Resource) {
+		// Exit if library books already exists
 		_, err := r.Value()
 		if err != res.ErrNotFound {
 			return

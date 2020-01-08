@@ -83,6 +83,12 @@ type Resource interface {
 	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
 	ReaccessEvent()
 
+	// ResetEvent sends a reset event to signal that the resource's data has changed.
+	// It will invalidate any previous get response sent for the resource.
+	// See the protocol specification for more information:
+	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#reaccess-event
+	ResetEvent()
+
 	// QueryEvent sends a query event to signal that the query resource's underlying data has been modified.
 	// See the protocol specification for more information:
 	//    https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-event
@@ -102,8 +108,8 @@ type resource struct {
 	pathParams map[string]string
 	query      string
 	group      string
-	inGet      bool
 	h          Handler
+	listeners  []func(*Event)
 	s          *Service
 }
 
@@ -154,13 +160,7 @@ func (r *resource) ParseQuery() url.Values {
 // Value gets the resource value as provided from the Get resource handlers.
 // If it fails to get the resource value, or no get handler is
 // defined, it returns a nil interface and a *Error type error.
-// Panics if called from within a Get handler.
 func (r *resource) Value() (interface{}, error) {
-	// Panic if the getRequest is called within Get handler.
-	if r.inGet {
-		panic("Value() called from within get handler")
-	}
-
 	gr := &getRequest{resource: r}
 	gr.executeHandler()
 	return gr.value, gr.err
@@ -209,35 +209,64 @@ func (r *resource) Event(event string, payload interface{}) {
 	}
 
 	r.s.event("event."+r.rname+"."+event, payload)
+	if r.listeners != nil {
+		ev := &Event{
+			Name:     event,
+			Resource: r,
+			Payload:  payload,
+		}
+		for _, cb := range r.listeners {
+			cb(ev)
+		}
+	}
 }
 
 // ChangeEvent sends a change event.
-// If ev is empty, no event is sent.
-// Panics if the resource is not a Model.
-func (r *resource) ChangeEvent(ev map[string]interface{}) {
+// The changed map's keys are the key names for the model properties,
+// and the values are the new values.
+// If changed is empty, no event is sent.
+//
+// Only valid for a model resource.
+func (r *resource) ChangeEvent(changed map[string]interface{}) {
 	if r.h.Type == TypeCollection {
 		panic("res: change event not allowed on Collections")
 	}
-	if len(ev) == 0 {
+	if len(changed) == 0 {
 		return
 	}
+	var rev map[string]interface{}
+	var err error
 	if r.h.ApplyChange != nil {
-		rev, err := r.h.ApplyChange(r, ev)
+		rev, err = r.h.ApplyChange(r, changed)
 		if err != nil {
 			panic(err)
 		}
-		if len(rev) == 0 {
-			return
+		if rev != nil {
+			if len(rev) == 0 {
+				return
+			}
 		}
 	}
-	r.s.event("event."+r.rname+".change", changeEvent{Values: ev})
+	r.s.event("event."+r.rname+".change", changeEvent{Values: changed})
+	if r.listeners != nil {
+		ev := &Event{
+			Name:      "change",
+			Resource:  r,
+			NewValues: changed,
+			OldValues: rev,
+		}
+		for _, cb := range r.listeners {
+			cb(ev)
+		}
+	}
 }
 
 // AddEvent sends an add event, adding the value v at index idx.
-// Panics if the resource is not a Collection.
+//
+// Only valid for a collection resource.
 func (r *resource) AddEvent(v interface{}, idx int) {
 	if r.h.Type == TypeModel {
-		panic("res: add event not allowed on Models")
+		panic("res: add event not allowed on models")
 	}
 	if idx < 0 {
 		panic("res: add event idx less than zero")
@@ -249,29 +278,59 @@ func (r *resource) AddEvent(v interface{}, idx int) {
 		}
 	}
 	r.s.event("event."+r.rname+".add", addEvent{Value: v, Idx: idx})
+	if r.listeners != nil {
+		ev := &Event{
+			Name:     "add",
+			Resource: r,
+			Value:    v,
+			Idx:      idx,
+		}
+		for _, cb := range r.listeners {
+			cb(ev)
+		}
+	}
 }
 
 // RemoveEvent sends an remove event, removing the value at index idx.
-// Panics if the resource is not a Collection.
+//
+// Only valid for a collection resource.
 func (r *resource) RemoveEvent(idx int) {
 	if r.h.Type == TypeModel {
-		panic("res: remove event not allowed on Models")
+		panic("res: remove event not allowed on models")
 	}
 	if idx < 0 {
 		panic("res: remove event idx less than zero")
 	}
+	var err error
+	var v interface{}
 	if r.h.ApplyRemove != nil {
-		_, err := r.h.ApplyRemove(r, idx)
+		v, err = r.h.ApplyRemove(r, idx)
 		if err != nil {
 			panic(err)
 		}
 	}
 	r.s.event("event."+r.rname+".remove", removeEvent{Idx: idx})
+	if r.listeners != nil {
+		ev := &Event{
+			Name:     "remove",
+			Resource: r,
+			Value:    v,
+			Idx:      idx,
+		}
+		for _, cb := range r.listeners {
+			cb(ev)
+		}
+	}
 }
 
 // ReaccessEvent sends a reaccess event.
 func (r *resource) ReaccessEvent() {
 	r.s.rawEvent("event."+r.rname+".reaccess", nil)
+}
+
+// ResetEvent sends a system.reset event for the specific resource.
+func (r *resource) ResetEvent() {
+	r.s.Reset([]string{r.ResourceName()}, nil)
 }
 
 // QueryEvent sends a query event on the resource, calling the
@@ -302,26 +361,49 @@ func (r *resource) QueryEvent(cb func(QueryRequest)) {
 	r.s.queryTQ.Add(qe)
 }
 
-// CreateEvent sends a create event for the resource.
-func (r *resource) CreateEvent(value interface{}) {
+// CreateEvent sends a create event for the resource, where data is
+// the created resource data.
+func (r *resource) CreateEvent(data interface{}) {
 	if r.h.ApplyCreate != nil {
-		err := r.h.ApplyCreate(r, value)
+		err := r.h.ApplyCreate(r, data)
 		if err != nil {
 			panic(err)
 		}
 	}
 	r.s.rawEvent("event."+r.rname+".create", nil)
+	if r.listeners != nil {
+		ev := &Event{
+			Name:     "create",
+			Resource: r,
+			Data:     data,
+		}
+		for _, cb := range r.listeners {
+			cb(ev)
+		}
+	}
 }
 
 // DeleteEvent sends a delete event.
 func (r *resource) DeleteEvent() {
+	var data interface{}
+	var err error
 	if r.h.ApplyDelete != nil {
-		_, err := r.h.ApplyDelete(r)
+		data, err = r.h.ApplyDelete(r)
 		if err != nil {
 			panic(err)
 		}
 	}
 	r.s.rawEvent("event."+r.rname+".delete", nil)
+	if r.listeners != nil {
+		ev := &Event{
+			Name:     "delete",
+			Resource: r,
+			Data:     data,
+		}
+		for _, cb := range r.listeners {
+			cb(ev)
+		}
+	}
 }
 
 func isValidPart(p string) bool {
