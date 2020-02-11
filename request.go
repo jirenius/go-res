@@ -45,7 +45,7 @@ type AccessRequest interface {
 	AccessGranted()
 	NotFound()
 	InvalidQuery(message string)
-	Error(err *Error)
+	Error(err error)
 	RawToken() json.RawMessage
 	ParseToken(interface{})
 	Timeout(d time.Duration)
@@ -58,7 +58,7 @@ type ModelRequest interface {
 	QueryModel(model interface{}, query string)
 	NotFound()
 	InvalidQuery(message string)
-	Error(err *Error)
+	Error(err error)
 	Timeout(d time.Duration)
 	ForValue() bool
 }
@@ -70,7 +70,7 @@ type CollectionRequest interface {
 	QueryCollection(collection interface{}, query string)
 	NotFound()
 	InvalidQuery(message string)
-	Error(err *Error)
+	Error(err error)
 	Timeout(d time.Duration)
 	ForValue() bool
 }
@@ -84,7 +84,7 @@ type GetRequest interface {
 	QueryCollection(collection interface{}, query string)
 	NotFound()
 	InvalidQuery(message string)
-	Error(err *Error)
+	Error(err error)
 	Timeout(d time.Duration)
 	ForValue() bool
 }
@@ -104,7 +104,7 @@ type CallRequest interface {
 	MethodNotFound()
 	InvalidParams(message string)
 	InvalidQuery(message string)
-	Error(err *Error)
+	Error(err error)
 	Timeout(d time.Duration)
 }
 
@@ -121,7 +121,7 @@ type NewRequest interface {
 	MethodNotFound()
 	InvalidParams(message string)
 	InvalidQuery(message string)
-	Error(err *Error)
+	Error(err error)
 	Timeout(d time.Duration)
 }
 
@@ -144,7 +144,7 @@ type AuthRequest interface {
 	MethodNotFound()
 	InvalidParams(message string)
 	InvalidQuery(message string)
-	Error(err *Error)
+	Error(err error)
 	Timeout(d time.Duration)
 	TokenEvent(t interface{})
 }
@@ -268,8 +268,8 @@ func (r *Request) Resource(rid string) {
 }
 
 // Error sends a custom error response for the request.
-func (r *Request) Error(err *Error) {
-	r.error(err)
+func (r *Request) Error(err error) {
+	r.error(ToError(err))
 }
 
 // NotFound sends a system.notFound response for the request.

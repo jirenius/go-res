@@ -58,7 +58,7 @@ func (h customerHandler) SetOption(hs *res.Handler) {
 	m.SetOption(hs)
 	res.Call("set", h.setCustomer).SetOption(hs)
 	res.Call("delete", h.deleteCustomer).SetOption(hs)
-	res.OnRegister(func(s *res.Service, pattern string) {
+	res.OnRegister(func(s *res.Service, pattern string, _ res.Handler) {
 		// Load default data, and rebuild their indexes, unless already loaded
 		if !h.hasDefaultData() {
 			h.populateDefault()

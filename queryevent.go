@@ -19,7 +19,7 @@ type QueryRequest interface {
 	Collection(collection interface{})
 	NotFound()
 	InvalidQuery(message string)
-	Error(err *Error)
+	Error(err error)
 	Timeout(d time.Duration)
 }
 
@@ -114,8 +114,8 @@ func (qr *queryRequest) InvalidQuery(message string) {
 }
 
 // Error sends a custom error response for the query request.
-func (qr *queryRequest) Error(err *Error) {
-	qr.error(err)
+func (qr *queryRequest) Error(err error) {
+	qr.error(ToError(err))
 }
 
 // Timeout attempts to set the timeout duration of the query request.

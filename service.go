@@ -26,9 +26,8 @@ const workerCount = 32
 const defaultQueryEventDuration = time.Second * 3
 
 var (
-	errNotStopped      = errors.New("res: service is not stopped")
-	errNotStarted      = errors.New("res: service is not started")
-	errHandlerNotFound = errors.New("res: no matching handlers found")
+	errNotStopped = errors.New("res: service is not stopped")
+	errNotStarted = errors.New("res: service is not started")
 )
 
 // Option set one or more of the handler functions for a resource Handler.
@@ -135,7 +134,10 @@ type Handler struct {
 	//
 	// The pattern string is the full resource pattern for the
 	// resource, including any service name or mount paths.
-	OnRegister func(service *Service, pattern string)
+	//
+	// The handler is the handler being registered, and should
+	// be considered immutable.
+	OnRegister func(service *Service, pattern string, rh Handler)
 
 	// Listeners is a map of event listeners, where the key is the
 	// resource pattern being listened on, and the value being
@@ -170,6 +172,13 @@ var (
 		hs.Type = TypeCollection
 	})
 )
+
+// Option sets handler fields by passing one or more handler options.
+func (h *Handler) Option(hf ...Option) {
+	for _, f := range hf {
+		f.SetOption(h)
+	}
+}
 
 // A Service handles incoming requests from NATS Server and calls the
 // appropriate callback on the resource handlers.
@@ -444,13 +453,13 @@ func Group(group string) Option {
 //
 // If a callback is already registered, the new callback will be called
 // after the previous one.
-func OnRegister(callback func(service *Service, pattern string)) Option {
+func OnRegister(callback func(service *Service, pattern string, rh Handler)) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.OnRegister != nil {
 			prevcb := hs.OnRegister
-			hs.OnRegister = func(service *Service, pattern string) {
-				prevcb(service, pattern)
-				callback(service, pattern)
+			hs.OnRegister = func(service *Service, pattern string, rh Handler) {
+				prevcb(service, pattern, rh)
+				callback(service, pattern, rh)
 			}
 		} else {
 			hs.OnRegister = callback
@@ -694,7 +703,7 @@ func (s *Service) setDefaultOwnership() {
 		if s.Contains(func(h Handler) bool {
 			return h.Get != nil || len(h.Call) > 0 || len(h.Auth) > 0 || h.New != nil
 		}) {
-			s.resetResources = []string{mergePattern(s.Mux.path, ">")}
+			s.resetResources = []string{s.Mux.path, mergePattern(s.Mux.path, ">")}
 		} else {
 			s.resetResources = []string{}
 		}
@@ -704,7 +713,7 @@ func (s *Service) setDefaultOwnership() {
 		if s.Contains(func(h Handler) bool {
 			return h.Access != nil
 		}) {
-			s.resetAccess = []string{mergePattern(s.Mux.path, ">")}
+			s.resetAccess = []string{s.Mux.path, mergePattern(s.Mux.path, ">")}
 		} else {
 			s.resetAccess = []string{}
 		}
@@ -718,16 +727,36 @@ func (s *Service) subscribe() error {
 	if len(s.resetResources) == 0 && len(s.resetAccess) == 0 {
 		return errors.New("res: no resources to serve")
 	}
+	var patterns []string
 	for _, t := range []string{RequestTypeGet, RequestTypeCall, RequestTypeAuth} {
 		for _, p := range s.resetResources {
-			_, err := s.nc.ChanSubscribe(t+"."+p, s.inCh)
-			if err != nil {
-				return err
+			pattern := t + "." + p
+			if pattern[len(pattern)-1] != '>' && t != RequestTypeGet {
+				pattern += ".*"
 			}
+			patterns = append(patterns, pattern)
+
 		}
 	}
 	for _, p := range s.resetAccess {
-		_, err := s.nc.ChanSubscribe("access."+p, s.inCh)
+		pattern := "access." + p
+		s.tracef("sub %s", pattern)
+		_, err := s.nc.ChanSubscribe(pattern, s.inCh)
+		if err != nil {
+			return err
+		}
+	}
+
+next:
+	for i, pattern := range patterns {
+		// Skip patterns that overlap one another
+		for j, mpattern := range patterns {
+			if i != j && Pattern(mpattern).Matches(pattern) {
+				continue next
+			}
+		}
+		s.tracef("sub %s", pattern)
+		_, err := s.nc.ChanSubscribe(pattern, s.inCh)
 		if err != nil {
 			return err
 		}
@@ -853,7 +882,7 @@ func (s *Service) Resource(rid string) (Resource, error) {
 	rname, q := parseRID(rid)
 	mh := s.GetHandler(rname)
 	if mh == nil {
-		return nil, errHandlerNotFound
+		return nil, fmt.Errorf("res: no matching handlers found for %#v", rid)
 	}
 
 	return &resource{

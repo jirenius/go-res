@@ -835,28 +835,30 @@ func TestMuxOnRegister_WithService_CallsCallback(t *testing.T) {
 	for i, l := range tbl {
 		s := res.NewService(l.Path)
 		called := false
-		s.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string) {
+		s.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
 			called = true
 			AssertTrue(t, "service to be passed as argument", s == service)
 			AssertEqual(t, "pattern", pattern, l.ExpectedPath)
+			AssertTrue(t, "handler.OnRegister to be set", h.OnRegister != nil)
 		}))
 		AssertTrue(t, "callback to be called", called, fmt.Sprintf("test #%d", i+1))
 	}
 }
 
 func TestMuxOnRegister_MultipleListenersWithService_CallsCallbacks(t *testing.T) {
-
 	s := res.NewService("test")
 	called1 := 0
 	called2 := 0
 	s.Handle("model",
-		res.OnRegister(func(service *res.Service, pattern string) {
+		res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
 			called1++
 			AssertEqual(t, "pattern", pattern, "test.model")
+			AssertTrue(t, "handler.OnRegister to be set", h.OnRegister != nil)
 		}),
-		res.OnRegister(func(service *res.Service, pattern string) {
+		res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
 			called2++
 			AssertEqual(t, "pattern", pattern, "test.model")
+			AssertTrue(t, "handler.OnRegister to be set", h.OnRegister != nil)
 		}),
 	)
 	AssertTrue(t, "callback 1 to be called once", called1 == 1)
@@ -892,10 +894,11 @@ func TestMuxOnRegister_BeforeMountingToService_CallsCallback(t *testing.T) {
 		s := res.NewService(l.Path)
 		m := res.NewMux("")
 		called := false
-		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string) {
+		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
 			called = true
 			AssertTrue(t, "service to be passed as argument", s == service)
 			AssertEqual(t, "pattern", pattern, l.ExpectedPath)
+			AssertTrue(t, "handler.OnRegister to be set", h.OnRegister != nil)
 		}))
 		AssertTrue(t, "callback not to be called", !called, fmt.Sprintf("test #%d", i+1))
 		s.Mount("sub", m)
@@ -933,10 +936,11 @@ func TestMuxOnRegister_AfterMountingToService_CallsCallback(t *testing.T) {
 		m := res.NewMux("")
 		s.Mount("sub", m)
 		called := false
-		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string) {
+		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
 			called = true
 			AssertTrue(t, "service to be passed as argument", s == service)
 			AssertEqual(t, "pattern", pattern, l.ExpectedPath)
+			AssertTrue(t, "handler.OnRegister to be set", h.OnRegister != nil)
 		}))
 		AssertTrue(t, "callback to be called", called, fmt.Sprintf("test #%d", i+1))
 	}

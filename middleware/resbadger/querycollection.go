@@ -68,7 +68,7 @@ func (o QueryCollection) SetOption(hs *res.Handler) {
 	o.IndexSet.Listen(qc.onIndexUpdate)
 }
 
-func (qc *queryCollection) onRegister(service *res.Service, pattern string) {
+func (qc *queryCollection) onRegister(service *res.Service, pattern string, rh res.Handler) {
 	qc.s = service
 	qc.pattern = pattern
 }

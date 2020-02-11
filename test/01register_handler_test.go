@@ -11,11 +11,15 @@ func TestRegisterModelHandler(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) { r.NotFound() }))
 	}, func(s *Session) {
+		s.AssertSubscription(t, "get.test")
 		s.AssertSubscription(t, "get.test.>")
 		s.AssertSubscription(t, "call.test.>")
+		s.AssertNoSubscription(t, "call.test")
 		s.AssertSubscription(t, "auth.test.>")
+		s.AssertNoSubscription(t, "auth.test")
 		s.AssertNoSubscription(t, "access.test.>")
-	}, withResources([]string{"test.>"}))
+		s.AssertNoSubscription(t, "access.test")
+	}, withResources([]string{"test", "test.>"}))
 }
 
 // Test that the access methods are subscribed to when handler
@@ -24,11 +28,15 @@ func TestRegisterAccessHandler(t *testing.T) {
 	runTest(t, func(s *Session) {
 		s.Handle("model", res.Access(res.AccessGranted))
 	}, func(s *Session) {
+		s.AssertNoSubscription(t, "get.test")
 		s.AssertNoSubscription(t, "get.test.>")
 		s.AssertNoSubscription(t, "call.test.>")
+		s.AssertNoSubscription(t, "call.test")
 		s.AssertNoSubscription(t, "auth.test.>")
+		s.AssertNoSubscription(t, "auth.test")
 		s.AssertSubscription(t, "access.test.>")
-	}, withAccess([]string{"test.>"}))
+		s.AssertSubscription(t, "access.test")
+	}, withAccess([]string{"test", "test.>"}))
 }
 
 // Test that the resource and access methods are subscribed to when
@@ -40,11 +48,15 @@ func TestRegisterModelAndAccessHandler(t *testing.T) {
 			res.Access(res.AccessGranted),
 		)
 	}, func(s *Session) {
+		s.AssertSubscription(t, "get.test")
 		s.AssertSubscription(t, "get.test.>")
 		s.AssertSubscription(t, "call.test.>")
+		s.AssertNoSubscription(t, "call.test")
 		s.AssertSubscription(t, "auth.test.>")
+		s.AssertNoSubscription(t, "auth.test")
 		s.AssertSubscription(t, "access.test.>")
-	}, withResources([]string{"test.>"}), withAccess([]string{"test.>"}))
+		s.AssertSubscription(t, "access.test")
+	}, withResources([]string{"test", "test.>"}), withAccess([]string{"test", "test.>"}))
 }
 
 // Test that registering both a model and collection handler results

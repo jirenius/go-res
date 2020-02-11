@@ -4,6 +4,8 @@ go 1.13
 
 require (
 	github.com/dgraph-io/badger v1.6.0
+	github.com/jirenius/keylock v1.0.0
+	github.com/jirenius/taskqueue v1.0.0
 	github.com/jirenius/timerqueue v1.0.0
 	github.com/nats-io/nats-server/v2 v2.0.4
 	github.com/nats-io/nats.go v1.8.1

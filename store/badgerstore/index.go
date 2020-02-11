@@ -1,4 +1,4 @@
-package resbadger
+package badgerstore
 
 import (
 	"bytes"
@@ -62,7 +62,7 @@ type indexListener struct {
 }
 
 // Byte that separates the index key prefix from the resource ID.
-const ridSeparator = byte(0)
+const idSeparator = byte(0)
 
 // Max initial buffer size for results, and default size for limit set to -1.
 const resultBufSize = 256
@@ -86,15 +86,6 @@ func (i *IndexSet) ListenIndex(name string, cb func(r res.Resource, before, afte
 	i.listeners = append(i.listeners, indexListener{cb: cb, name: name})
 }
 
-// triggerListeners calls the callback of each registered listener.
-func (i *IndexSet) triggerListeners(name string, r res.Resource, before, after interface{}) {
-	for _, il := range i.listeners {
-		if il.name == name {
-			il.cb(r, before, after)
-		}
-	}
-}
-
 // GetIndex returns an index by name, or an error if not found.
 func (i *IndexSet) GetIndex(name string) (Index, error) {
 	for _, idx := range i.Indexes {
@@ -113,7 +104,7 @@ func (idx Index) getKey(rname []byte, value []byte) []byte {
 	offset++
 	copy(b[offset:], value)
 	offset += len(value)
-	b[offset] = ridSeparator
+	b[offset] = idSeparator
 	copy(b[offset+1:], rname)
 	return b
 }
@@ -129,7 +120,7 @@ func (idx Index) getQuery(keyPrefix []byte) []byte {
 }
 
 // FetchCollection fetches a collection of resource references based on the query.
-func (iq *IndexQuery) FetchCollection(db *badger.DB) ([]res.Ref, error) {
+func (iq *IndexQuery) FetchCollection(db *badger.DB) ([]string, error) {
 	offset := iq.Offset
 	limit := iq.Limit
 
@@ -148,7 +139,7 @@ func (iq *IndexQuery) FetchCollection(db *badger.DB) ([]res.Ref, error) {
 	if limit > 0 && limit < resultBufSize {
 		buf = limit
 	}
-	result := make([]res.Ref, 0, buf)
+	result := make([]string, 0, buf)
 
 	queryPrefix := iq.Index.getQuery(iq.KeyPrefix)
 	qplen := len(queryPrefix)
@@ -164,7 +155,7 @@ func (iq *IndexQuery) FetchCollection(db *badger.DB) ([]res.Ref, error) {
 		defer it.Close()
 		for it.Seek(queryPrefix); it.ValidForPrefix(queryPrefix); it.Next() {
 			k := it.Item().Key()
-			idx := bytes.LastIndexByte(k, ridSeparator)
+			idx := bytes.LastIndexByte(k, idSeparator)
 			if idx < 0 {
 				return fmt.Errorf("index entry [%s] is invalid", k)
 			}
@@ -188,7 +179,7 @@ func (iq *IndexQuery) FetchCollection(db *badger.DB) ([]res.Ref, error) {
 			}
 
 			// Add resource ID reference to result
-			result = append(result, res.Ref(k[idx+1:]))
+			result = append(result, string(k[idx+1:]))
 
 			limit--
 			if limit == 0 {
