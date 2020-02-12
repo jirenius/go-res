@@ -5,14 +5,13 @@ import (
 	"fmt"
 
 	"github.com/dgraph-io/badger"
-	res "github.com/jirenius/go-res"
 )
 
 // Index defines an index used for a resource.
 //
 // When used on Model resource, an index entry will be added for each model entry.
 // An index entry will have no value (nil), and the key will have the following structure:
-//    <Name>:<Key>?<RID>
+//    <Name>:<Key>\x00<RID>
 // Where:
 // * <Name> is the name of the Index (so keep it rather short)
 // * <Key> is the index value as returned from the Key callback
@@ -32,14 +31,6 @@ type Index struct {
 	Key func(interface{}) []byte
 }
 
-// IndexSet represents a set of indexes for a model resource.
-type IndexSet struct {
-	// List of indexes
-	Indexes []Index
-	// Index listener callbacks to be called on changes in the index.
-	listeners []indexListener
-}
-
 // IndexQuery represents a query towards an index.
 type IndexQuery struct {
 	// Index used
@@ -56,11 +47,6 @@ type IndexQuery struct {
 	Reverse bool
 }
 
-type indexListener struct {
-	cb   func(r res.Resource, before, after interface{})
-	name string
-}
-
 // Byte that separates the index key prefix from the resource ID.
 const idSeparator = byte(0)
 
@@ -69,32 +55,6 @@ const resultBufSize = 256
 
 // Max int value.
 const maxInt = int(^uint(0) >> 1)
-
-// Listen adds a callback listening to the changes that have affected one or more index entries.
-//
-// The model before value will be nil if the model was created, or if previously not indexed.
-// The model after value will be nil if the model was deleted, or if no longer indexed.
-func (i *IndexSet) Listen(cb func(r res.Resource, before, after interface{})) {
-	i.listeners = append(i.listeners, indexListener{cb: cb})
-}
-
-// ListenIndex adds a callback listening to the changes of a specific index.
-//
-// The model before value will be nil if the model was created, or if previously not indexed.
-// The model after value will be nil if the model was deleted, or if no longer indexed.
-func (i *IndexSet) ListenIndex(name string, cb func(r res.Resource, before, after interface{})) {
-	i.listeners = append(i.listeners, indexListener{cb: cb, name: name})
-}
-
-// GetIndex returns an index by name, or an error if not found.
-func (i *IndexSet) GetIndex(name string) (Index, error) {
-	for _, idx := range i.Indexes {
-		if idx.Name == name {
-			return idx, nil
-		}
-	}
-	return Index{}, fmt.Errorf("index %s not found", name)
-}
 
 func (idx Index) getKey(rname []byte, value []byte) []byte {
 	b := make([]byte, len(idx.Name)+len(value)+len(rname)+2)

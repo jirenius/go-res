@@ -7,17 +7,58 @@ import (
 	res "github.com/jirenius/go-res"
 )
 
+// TransformFuncs implements the Transformer interface by calling the functions
+// for transforming store requests.
+type transformer struct {
+	ridToID   func(rid string, pathParams map[string]string) string
+	idToRID   func(id string, v interface{}) string
+	transform func(v interface{}) (interface{}, error)
+}
+
+var _ Transformer = transformer{}
+
+// TransformFuncs returns a Transformer that uses the provided functions. Any
+// nil function will pass the value untransformed.
+func TransformFuncs(ridToID func(rid string, pathParams map[string]string) string, idToRID func(id string, v interface{}) string, transform func(v interface{}) (interface{}, error)) transformer {
+	return transformer{
+		ridToID:   ridToID,
+		idToRID:   idToRID,
+		transform: transform,
+	}
+}
+
+func (t transformer) RIDToID(rid string, pathParams map[string]string) string {
+	if t.ridToID == nil {
+		return rid
+	}
+	return t.ridToID(rid, pathParams)
+}
+
+func (t transformer) IDToRID(id string, v interface{}) string {
+	if t.idToRID == nil {
+		return id
+	}
+	return t.idToRID(id, v)
+}
+
+func (t transformer) Transform(id string, v interface{}) (interface{}, error) {
+	if t.transform == nil {
+		return v, nil
+	}
+	return t.transform(v)
+}
+
 // IDToRIDCollectionTransformer is a QueryTransformer that handles the common
 // case of transforming a slice of id strings:
 //
-// 	[]string{"1", "2"}
+//  []string{"1", "2"}
 //
 // into slice of resource references:
 //
-// 	[]res.Ref{"library.book.1", "library.book.2"}
+//  []res.Ref{"library.book.1", "library.book.2"}
 //
-// The function converts a single ID returned by a the store into an
-// external resource ID.
+// The function converts a single ID returned by a the store into an external
+// resource ID.
 type IDToRIDCollectionTransformer func(id string) string
 
 // TransformResult transforms a slice of id strings into a slice of resource
@@ -34,7 +75,8 @@ func (t IDToRIDCollectionTransformer) TransformResult(v interface{}) (interface{
 	return refs, nil
 }
 
-// TransformEvents transforms events for a []string collection into events for a []res.Ref collection.
+// TransformEvents transforms events for a []string collection into events for a
+// []res.Ref collection.
 func (t IDToRIDCollectionTransformer) TransformEvents(evs []ResultEvent) ([]ResultEvent, error) {
 	for i, ev := range evs {
 		if ev.Name == "add" {
@@ -48,17 +90,17 @@ func (t IDToRIDCollectionTransformer) TransformEvents(evs []ResultEvent) ([]Resu
 	return evs, nil
 }
 
-// IDToRIDModelTransformer is a QueryTransformer that handles the common
-// case of transforming a slice of unique id strings:
+// IDToRIDModelTransformer is a QueryTransformer that handles the common case of
+// transforming a slice of unique id strings:
 //
-// 	[]string{"1", "2"}
+//  []string{"1", "2"}
 //
 // into a map of resource references with id as key:
 //
-// 	map[string]res.Ref{"1": "library.book.1", "2": "library.book.2"}
+//  map[string]res.Ref{"1": "library.book.1", "2": "library.book.2"}
 //
-// The function converts a single ID returned by a the store into an
-// external resource ID.
+// The function converts a single ID returned by a the store into an external
+// resource ID.
 //
 // The behavior is undefined for slices containing duplicate id string.
 type IDToRIDModelTransformer func(id string) string
@@ -77,8 +119,8 @@ func (t IDToRIDModelTransformer) TransformResult(v interface{}) (interface{}, er
 	return refs, nil
 }
 
-// TransformEvents transforms events for a []string collection into events for
-// a map[string]res.Ref model.
+// TransformEvents transforms events for a []string collection into events for a
+// map[string]res.Ref model.
 func (t IDToRIDModelTransformer) TransformEvents(evs []ResultEvent) ([]ResultEvent, error) {
 	if len(evs) == 0 {
 		return evs, nil

@@ -83,7 +83,7 @@ func (o *storeHandler) getResource(r res.GetRequest) {
 		return
 	}
 	if o.trans != nil {
-		v, err = o.trans.Transform(v)
+		v, err = o.trans.Transform(id, v)
 		if err != nil {
 			r.Error(res.ToError(err))
 			return
@@ -104,13 +104,13 @@ func (o *storeHandler) changeHandler(id string, before, after interface{}) {
 	rid := id
 	if o.trans != nil {
 		if before != nil {
-			before, err = o.trans.Transform(before)
+			before, err = o.trans.Transform(id, before)
 			if err != nil {
 				before = nil
 			}
 		}
 		if after != nil {
-			after, err = o.trans.Transform(after)
+			after, err = o.trans.Transform(id, after)
 			if err != nil {
 				after = nil
 			}

@@ -298,6 +298,60 @@ func (st *Store) OnChange(cb func(id string, before, after interface{})) {
 	st.onChange = append(st.onChange, cb)
 }
 
+// Init creates intial resources for the store. If the store has been previously
+// initialized, no resources will be added. It uses a key, "$<prefix>.init"
+// (where <prefix> is the set prefix), to mark the store as initialized.
+//
+// The idCallback function will be called for each resource, and should return
+// the ID string of that resource.
+func (st *Store) Init(idCallback func(v interface{}) string, resources ...interface{}) error {
+	created := make(map[string]interface{})
+	return st.DB.Update(func(txn *badger.Txn) error {
+		initKey := []byte(`$` + st.prefix + `init`)
+		// Check init flag key
+		_, err := txn.Get(initKey)
+		if err != badger.ErrKeyNotFound {
+			return err
+		}
+		// Write resources
+		t := st.t
+		if t == nil {
+			t = interfaceMapType
+		}
+		for _, v := range resources {
+			vv := reflect.ValueOf(v)
+			if vv.Type() != t {
+				return fmt.Errorf("init value value is of type %s, expected type %s", vv.Type().String(), t.String())
+			}
+			id := idCallback(v)
+			if id == "" {
+				return errors.New("empty ID string")
+			}
+			rname := []byte(st.prefix + id)
+			// Skip values that already exists.
+			_, err := txn.Get(rname)
+			if err == nil {
+				continue
+			}
+			if err != badger.ErrKeyNotFound {
+				return err
+			}
+			if err := st.setValue(txn, rname, v); err != nil {
+				return err
+			}
+			created[id] = v
+		}
+
+		// Call OnChange callback
+		for id, v := range created {
+			st.callOnChange(id, nil, v)
+		}
+
+		// Set init flag key
+		return txn.Set(initKey, nil)
+	})
+}
+
 // getValue gets a value from the database and unmarshals it.
 func (st *Store) getValue(txn *badger.Txn, key []byte) (interface{}, error) {
 	item, err := txn.Get(key)

@@ -6,20 +6,21 @@ import (
 	res "github.com/jirenius/go-res"
 )
 
-// QueryHandler is a res.Service handler that fetches a collection
-// of resource reference from an underlying QueryStore.
+// QueryHandler is a res.Service handler for get requests that fetches the
+// results from an underlying QueryStore. It also listens to changes in the
+// QueryStore, and sends events if the change affects the query.
 type QueryHandler struct {
 	// A QueryStore from where to fetch the resource references.
 	QueryStore QueryStore
-	// QueryRequestHandler is transforms an external query request and path param
-	// values into a query that can be handled by the QueryStore.
+	// QueryRequestHandler transforms an external query request and path param
+	// values into a query that can be handled by the QueryStore. The QueryHandler will rerespond with a query resource.
 	//
 	// A non-empty normalized query string based on the url.Values must be returned.
 	// See: https://resgate.io/docs/specification/res-service-protocol/#get-request
 	//
 	// Must not be set if RequestHandler is set.
 	QueryRequestHandler func(rname string, pathParams map[string]string, q url.Values) (url.Values, string, error)
-	// RequestHandler is transform an path params values from an external request into
+	// RequestHandler transforms an external request and path param values into
 	// a query that can be handled by the QueryStore.
 	//
 	// Must not be set if QueryRequestHandler is set.
@@ -91,9 +92,6 @@ func (qh QueryHandler) SetOption(h *res.Handler) {
 	if qh.QueryStore == nil {
 		panic("no QueryStore is set")
 	}
-	if qh.QueryRequestHandler == nil && qh.RequestHandler == nil {
-		panic("no RequestHandler or QueryRequestHandler is set")
-	}
 	if qh.QueryRequestHandler != nil && qh.RequestHandler != nil {
 		panic("both RequestHandler and QueryRequestHandler is set")
 	}
@@ -103,7 +101,7 @@ func (qh QueryHandler) SetOption(h *res.Handler) {
 		rh:      qh.RequestHandler,
 		trans:   qh.Transformer,
 		ar:      qh.AffectedResources,
-		isQuery: qh.RequestHandler == nil,
+		isQuery: qh.QueryRequestHandler != nil,
 	}
 	h.Option(res.OnRegister(o.onRegister))
 	// Set conditional handler methods depending if we have
@@ -137,10 +135,14 @@ func (o *queryHandler) onRegister(s *res.Service, p string, h res.Handler) {
 }
 
 func (o *queryHandler) getResource(r res.GetRequest) {
-	q, err := o.rh(r.ResourceName(), r.PathParams())
-	if err != nil {
-		r.Error(err)
-		return
+	var err error
+	var q url.Values
+	if o.rh != nil {
+		q, err = o.rh(r.ResourceName(), r.PathParams())
+		if err != nil {
+			r.Error(err)
+			return
+		}
 	}
 
 	result, err := o.getResult(q)
@@ -215,9 +217,12 @@ func (o *queryHandler) resourceEvent(rid string, qc QueryChange) {
 		panic(err)
 	}
 
-	q, err := o.rh(r.ResourceName(), r.PathParams())
-	if err != nil {
-		panic(err)
+	var q url.Values
+	if o.rh != nil {
+		q, err = o.rh(r.ResourceName(), r.PathParams())
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	// Get events. We assume Events will will by itself determine if

@@ -1,14 +1,15 @@
 package store
 
 import (
-	"errors"
 	"net/url"
+
+	"github.com/jirenius/go-res"
 )
 
 // Predefined errors
 var (
-	ErrNotFound  = errors.New("resource not found")
-	ErrDuplicate = errors.New("duplicate resource")
+	ErrNotFound  = res.ErrNotFound
+	ErrDuplicate = &res.Error{Code: res.CodeInvalidParams, Message: "Duplicate resource"}
 )
 
 // Store is a CRUD interface for storing resources of a specific type. The
@@ -165,7 +166,7 @@ type ResultEvent struct {
 type Transformer interface {
 	RIDToID(rid string, pathParams map[string]string) string
 	IDToRID(id string, v interface{}) string
-	Transform(v interface{}) (interface{}, error)
+	Transform(id string, v interface{}) (interface{}, error)
 }
 
 // QueryTransformer is an interface with methods to transform and validate an
