@@ -298,7 +298,7 @@ func (st *Store) OnChange(cb func(id string, before, after interface{})) {
 	st.onChange = append(st.onChange, cb)
 }
 
-// Init creates intial resources for the store. If the store has been previously
+// Init creates initial resources for the store. If the store has been previously
 // initialized, no resources will be added. It uses a key, "$<prefix>.init"
 // (where <prefix> is the set prefix), to mark the store as initialized.
 //

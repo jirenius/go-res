@@ -14,13 +14,13 @@ This is the Book Collection example where all changes are persisted using a badg
 
 ```text
 git clone https://github.com/jirenius/go-res
-cd go-res/examples/05-book-collection-persisted
-go run main.go
+cd go-res/examples/04-book-collection-store
+go run .
 ```
 
 Open the client
 ```text
-http://localhost:8085
+http://localhost:8084
 ```
 
 ## Things to try out

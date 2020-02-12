@@ -1,3 +1,8 @@
+/*
+A customer management system, where you can search and filter customers by name
+and country. The search results are live and updated as customers are edited,
+added, or deleted by multiple users simultaneously.
+*/
 package main
 
 import (
@@ -28,8 +33,8 @@ func main() {
 
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	go func() { log.Fatal(http.ListenAndServe(":8086", http.FileServer(http.Dir("wwwroot/")))) }()
-	fmt.Println("Client at: http://localhost:8086/")
+	go func() { log.Fatal(http.ListenAndServe(":8085", http.FileServer(http.Dir("wwwroot/")))) }()
+	fmt.Println("Client at: http://localhost:8085/")
 
 	s.ListenAndServe("nats://localhost:4222")
 }

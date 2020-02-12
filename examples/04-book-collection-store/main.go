@@ -8,7 +8,7 @@ badgerDB store.
 * The store.Handler handles get requests by loading resources from the store.
 * The store.QueryHandler handles get requests by getting a list of stored books.
 * Changed made to the store bubbles up as events.
-* It serves a web client at http://localhost:8085
+* It serves a web client at http://localhost:8084
 */
 package main
 
@@ -56,8 +56,8 @@ func main() {
 
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	go func() { log.Fatal(http.ListenAndServe(":8085", http.FileServer(http.Dir("wwwroot/")))) }()
-	fmt.Println("Client at: http://localhost:8085/")
+	go func() { log.Fatal(http.ListenAndServe(":8084", http.FileServer(http.Dir("wwwroot/")))) }()
+	fmt.Println("Client at: http://localhost:8084/")
 
 	s.ListenAndServe("nats://localhost:4222")
 }

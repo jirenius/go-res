@@ -19,7 +19,7 @@ var _ Transformer = transformer{}
 
 // TransformFuncs returns a Transformer that uses the provided functions. Any
 // nil function will pass the value untransformed.
-func TransformFuncs(ridToID func(rid string, pathParams map[string]string) string, idToRID func(id string, v interface{}) string, transform func(v interface{}) (interface{}, error)) transformer {
+func TransformFuncs(ridToID func(rid string, pathParams map[string]string) string, idToRID func(id string, v interface{}) string, transform func(v interface{}) (interface{}, error)) Transformer {
 	return transformer{
 		ridToID:   ridToID,
 		idToRID:   idToRID,

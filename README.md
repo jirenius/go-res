@@ -56,10 +56,9 @@ func main() {
 | --- | ---
 | [Hello World](examples/01-hello-world/) | Smallest of services serving a static message.
 | [Edit Text](examples/02-edit-text/) | Single text field that is updated in real time.
-| [Edit Text Persisted](examples/03-edit-text-persisted/) | Edit Text example persisting changes using BadgerDB middleware.
-| [Book Collection](examples/04-book-collection/) | List of book titles & authors that can be edited by many.
-| [Book Collection Persisted](examples/05-book-collection-persisted/) | Book Collection example persisting changes using BadgerBD middleware.
-| [Search Query](examples/06-search-query/) | Make live queries against a large customer database.
+| [Book Collection](examples/03-book-collection/) | List of book titles & authors that can be edited by many.
+| [Book Collection Store](examples/04-book-collection-store/) | Book Collection example persisting changes using BadgerBD store.
+| [Search Query](examples/05-search-query/) | Make live queries against a large customer database.
 
 > **Note**
 >

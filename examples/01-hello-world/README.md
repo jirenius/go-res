@@ -15,7 +15,7 @@ Simple service serving a message to the world.
 ```text
 git clone https://github.com/jirenius/go-res
 cd go-res/examples/01-hello-world
-go run main.go
+go run .
 ```
 
 ## Things to try out
