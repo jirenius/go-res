@@ -298,35 +298,58 @@ func (st *Store) OnChange(cb func(id string, before, after interface{})) {
 	st.onChange = append(st.onChange, cb)
 }
 
-// Init creates initial resources for the store. If the store has been previously
+// Init adds initial resources for the store. If the store has been previously
 // initialized, no resources will be added. It uses a key, "$<prefix>.init"
 // (where <prefix> is the set prefix), to mark the store as initialized.
-//
-// The idCallback function will be called for each resource, and should return
-// the ID string of that resource.
-func (st *Store) Init(idCallback func(v interface{}) string, resources ...interface{}) error {
+func (st *Store) Init(cb func(add func(id string, v interface{})) error) error {
 	created := make(map[string]interface{})
 	return st.DB.Update(func(txn *badger.Txn) error {
+		var err error
 		initKey := []byte(`$` + st.prefix + `init`)
 		// Check init flag key
-		_, err := txn.Get(initKey)
+		_, err = txn.Get(initKey)
 		if err != badger.ErrKeyNotFound {
 			return err
 		}
-		// Write resources
+
+		// Load entries
+		entries := make(map[string]interface{})
 		t := st.t
 		if t == nil {
 			t = interfaceMapType
 		}
-		for _, v := range resources {
+		var adderr error
+		add := func(id string, v interface{}) {
+			// Quick exit if we have encountered an error previously
+			if adderr != nil {
+				return
+			}
+			// Validation
 			vv := reflect.ValueOf(v)
 			if vv.Type() != t {
-				return fmt.Errorf("init value value is of type %s, expected type %s", vv.Type().String(), t.String())
+				adderr = fmt.Errorf("init value is of type %s, expected type %s", vv.Type().String(), t.String())
+				return
 			}
-			id := idCallback(v)
 			if id == "" {
-				return errors.New("empty ID string")
+				adderr = errors.New("empty ID string")
+				return
 			}
+			if _, ok := entries[id]; ok {
+				adderr = fmt.Errorf("duplicate id: %s", id)
+				return
+			}
+			entries[id] = v
+		}
+		// Call init callback with the add method
+		if err := cb(add); err != nil {
+			return err
+		}
+		if adderr != nil {
+			return adderr
+		}
+
+		// Write resources
+		for id, v := range entries {
 			rname := []byte(st.prefix + id)
 			// Skip values that already exists.
 			_, err := txn.Get(rname)

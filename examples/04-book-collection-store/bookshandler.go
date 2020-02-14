@@ -11,7 +11,6 @@ import (
 // BooksHandler is a handler for book collection requests.
 type BooksHandler struct {
 	BookStore *BookStore
-	pattern   res.Pattern
 }
 
 // SetOption sets the res.Handler options.
@@ -33,41 +32,34 @@ func (h *BooksHandler) SetOption(rh *res.Handler) {
 		res.Call("new", h.newBook),
 		// Delete call method handler, for deleting books.
 		res.Call("delete", h.deleteBook),
-		// Get the pattern (eg. "library.book.$id") for this resource. This will
-		// be used in the IDToRID transform function, to tell what resource is
-		// affected when a book is changed in the store.
-		res.OnRegister(func(_ *res.Service, pattern string, _ res.Handler) {
-			h.pattern = res.Pattern(pattern)
-		}),
 	)
 }
 
 // newBook handles new call requests on the book collection.
 func (h *BooksHandler) newBook(r res.CallRequest) {
-	var p struct {
-		Title  string `json:"title"`
-		Author string `json:"author"`
-	}
-	r.ParseParams(&p)
+	// Parse request parameters into a book model
+	var book Book
+	r.ParseParams(&book)
 
 	// Trim whitespace
-	title := strings.TrimSpace(p.Title)
-	author := strings.TrimSpace(p.Author)
+	book.Title = strings.TrimSpace(book.Title)
+	book.Author = strings.TrimSpace(book.Author)
 
 	// Check if we received both title and author
-	if title == "" || author == "" {
+	if book.Title == "" || book.Author == "" {
 		r.InvalidParams("Must provide both title and author")
 		return
 	}
 
-	// Create a new book model
-	book := Book{ID: xid.New().String(), Title: title, Author: author}
+	// Create a new ID for the book
+	book.ID = xid.New().String()
 
 	// Create a store write transaction
 	txn := h.BookStore.Write(book.ID)
 	defer txn.Close()
 
-	// Add the book to the store
+	// Add the book to the store.
+	// This will produce an add event for the books collection.
 	if err := txn.Create(book); err != nil {
 		r.Error(err)
 		return
@@ -89,7 +81,8 @@ func (h *BooksHandler) deleteBook(r res.CallRequest) {
 	txn := h.BookStore.Write(p.ID)
 	defer txn.Close()
 
-	// Delete the book from the store
+	// Delete the book from the store.
+	// This will produce a remove event for the books collection.
 	if err := txn.Delete(); err != nil {
 		r.Error(err)
 		return

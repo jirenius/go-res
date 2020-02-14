@@ -1,151 +1,122 @@
 package main
 
 import (
-	"encoding/json"
-	"io/ioutil"
-	"strings"
-
-	"github.com/dgraph-io/badger"
 	"github.com/jirenius/go-res"
-	"github.com/jirenius/go-res/middleware/resbadger"
-	"github.com/rs/xid"
+	"github.com/jirenius/go-res/store"
 )
 
-// Indices used for customer models.
-const (
-	idxCustomerName        = "idxCustomer_name"
-	idxCustomerCountryName = "idxCustomer_country_name"
-)
-
-// Definition of the indexes for the customer models.
-var customerIdxs = &resbadger.IndexSet{
-	Indexes: []resbadger.Index{
-		// Index on lower case name
-		resbadger.Index{
-			Name: idxCustomerName,
-			Key: func(v interface{}) []byte {
-				customer := v.(Customer)
-				return []byte(strings.ToLower(customer.Name))
-			},
-		},
-		// Index on country and lower case name
-		resbadger.Index{
-			Name: idxCustomerCountryName,
-			Key: func(v interface{}) []byte {
-				customer := v.(Customer)
-				return []byte(customer.Country + "_" + strings.ToLower(customer.Name))
-			},
-		},
-	},
+// CustomerHandler is a handler for customer requests.
+type CustomerHandler struct {
+	CustomerStore *CustomerStore
+	pattern       res.Pattern
 }
 
-type customerHandler struct {
-	DB *badger.DB
+// SetOption sets the res.Handler options.
+func (h *CustomerHandler) SetOption(rh *res.Handler) {
+	rh.Option(
+		// Handler handels models
+		res.Model,
+		// Store handler that handles get requests and change events.
+		store.Handler{Store: h.CustomerStore, Transformer: h},
+		// Set call method handler, for updating the customer's fields.
+		res.Call("set", h.setCustomer),
+		// Delete call method handler, for deleting customers.
+		res.Call("delete", h.deleteCustomer),
+		// On being registered to the res.Service, get the pattern (eg.
+		// "search.customer.$id") for this resource. This will be used in the
+		// IDToRID transform function, to tell what external resource is
+		// affected when a customer is changed in the store.
+		res.OnRegister(func(_ *res.Service, pattern string, _ res.Handler) {
+			h.pattern = res.Pattern(pattern)
+		}),
+	)
 }
 
-func (h customerHandler) Access(r res.AccessRequest) {
-	r.AccessGranted()
+// RIDToID transforms an external resource ID to a customer ID used by the store.
+func (h *CustomerHandler) RIDToID(rid string, pathParams map[string]string) string {
+	return pathParams["id"]
 }
 
-// SetOption sets the handler methods to the res.Handler object.
-func (h customerHandler) SetOption(hs *res.Handler) {
-	hs.Access = h.Access
-	hs.Group = "customers"
-	m := resbadger.BadgerDB{DB: h.DB}.
-		Model().
-		WithType(Customer{}).
-		WithIndexSet(customerIdxs)
-	m.SetOption(hs)
-	res.Call("set", h.setCustomer).SetOption(hs)
-	res.Call("delete", h.deleteCustomer).SetOption(hs)
-	res.OnRegister(func(s *res.Service, pattern string, _ res.Handler) {
-		// Load default data, and rebuild their indexes, unless already loaded
-		if !h.hasDefaultData() {
-			h.populateDefault()
-			m.RebuildIndexes(pattern)
-		}
-	}).SetOption(hs)
+// IDToRID transforms a customer ID used by the store to an external resource ID.
+func (h *CustomerHandler) IDToRID(id string, v interface{}) string {
+	return string(h.pattern.ReplaceTag("id", id))
+}
+
+// Transform allows us to transform the stored customer model before sending it
+// off to external clients. In this example, we do no transformation.
+func (h *CustomerHandler) Transform(id string, v interface{}) (interface{}, error) {
+	// // We could convert the customer to a type with a different JSON marshaler,
+	// // or perhaps return a res.ErrNotFound if a deleted flag is set.
+	// return CustomerWithDifferentJSONMarshaler(v.(Customer)), nil
+	return v, nil
 }
 
 // setCustomer handles call requests to edit customer properties.
-func (h customerHandler) setCustomer(r res.CallRequest) {
-	// Parse and validate parameters
+func (h *CustomerHandler) setCustomer(r res.CallRequest) {
+	// Create a store write transaction.
+	txn := h.CustomerStore.Write(r.PathParam("id"))
+	defer txn.Close()
+
+	// Get customer value from store
+	v, err := txn.Value()
+	if err != nil {
+		r.Error(err)
+		return
+	}
+	customer := v.(Customer)
+
+	// Parse parameters
 	var p struct {
 		Name    *string `json:"name"`
 		Email   *string `json:"email"`
 		Country *string `json:"country"`
 	}
 	r.ParseParams(&p)
-	if errMsg := customerTrimAndValidate(p.Name, p.Email, p.Country); errMsg != "" {
-		r.InvalidParams(errMsg)
-		return
-	}
-	// Populate map with updated fields
-	changed := make(map[string]interface{}, 3)
+
+	// Set the provided fields
 	if p.Name != nil {
-		changed["name"] = *p.Name
+		customer.Name = *p.Name
 	}
 	if p.Email != nil {
-		changed["email"] = *p.Email
+		customer.Email = *p.Email
 	}
 	if p.Country != nil {
-		changed["country"] = *p.Country
+		customer.Country = *p.Country
 	}
-	// Send a change event with updated fields
-	r.ChangeEvent(changed)
+
+	// Trim and validate fields
+	err = customer.TrimAndValidate()
+	if err != nil {
+		r.Error(err)
+		return
+	}
+
+	// Update customer in store.
+	// This will produce a change event and a customers query collection event,
+	// if any indexed fields were updated.
+	err = txn.Update(customer)
+	if err != nil {
+		r.Error(err)
+		return
+	}
+
 	// Send success response
 	r.OK(nil)
 }
 
 // deleteCustomer handles call requests to delete customers.
-func (h customerHandler) deleteCustomer(r res.CallRequest) {
-	// Send a delete event.
-	// The middleware will delete the item from the database.
-	r.DeleteEvent()
-	// Send success response
+func (h *CustomerHandler) deleteCustomer(r res.CallRequest) {
+	// Create a store write transaction
+	txn := h.CustomerStore.Write(r.PathParam("id"))
+	defer txn.Close()
+
+	// Delete the customer from the store.
+	// This will produce a query event for the customers query collection.
+	if err := txn.Delete(); err != nil {
+		r.Error(err)
+		return
+	}
+
+	// Send success response.
 	r.OK(nil)
-}
-
-// populateDefault loads the mock_customers.json file and imports it
-// into the database, unless it has been imported before.
-func (h customerHandler) populateDefault() {
-	// Load file
-	dta, err := ioutil.ReadFile("mock_customers.json")
-	panicOnError(err)
-	// Decode file content
-	var result []Customer
-	err = json.Unmarshal(dta, &result)
-	panicOnError(err)
-	// Write content to Badger DB
-	wb := h.DB.NewWriteBatch()
-	defer wb.Cancel()
-	for _, customer := range result {
-		customer.ID = xid.New().String()
-		m, err := json.Marshal(customer)
-		panicOnError(err)
-		err = wb.Set([]byte(customer.RID()), m)
-		panicOnError(err)
-	}
-	panicOnError(wb.Flush())
-}
-
-// hasDefaultData checks if customer data is imported.
-func (h customerHandler) hasDefaultData() bool {
-	imported := true
-	err := h.DB.Update(func(txn *badger.Txn) error {
-		_, err := txn.Get([]byte("customers_imported"))
-		if err == badger.ErrKeyNotFound {
-			err = txn.Set([]byte("customers_imported"), []byte{})
-			imported = false
-		}
-		return err
-	})
-	panicOnError(err)
-	return imported
-}
-
-func panicOnError(err error) {
-	if err != nil {
-		panic(err)
-	}
 }

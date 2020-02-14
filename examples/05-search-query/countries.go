@@ -1,39 +1,29 @@
 package main
 
-import "github.com/jirenius/go-res"
+import (
+	"sort"
 
-// Countries is a list of country names.
-type Countries []string
+	"github.com/jirenius/go-res"
+)
 
-var countries = Countries{
+// Countries is a sorted list of country names.
+var Countries = sort.StringSlice{
 	"France",
 	"Germany",
 	"Sweden",
 	"United Kingdom",
 }
 
-// Contains returns true if countries contains the country s.
-func (cs Countries) Contains(s string) bool {
-	for _, c := range cs {
-		if c == s {
-			return true
-		}
+// CountriesContains searches for a country and returns true if it is found in
+// Countries.
+func CountriesContains(country string) bool {
+	i := sort.SearchStrings(Countries, country)
+	return i != len(Countries) && Countries[i] == country
+}
+
+// CountriesHandler is a handler that serves the static Countries collection.
+var CountriesHandler = res.OptionFunc(func(rh *res.Handler) {
+	rh.Get = func(r res.GetRequest) {
+		r.Collection(Countries)
 	}
-	return false
-}
-
-type countriesHandler struct{}
-
-func (h countriesHandler) Get(r res.GetRequest) {
-	r.Collection(countries)
-}
-
-func (h countriesHandler) Access(r res.AccessRequest) {
-	r.AccessGranted()
-}
-
-// SetOption sets the handler methods to the res.Handler object
-func (h countriesHandler) SetOption(hs *res.Handler) {
-	hs.Get = h.Get
-	hs.Access = h.Access
-}
+})

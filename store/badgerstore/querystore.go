@@ -151,6 +151,11 @@ func (qs *QueryStore) OnQueryChange(cb func(store.QueryChange)) {
 	qs.onQueryChange = append(qs.onQueryChange, cb)
 }
 
+// Flush waits for the indexing queue to be cleared.
+func (qs *QueryStore) Flush() {
+	qs.tq.Flush()
+}
+
 func (qs *QueryStore) handleChange(id string, before, after interface{}) {
 	qs.tq.Do(func() {
 		err := qs.updateIndex(id, before, after)

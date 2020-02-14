@@ -22,8 +22,8 @@ github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/jirenius/keylock v1.0.0 h1:RCuJxML1Mc65lVQo5FvjXu/J9QbZvPm3KG7n2PvQwfc=
 github.com/jirenius/keylock v1.0.0/go.mod h1:p8DigU6QAlGdVsjxVu9+/kq2JqZG5NhradpwA1JfCXU=
-github.com/jirenius/taskqueue v1.0.0 h1:ClsM5ti8pS7+1+2TqQz3Z5Ojpg1cgEGg+VZ7o7cWZl0=
-github.com/jirenius/taskqueue v1.0.0/go.mod h1:/x5dz4AGqzGI6FmIC+0rmbx6JBUGgJiQzb71JFy/JRg=
+github.com/jirenius/taskqueue v1.1.0 h1:V7Z/XeR515i96YmohoD1rXawAcGBONrd8+LGfckZjgg=
+github.com/jirenius/taskqueue v1.1.0/go.mod h1:/x5dz4AGqzGI6FmIC+0rmbx6JBUGgJiQzb71JFy/JRg=
 github.com/jirenius/timerqueue v1.0.0 h1:TgcUQlrxKBBHYmStXPzLdMPJFfmqkWZZ1s7BA5G1d9E=
 github.com/jirenius/timerqueue v1.0.0/go.mod h1:pUEjy16BUruJMjLIsjWvWQh9Bu9CSXCIfGADZf37WIk=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=

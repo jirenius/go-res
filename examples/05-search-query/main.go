@@ -16,20 +16,31 @@ import (
 )
 
 func main() {
-	// // Create badger DB
+	// Create badger DB
 	db, err := badger.Open(badger.DefaultOptions("./db").WithTruncate(true))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
+	// Create badgerDB store for customers
+	customerStore := NewCustomerStore(db)
+	// Seed database with initial customers, if not done before
+	customerStore.Init()
+
 	// Create a new RES Service
 	s := res.NewService("search")
 
 	// Add handlers
-	s.Handle("countries", countriesHandler{})
-	s.Handle("customer.$id", customerHandler{DB: db})
-	s.Handle("customers", customerQueryHandler{DB: db})
+	s.Handle("countries",
+		CountriesHandler,
+		res.Access(res.AccessGranted))
+	s.Handle("customer.$id",
+		&CustomerHandler{CustomerStore: customerStore},
+		res.Access(res.AccessGranted))
+	s.Handle("customers",
+		&CustomerQueryHandler{CustomerStore: customerStore},
+		res.Access(res.AccessGranted))
 
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.

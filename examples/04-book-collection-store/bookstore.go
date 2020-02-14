@@ -55,13 +55,21 @@ func booksByTitleIndexQuery(qs *badgerstore.QueryStore, q url.Values) (*badgerst
 	}, nil
 }
 
-// Init bootstraps an empty store with some initial books. It panics on errors.
+// Init seeds an empty store with some initial books. It panics on errors.
 func (st *BookStore) Init() {
-	if err := st.Store.Init(func(v interface{}) string { return v.(Book).ID },
-		Book{ID: xid.New().String(), Title: "Animal Farm", Author: "George Orwell"},
-		Book{ID: xid.New().String(), Title: "Brave New World", Author: "Aldous Huxley"},
-		Book{ID: xid.New().String(), Title: "Coraline", Author: "Neil Gaiman"},
-	); err != nil {
+	if err := st.Store.Init(func(add func(id string, v interface{})) error {
+		for _, book := range []Book{
+			Book{Title: "Animal Farm", Author: "George Orwell"},
+			Book{Title: "Brave New World", Author: "Aldous Huxley"},
+			Book{Title: "Coraline", Author: "Neil Gaiman"},
+		} {
+			book.ID = xid.New().String()
+			add(book.ID, book)
+		}
+		return nil
+	}); err != nil {
 		panic(err)
 	}
+	// Wait for the badgerDB index to be created
+	st.BooksByTitle.Flush()
 }

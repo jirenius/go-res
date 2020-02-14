@@ -94,6 +94,8 @@ func (h *BookHandler) set(r res.CallRequest) {
 
 	// Update book in store.
 	// This will produce a change event, if any fields were updated.
+	// It might also produce events for the books collection, if the change
+	// affects the sort order.
 	err = txn.Update(book)
 	if err != nil {
 		r.Error(err)
