@@ -238,18 +238,43 @@ func (qc queryChange) After() interface{} {
 	return qc.after
 }
 
-func (qc queryChange) AffectsQuery(q url.Values) bool {
-	// [TODO] Check if the Before or After value changes any of the
-	// indexes.
-	return true
-}
-
-func (qc queryChange) Events(q url.Values) ([]store.ResultEvent, bool) {
+func (qc queryChange) Events(q url.Values) ([]store.ResultEvent, bool, error) {
 	// [TODO] Fetch the results using the query, and compare the results with
 	// the Before and After values to determine which events the change results
 	// in.
-	if !qc.AffectsQuery(q) {
-		return nil, false
+	affected, err := qc.affectsQuery(q)
+	if err != nil {
+		return nil, false, err
 	}
-	return nil, true
+
+	return nil, affected, nil
+}
+
+func (qc queryChange) affectsQuery(q url.Values) (bool, error) {
+	iq, err := qc.qs.iq(qc.qs, q)
+	if err != nil {
+		return false, err
+	}
+	var beforeKey, afterKey []byte
+	if qc.before != nil {
+		beforeKey = iq.Index.Key(qc.before)
+	}
+	if qc.after != nil {
+		afterKey = iq.Index.Key(qc.after)
+	}
+	// Not affected if no change to the index
+	if bytes.Equal(beforeKey, afterKey) {
+		return false, nil
+	}
+	wasMatch := qc.before != nil && bytes.HasPrefix(beforeKey, iq.KeyPrefix)
+	isMatch := qc.after != nil && bytes.HasPrefix(afterKey, iq.KeyPrefix)
+	if iq.FilterKeys != nil {
+		if wasMatch {
+			wasMatch = iq.FilterKeys(beforeKey)
+		}
+		if isMatch {
+			isMatch = iq.FilterKeys(afterKey)
+		}
+	}
+	return wasMatch || isMatch, nil
 }

@@ -28,7 +28,7 @@ type QueryChange struct {
 	BeforeValue    interface{}
 	AfterValue     interface{}
 	OnAffectsQuery func(q url.Values) bool
-	OnEvents       func(q url.Values) ([]store.ResultEvent, bool)
+	OnEvents       func(q url.Values) ([]store.ResultEvent, bool, error)
 }
 
 // Assert QueryChange implements the store.QueryChange interface.
@@ -75,20 +75,11 @@ func (qc QueryChange) After() interface{} {
 	return qc.AfterValue
 }
 
-// AffectsQuery calls the OnAffectsQuery callback, or returns false if
-// OnAffectsQuery is nil.
-func (qc QueryChange) AffectsQuery(q url.Values) bool {
-	if qc.OnAffectsQuery == nil {
-		return false
-	}
-	return qc.OnAffectsQuery(q)
-}
-
 // Events calls the OnEvents callback, or returns nil and false if OnEvents is
 // nil.
-func (qc QueryChange) Events(q url.Values) ([]store.ResultEvent, bool) {
+func (qc QueryChange) Events(q url.Values) ([]store.ResultEvent, bool, error) {
 	if qc.OnEvents == nil {
-		return nil, false
+		return nil, false, nil
 	}
 	return qc.OnEvents(q)
 }

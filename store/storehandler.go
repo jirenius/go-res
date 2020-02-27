@@ -145,29 +145,53 @@ func (o *storeHandler) changeHandler(id string, before, after interface{}) {
 		return
 	}
 
-	var beforeDta, afterDta []byte
-	if beforeDta, err = json.Marshal(before); err != nil {
-		o.s.Logger().Errorf("error marshaling resource %s: %s", rid, err)
+	switch o.typ {
+	case res.TypeModel:
+		if err := modelDiff(r, before, after); err != nil {
+			o.s.Logger().Errorf("diff failed for model %s: %s", rid, err)
+		}
+	case res.TypeCollection:
+		if err := o.collectionDiff(r, before, after); err != nil {
+			o.s.Logger().Errorf("diff failed for collection %s: %s", rid, err)
+		}
+	default:
+		o.s.Logger().Errorf("invalid resource type")
 	}
-	if afterDta, err = json.Marshal(after); err != nil {
-		o.s.Logger().Errorf("error marshaling resource %s: %s", rid, err)
-	}
+}
 
+// modelDiff produces change event by comparing before and after value, as they
+// look when marshaled into json.
+func modelDiff(r res.Resource, before, after interface{}) error {
 	var beforeMap, afterMap map[string]Value
-	if err = json.Unmarshal(beforeDta, &beforeMap); err != nil {
-		o.s.Logger().Errorf("error unmarshaling resource %s to value map: %s", rid, err)
+	var ok bool
+
+	// Convert before and after value to map[string]Value
+	if beforeMap, ok = before.(map[string]Value); !ok {
+		beforeDta, err := json.Marshal(before)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(beforeDta, &beforeMap); err != nil {
+			return err
+		}
 	}
-	if err = json.Unmarshal(afterDta, &afterMap); err != nil {
-		o.s.Logger().Errorf("error unmarshaling resource %s to value map: %s", rid, err)
+	if afterMap, ok = after.(map[string]Value); !ok {
+		afterDta, err := json.Marshal(after)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(afterDta, &afterMap); err != nil {
+			return err
+		}
 	}
 
+	// Generate change event
 	ch := make(map[string]interface{}, len(afterMap))
 	for k := range beforeMap {
 		if _, ok := afterMap[k]; !ok {
 			ch[k] = DeleteValue
 		}
 	}
-
 	for k, v := range afterMap {
 		ov, ok := beforeMap[k]
 		if !ok || !v.Equal(ov) {
@@ -176,4 +200,129 @@ func (o *storeHandler) changeHandler(id string, before, after interface{}) {
 	}
 
 	r.ChangeEvent(ch)
+	return nil
+}
+
+// collectionDiff produces remove and add events by comparing before and after
+// value, as they look when marshaled into json.
+func (o *storeHandler) collectionDiff(r res.Resource, before, after interface{}) error {
+	var a, b []Value
+	var ok bool
+
+	// Convert before and after value to []Value
+	if a, ok = before.([]Value); !ok {
+		beforeDta, err := json.Marshal(before)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(beforeDta, &a); err != nil {
+			return err
+		}
+	}
+	if b, ok = after.([]Value); !ok {
+		afterDta, err := json.Marshal(after)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(afterDta, &b); err != nil {
+			return err
+		}
+	}
+
+	// Generate remove/add events
+	var i, j int
+	// Do a LCS matrix calculation
+	// https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
+	s := 0
+	m := len(a)
+	n := len(b)
+
+	// Trim of matches at the start and end
+	for s < m && s < n && a[s].Equal(b[s]) {
+		s++
+	}
+
+	if s == m && s == n {
+		return nil
+	}
+
+	for s < m && s < n && a[m-1].Equal(b[n-1]) {
+		m--
+		n--
+	}
+
+	var aa, bb []Value
+	if s > 0 || m < len(a) {
+		aa = a[s:m]
+		m = m - s
+	} else {
+		aa = a
+	}
+	if s > 0 || n < len(b) {
+		bb = b[s:n]
+		n = n - s
+	} else {
+		bb = b
+	}
+
+	// Create matrix and initialize it
+	w := m + 1
+	c := make([]int, w*(n+1))
+
+	for i = 0; i < m; i++ {
+		for j = 0; j < n; j++ {
+			if aa[i].Equal(bb[j]) {
+				c[(i+1)+w*(j+1)] = c[i+w*j] + 1
+			} else {
+				v1 := c[(i+1)+w*j]
+				v2 := c[i+w*(j+1)]
+				if v2 > v1 {
+					c[(i+1)+w*(j+1)] = v2
+				} else {
+					c[(i+1)+w*(j+1)] = v1
+				}
+			}
+		}
+	}
+
+	idx := m + s
+	i = m
+	j = n
+	rems := 0
+
+	var adds [][3]int
+	addCount := n - c[w*(n+1)-1]
+	if addCount > 0 {
+		adds = make([][3]int, 0, addCount)
+	}
+Loop:
+	for {
+		m = i - 1
+		n = j - 1
+		switch {
+		case i > 0 && j > 0 && aa[m].Equal(bb[n]):
+			idx--
+			i--
+			j--
+		case j > 0 && (i == 0 || c[i+w*n] >= c[m+w*j]):
+			adds = append(adds, [3]int{n, idx, rems})
+			j--
+		case i > 0 && (j == 0 || c[i+w*n] < c[m+w*j]):
+			idx--
+			r.RemoveEvent(idx)
+			rems++
+			i--
+		default:
+			break Loop
+		}
+	}
+
+	// Do the adds
+	l := len(adds) - 1
+	for i := l; i >= 0; i-- {
+		add := adds[i]
+		r.AddEvent(bb[add[0]], add[1]-rems+add[2]+l-i)
+	}
+
+	return nil
 }

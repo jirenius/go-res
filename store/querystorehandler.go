@@ -227,7 +227,11 @@ func (o *queryHandler) resourceEvent(rid string, qc QueryChange) {
 
 	// Get events. We assume Events will will by itself determine if
 	// the query is affected or not, by returning a no events.
-	evs, reset := qc.Events(q)
+	evs, reset, err := qc.Events(q)
+	if err != nil {
+		panic(err)
+	}
+
 	if reset {
 		r.ResetEvent()
 		return
@@ -275,23 +279,53 @@ func (o *queryHandler) queryEvent(qrid string, qc QueryChange) {
 			return
 		}
 
-		// No events if query is unaffected
-		if !qc.AffectsQuery(q) {
-			return
-		}
-
-		result, err := o.getResult(q)
+		// Get events for the query
+		evs, reset, err := qc.Events(q)
 		if err != nil {
 			qreq.Error(err)
 			return
 		}
-		switch o.typ {
-		case res.TypeModel:
-			qreq.Model(result)
-		case res.TypeCollection:
-			qreq.Collection(result)
-		default:
-			panic("invalid type")
+
+		// Handle reset
+		if reset {
+			result, err := o.getResult(q)
+			if err != nil {
+				qreq.Error(err)
+				return
+			}
+			switch o.typ {
+			case res.TypeModel:
+				qreq.Model(result)
+			case res.TypeCollection:
+				qreq.Collection(result)
+			default:
+				panic("invalid type")
+			}
+			return
+		}
+
+		if len(evs) == 0 {
+			return
+		}
+
+		if o.trans != nil {
+			evs, err = o.trans.TransformEvents(evs)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		for _, ev := range evs {
+			switch ev.Name {
+			case "add":
+				qreq.AddEvent(ev.Value, ev.Idx)
+			case "remove":
+				qreq.RemoveEvent(ev.Idx)
+			case "change":
+				qreq.ChangeEvent(ev.Changed)
+			default:
+				panic("invalid event name: " + ev.Name)
+			}
 		}
 	})
 }

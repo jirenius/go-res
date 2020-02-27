@@ -65,6 +65,20 @@ type writeTxn struct {
 	readTxn
 }
 
+// NewStore creates a new empty Store.
+func NewStore() *Store {
+	return &Store{}
+}
+
+// Add inserts a value into the Resources map.
+func (st *Store) Add(id string, v interface{}) *Store {
+	if st.Resources == nil {
+		st.Resources = make(map[string]interface{}, 1)
+	}
+	st.Resources[id] = v
+	return st
+}
+
 // Read makes a read-lock for the resource that lasts until Close is called.
 func (st *Store) Read(id string) store.ReadTxn {
 	st.RLock()
