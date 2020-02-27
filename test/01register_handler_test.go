@@ -4,59 +4,60 @@ import (
 	"testing"
 
 	"github.com/jirenius/go-res"
+	"github.com/jirenius/go-res/restest"
 )
 
 // Test that the service can serve a handler without error
 func TestRegisterModelHandler(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) { r.NotFound() }))
-	}, func(s *Session) {
-		s.AssertSubscription(t, "get.test")
-		s.AssertSubscription(t, "get.test.>")
-		s.AssertSubscription(t, "call.test.>")
-		s.AssertNoSubscription(t, "call.test")
-		s.AssertSubscription(t, "auth.test.>")
-		s.AssertNoSubscription(t, "auth.test")
-		s.AssertNoSubscription(t, "access.test.>")
-		s.AssertNoSubscription(t, "access.test")
-	}, withResources([]string{"test", "test.>"}))
+	}, func(s *restest.Session) {
+		s.AssertSubscription("get.test")
+		s.AssertSubscription("get.test.>")
+		s.AssertSubscription("call.test.>")
+		s.AssertNoSubscription("call.test")
+		s.AssertSubscription("auth.test.>")
+		s.AssertNoSubscription("auth.test")
+		s.AssertNoSubscription("access.test.>")
+		s.AssertNoSubscription("access.test")
+	}, restest.WithReset([]string{"test", "test.>"}, nil))
 }
 
 // Test that the access methods are subscribed to when handler
 // with an access handler function is registered
 func TestRegisterAccessHandler(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.Access(res.AccessGranted))
-	}, func(s *Session) {
-		s.AssertNoSubscription(t, "get.test")
-		s.AssertNoSubscription(t, "get.test.>")
-		s.AssertNoSubscription(t, "call.test.>")
-		s.AssertNoSubscription(t, "call.test")
-		s.AssertNoSubscription(t, "auth.test.>")
-		s.AssertNoSubscription(t, "auth.test")
-		s.AssertSubscription(t, "access.test.>")
-		s.AssertSubscription(t, "access.test")
-	}, withAccess([]string{"test", "test.>"}))
+	}, func(s *restest.Session) {
+		s.AssertNoSubscription("get.test")
+		s.AssertNoSubscription("get.test.>")
+		s.AssertNoSubscription("call.test.>")
+		s.AssertNoSubscription("call.test")
+		s.AssertNoSubscription("auth.test.>")
+		s.AssertNoSubscription("auth.test")
+		s.AssertSubscription("access.test.>")
+		s.AssertSubscription("access.test")
+	}, restest.WithReset(nil, []string{"test", "test.>"}))
 }
 
 // Test that the resource and access methods are subscribed to when
 // both resource and access handler function is registered
 func TestRegisterModelAndAccessHandler(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) { r.NotFound() }),
 			res.Access(res.AccessGranted),
 		)
-	}, func(s *Session) {
-		s.AssertSubscription(t, "get.test")
-		s.AssertSubscription(t, "get.test.>")
-		s.AssertSubscription(t, "call.test.>")
-		s.AssertNoSubscription(t, "call.test")
-		s.AssertSubscription(t, "auth.test.>")
-		s.AssertNoSubscription(t, "auth.test")
-		s.AssertSubscription(t, "access.test.>")
-		s.AssertSubscription(t, "access.test")
-	}, withResources([]string{"test", "test.>"}), withAccess([]string{"test", "test.>"}))
+	}, func(s *restest.Session) {
+		s.AssertSubscription("get.test")
+		s.AssertSubscription("get.test.>")
+		s.AssertSubscription("call.test.>")
+		s.AssertNoSubscription("call.test")
+		s.AssertSubscription("auth.test.>")
+		s.AssertNoSubscription("auth.test")
+		s.AssertSubscription("access.test.>")
+		s.AssertSubscription("access.test")
+	}, restest.WithReset([]string{"test", "test.>"}, []string{"test", "test.>"}))
 }
 
 // Test that registering both a model and collection handler results
@@ -69,7 +70,7 @@ func TestPanicOnMultipleGetHandlers(t *testing.T) {
 		}
 	}()
 
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.NotFound()
@@ -95,7 +96,7 @@ func TestPanicOnInvalidPatternRegistration(t *testing.T) {
 	}
 
 	for _, l := range tbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			defer func() {
 				v := recover()
 				if v == nil {
@@ -106,7 +107,7 @@ func TestPanicOnInvalidPatternRegistration(t *testing.T) {
 			for _, p := range l {
 				s.Handle(p)
 			}
-		}, nil, withoutReset)
+		}, nil, restest.WithoutReset)
 	}
 }
 
@@ -117,11 +118,11 @@ func TestHandler_InvalidHandlerOption_CausesPanic(t *testing.T) {
 	}
 
 	for _, l := range tbl {
-		runTest(t, func(s *Session) {
-			AssertPanic(t, func() {
+		runTest(t, func(s *res.Service) {
+			restest.AssertPanic(t, func() {
 				l()
 			})
-		}, nil, withoutReset)
+		}, nil, restest.WithoutReset)
 	}
 }
 
@@ -139,10 +140,10 @@ func TestHandler_InvalidHandlerOptions_CausesPanic(t *testing.T) {
 	}
 
 	for _, l := range tbl {
-		runTest(t, func(s *Session) {
-			AssertPanic(t, func() {
+		runTest(t, func(s *res.Service) {
+			restest.AssertPanic(t, func() {
 				s.Handle("model", l...)
 			})
-		}, nil, withoutReset)
+		}, nil, restest.WithoutReset)
 	}
 }

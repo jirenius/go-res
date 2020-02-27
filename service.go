@@ -975,12 +975,14 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *M
 	}
 
 	var rc resRequest
-	err := json.Unmarshal(m.Data, &rc)
-	if err != nil {
-		r = &Request{resource: resource{s: s}, msg: m}
-		s.errorf("Error unmarshaling incoming request: %s", err)
-		r.error(ToError(err))
-		return
+	if len(m.Data) > 0 {
+		err := json.Unmarshal(m.Data, &rc)
+		if err != nil {
+			r = &Request{resource: resource{s: s}, msg: m}
+			s.errorf("Error unmarshaling incoming request: %s", err)
+			r.error(ToError(err))
+			return
+		}
 	}
 
 	r = &Request{

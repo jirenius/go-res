@@ -1,80 +1,17 @@
 package test
 
 import (
-	"log"
 	"testing"
 	"time"
 
 	res "github.com/jirenius/go-res"
-	"github.com/jirenius/go-res/logger"
+	"github.com/jirenius/go-res/restest"
 )
 
-const timeoutDuration = 100 * time.Second
+const timeoutDuration = 1 * time.Second
 
-// Session represents a test session with a res server
-type Session struct {
-	*MockConn
-	*res.Service
-	cl chan struct{}
-}
-
-func teardown(s *Session) {
-	err := s.Shutdown()
-
-	// Check error, as an error means that server hasn't had
-	// time to start. We can then ignore waiting for the closing
-	if err == nil {
-		select {
-		case <-s.cl:
-		case <-time.After(timeoutDuration):
-			panic("test: failed to shutdown service: timeout")
-		}
-	}
-}
-
-func setup(t *testing.T, cfg *runConfig) *Session {
-	var s *Session
-	c := NewTestConn(cfg.useGnatsd)
-	r := res.NewService("test")
-	r.SetLogger(cfg.logger)
-
-	s = &Session{
-		MockConn: c,
-		Service:  r,
-		cl:       make(chan struct{}),
-	}
-
-	if cfg.preCallback != nil {
-		cfg.preCallback(s)
-	}
-
-	go func() {
-		defer s.StopServer()
-		defer close(s.cl)
-		if err := r.Serve(c); err != nil {
-			panic("test: failed to start service: " + err.Error())
-		}
-	}()
-
-	if !cfg.noReset {
-		ev := s.GetMsg(t).AssertSubject(t, "system.reset")
-		if cfg.validateReset {
-			m := make(map[string]interface{}, 2)
-			if len(cfg.resetResources) > 0 {
-				m["resources"] = cfg.resetResources
-			}
-			if len(cfg.resetAccess) > 0 {
-				m["access"] = cfg.resetAccess
-			}
-			ev.AssertPayload(t, m)
-		}
-	}
-
-	return s
-}
-
-func syncCallback(cb func(*Session)) func(s *Session, done func()) {
-	return func(s *Session, done func()) {
+func syncCallback(cb func(*restest.Session)) func(s *restest.Session, done func()) {
+	return func(s *restest.Session, done func()) {
 		if cb != nil {
 			cb(s)
 		}
@@ -82,88 +19,23 @@ func syncCallback(cb func(*Session)) func(s *Session, done func()) {
 	}
 }
 
-type runConfig struct {
-	name           string
-	logger         logger.Logger
-	preCallback    func(*Session)
-	callback       func(*Session, func())
-	useGnatsd      bool
-	noReset        bool
-	validateReset  bool
-	resetResources []string
-	resetAccess    []string
-}
-
-func withName(name string) func(*runConfig) {
-	return func(cfg *runConfig) { cfg.name = name }
-}
-
-func withLogger(l logger.Logger) func(*runConfig) {
-	return func(cfg *runConfig) { cfg.logger = l }
-}
-
-func withGnatsd(cfg *runConfig) { cfg.useGnatsd = true }
-
-func withoutReset(cfg *runConfig) { cfg.noReset = true }
-
-func withResources(resources []string) func(*runConfig) {
-	return func(cfg *runConfig) {
-		cfg.resetResources = resources
-		cfg.validateReset = true
-	}
-}
-
-func withAccess(access []string) func(*runConfig) {
-	return func(cfg *runConfig) {
-		cfg.resetAccess = access
-		cfg.validateReset = true
-	}
-}
-
-func runTest(t *testing.T, precb func(*Session), cb func(*Session), opts ...func(*runConfig)) {
+func runTest(t *testing.T, precb func(*res.Service), cb func(*restest.Session), opts ...func(*restest.SessionConfig)) {
 	runTestAsync(t, precb, syncCallback(cb), opts...)
 }
 
-func newMemLogger() *logger.MemLogger {
-	return logger.NewMemLogger().SetTrace(true).SetFlags(log.Ltime)
-}
+func runTestAsync(t *testing.T, precb func(*res.Service), cb func(*restest.Session, func()), opts ...func(*restest.SessionConfig)) {
+	rs := res.NewService("test")
 
-func runTestAsync(t *testing.T, precb func(*Session), cb func(*Session, func()), opts ...func(*runConfig)) {
-	cfg := &runConfig{
-		logger:         newMemLogger(),
-		preCallback:    precb,
-		callback:       cb,
-		useGnatsd:      false,
-		resetResources: nil,
-		resetAccess:    nil,
+	if precb != nil {
+		precb(rs)
 	}
 
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	runTestInternal(t, cfg)
-}
-
-func runTestInternal(t *testing.T, cfg *runConfig) {
-	s := setup(t, cfg)
-
-	panicked := true
-	defer func() {
-		if panicked || t.Failed() {
-			if cfg.name != "" {
-				t.Logf("Failed test %s", cfg.name)
-			}
-			l := s.Logger()
-			if l != nil {
-				t.Logf("Trace log:\n%s", l)
-			}
-		}
-	}()
+	s := restest.NewSession(t, rs, opts...)
+	defer s.Close()
 
 	acl := make(chan struct{})
-	if cfg.callback != nil {
-		cfg.callback(s, func() {
+	if cb != nil {
+		cb(s, func() {
 			close(acl)
 		})
 	} else {
@@ -175,7 +47,4 @@ func runTestInternal(t *testing.T, cfg *runConfig) {
 	case <-time.After(timeoutDuration):
 		panic("test: async test failed by never calling done: timeout")
 	}
-
-	teardown(s)
-	panicked = false
 }

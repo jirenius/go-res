@@ -1,11 +1,10 @@
-package test
+package restest
 
 import (
 	"encoding/json"
 	"errors"
 
 	res "github.com/jirenius/go-res"
-	"github.com/jirenius/go-res/restest"
 )
 
 type modelDto struct {
@@ -95,28 +94,3 @@ var mock = mockData{
 	42,                         // IntValue
 }
 
-func (m *mockData) DefaultRequest() *restest.Request {
-	return &restest.Request{
-		CID: m.CID,
-	}
-}
-
-func (m *mockData) QueryRequest() *restest.Request {
-	return &restest.Request{
-		Query: m.Query,
-	}
-}
-
-func (m *mockData) Request() *restest.Request {
-	return &restest.Request{}
-}
-
-func (m *mockData) AuthRequest() *restest.Request {
-	return &restest.Request{
-		CID:        m.CID,
-		Header:     m.Header,
-		Host:       m.Host,
-		RemoteAddr: m.RemoteAddr,
-		URI:        m.URI,
-	}
-}

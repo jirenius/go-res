@@ -7,11 +7,12 @@ import (
 	"time"
 
 	res "github.com/jirenius/go-res"
+	"github.com/jirenius/go-res/restest"
 )
 
 // Test QueryEvent sends a query event with a inbox subject
 func TestQueryEvent(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.Model(mock.Model)
@@ -21,15 +22,12 @@ func TestQueryEvent(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		ev := s.GetMsg(t)
-		_, ok := ev.PathPayload(t, "subject").(string)
-		if !ok {
-			t.Errorf("expected query event payload contain subject string, but got %#v", ev.Payload())
-		}
-		s.GetMsg(t).AssertSubject(t, inb)
-	}, withGnatsd)
+	}, func(s *restest.Session) {
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().
+			AssertQueryEvent("test.model", nil)
+		req.Response()
+	}, restest.WithGnatsd)
 }
 
 // Test QueryEvent expiration causes callback to be called with nil
@@ -37,7 +35,7 @@ func TestQueryEventExpiration(t *testing.T) {
 	var done func()
 	ch := make(chan struct{})
 
-	runTestAsync(t, func(s *Session) {
+	runTestAsync(t, func(s *res.Service) {
 		s.SetQueryEventDuration(time.Millisecond)
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
@@ -53,38 +51,38 @@ func TestQueryEventExpiration(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session, d func()) {
+	}, func(s *restest.Session, d func()) {
 		done = d
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t)
-		s.GetMsg(t).AssertSubject(t, inb)
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().AssertEvent("test.model", "query")
+		req.Response()
 		<-ch
 		done()
-	}, withGnatsd)
+	}, restest.WithGnatsd)
 }
 
 // Test SetQueryEventDuration panics when called after starting service
 func TestSetQueryEventDurationPanicsAfterStart(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.Access(res.AccessGranted))
-	}, func(s *Session) {
-		AssertPanic(t, func() {
-			s.SetQueryEventDuration(time.Second * 5)
+	}, func(s *restest.Session) {
+		restest.AssertPanic(t, func() {
+			s.Service().SetQueryEventDuration(time.Second * 5)
 		})
 	})
 }
 
 // Test QueryEvent callback called directly on failed query subscription
 func TestQueryEventFailedSubscribe(t *testing.T) {
-	var done func()
+	var session *restest.Session
 
-	runTestAsync(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.Model(mock.Model)
 			}),
 			res.Call("method", func(r res.CallRequest) {
-				s.Close()
+				session.FailNextSubscription()
 				callbackCalled := false
 				r.QueryEvent(func(r res.QueryRequest) {
 					if r != nil {
@@ -92,21 +90,20 @@ func TestQueryEventFailedSubscribe(t *testing.T) {
 					}
 					callbackCalled = true
 				})
-				AssertEqual(t, "callbackCalled", callbackCalled, true)
-				done()
+				restest.AssertEqualJSON(t, "callbackCalled", callbackCalled, true)
 			}),
 		)
-	}, func(s *Session, d func()) {
-		done = d
-		s.Request("call.test.model.method", nil)
-	}, withGnatsd)
+	}, func(s *restest.Session) {
+		session = s
+		s.Request("call.test.model.method", nil).Response()
+	}, restest.WithGnatsd)
 }
 
 // Test QueryRequests being received on query event
 func TestQueryRequest(t *testing.T) {
 	events := json.RawMessage(`{"events":[]}`)
 
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.Model(mock.Model)
@@ -114,19 +111,21 @@ func TestQueryRequest(t *testing.T) {
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
 					if r != nil {
-						AssertEqual(t, "query", r.Query(), mock.Query)
+						restest.AssertEqualJSON(t, "query", r.Query(), mock.Query)
 					}
 				})
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		subj := s.GetMsg(t).PathPayload(t, "subject").(string)
-		s.GetMsg(t).AssertSubject(t, inb)
-		inb = s.Request(subj, json.RawMessage(`{"query":"`+mock.Query+`"}`))
-		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, events)
-	}, withGnatsd)
+	}, func(s *restest.Session) {
+		var subj string
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().AssertQueryEvent("test.model", &subj)
+		req.Response()
+		s.QueryRequest(subj, mock.Query).
+			Response().
+			AssertResult(events)
+	}, restest.WithGnatsd)
 }
 
 // Test QueryRequest responses.
@@ -139,7 +138,7 @@ func TestQueryRequestResponse(t *testing.T) {
 		{
 			"foo=none",
 			func(r res.QueryRequest) {
-				AssertEqual(t, "query", r.Query(), "foo=none")
+				restest.AssertEqualJSON(t, "query", r.Query(), "foo=none")
 			},
 			json.RawMessage(`{"events":[]}`),
 		},
@@ -370,7 +369,7 @@ func TestQueryRequestResponse(t *testing.T) {
 	}
 	lookup := make(map[string]func(r res.QueryRequest), len(tbl))
 
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				var q string
@@ -384,34 +383,34 @@ func TestQueryRequestResponse(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
+	}, func(s *restest.Session) {
 		// Run tests within a single session
 		// because starting gnatsd takes a couple of seconds
 		for _, l := range tbl {
+			var subj string
 			lookup[l.Query] = l.Callback
-			req := mock.DefaultRequest()
-			req.Params = json.RawMessage(`"` + l.Query + `"`)
-			inb := s.Request("call.test.model.method", req)
-			subj := s.GetMsg(t).PathPayload(t, "subject").(string)
+			r := mock.DefaultRequest()
+			r.Params = json.RawMessage(`"` + l.Query + `"`)
+			req := s.Call("test.model", "method", r)
+			s.GetMsg().AssertQueryEvent("test.model", &subj)
 
-			s.GetMsg(t).AssertSubject(t, inb)
-			inb = s.Request(subj, json.RawMessage(`{"query":"`+l.Query+`"}`))
-			resp := s.GetMsg(t).AssertSubject(t, inb)
+			req.Response()
+			resp := s.QueryRequest(subj, l.Query).Response()
 			switch v := l.Expected.(type) {
 			case *res.Error:
-				resp.AssertError(t, v)
+				resp.AssertError(v)
 			case string:
-				resp.AssertErrorCode(t, v)
+				resp.AssertErrorCode(v)
 			default:
-				resp.AssertResult(t, v)
+				resp.AssertResult(v)
 			}
 		}
-	}, withGnatsd)
+	}, restest.WithGnatsd)
 }
 
 // Test QueryRequest' Timeout sends a correct pre-response
 func TestQueryRequestTimeout(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
@@ -420,19 +419,20 @@ func TestQueryRequestTimeout(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		subj := s.GetMsg(t).PathPayload(t, "subject").(string)
-		s.GetMsg(t).AssertSubject(t, inb)
-		inb = s.Request(subj, json.RawMessage(`{"query":"foo=bar"}`))
-		s.GetMsg(t).AssertSubject(t, inb).AssertRawPayload(t, []byte(`timeout:"42000"`))
-		s.GetMsg(t).AssertSubject(t, inb).AssertResult(t, json.RawMessage(`{"events":[]}`))
-	}, withGnatsd)
+	}, func(s *restest.Session) {
+		var subj string
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().AssertQueryEvent("test.model", &subj)
+		req.Response()
+		qreq := s.QueryRequest(subj, mock.Query)
+		qreq.Response().AssertRawPayload([]byte(`timeout:"42000"`))
+		qreq.Response().AssertResult(json.RawMessage(`{"events":[]}`))
+	}, restest.WithGnatsd)
 }
 
 // Test QueryRequest' with invalid Timeout duration returns error
 func TestQueryRequestInvalidTimeout(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {
@@ -441,13 +441,15 @@ func TestQueryRequestInvalidTimeout(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		subj := s.GetMsg(t).PathPayload(t, "subject").(string)
-		s.GetMsg(t).AssertSubject(t, inb)
-		inb = s.Request(subj, json.RawMessage(`{"query":"foo=bar"}`))
-		s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, res.CodeInternalError)
-	}, withGnatsd)
+	}, func(s *restest.Session) {
+		var subj string
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().AssertQueryEvent("test.model", &subj)
+		req.Response()
+		s.QueryRequest(subj, mock.Query).
+			Response().
+			AssertErrorCode(res.CodeInternalError)
+	}, restest.WithGnatsd)
 }
 
 // Test Invalid QueryRequests gets an internal error response
@@ -460,28 +462,30 @@ func TestInvalidQueryRequest(t *testing.T) {
 		{json.RawMessage(`]`)},
 	}
 
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
 				r.QueryEvent(func(r res.QueryRequest) {})
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
+	}, func(s *restest.Session) {
 		for i, l := range tbl {
-			inb := s.Request("call.test.model.method", mock.DefaultRequest())
-			subj := s.GetMsg(t).PathPayload(t, "subject").(string)
-
-			s.GetMsg(t).AssertSubject(t, inb)
-			inb = s.RequestRaw(subj, l.Payload)
-			s.GetMsg(t).AssertSubject(t, inb).AssertErrorCode(t, res.CodeInternalError)
+			var subj string
+			req := s.Call("test.model", "method", nil)
+			s.GetMsg().AssertQueryEvent("test.model", &subj)
+			req.Response()
+			inb := s.RequestRaw(subj, l.Payload)
+			s.GetMsg().
+				AssertSubject(inb).
+				AssertErrorCode(res.CodeInternalError)
 
 			if t.Failed() {
 				t.Logf("failed on test idx %d", i)
 				break
 			}
 		}
-	}, withGnatsd)
+	}, restest.WithGnatsd)
 }
 
 // Test Invalid QueryRequests gets an internal error response
@@ -492,31 +496,31 @@ func TestInvalidQueryResponse(t *testing.T) {
 	}{
 		// Collection response on query model
 		{"test.model", func(t *testing.T, r res.QueryRequest) {
-			AssertPanicNoRecover(t, func() {
+			restest.AssertPanicNoRecover(t, func() {
 				r.Collection(mock.Collection)
 			})
 		}},
 		// Model response on query collection
 		{"test.collection", func(t *testing.T, r res.QueryRequest) {
-			AssertPanicNoRecover(t, func() {
+			restest.AssertPanicNoRecover(t, func() {
 				r.Model(mock.Model)
 			})
 		}},
 		// Change event on query collection
 		{"test.collection", func(t *testing.T, r res.QueryRequest) {
-			AssertPanicNoRecover(t, func() {
+			restest.AssertPanicNoRecover(t, func() {
 				r.ChangeEvent(map[string]interface{}{"foo": "bar"})
 			})
 		}},
 		// Add event on query model
 		{"test.model", func(t *testing.T, r res.QueryRequest) {
-			AssertPanicNoRecover(t, func() {
+			restest.AssertPanicNoRecover(t, func() {
 				r.AddEvent("foo", 0)
 			})
 		}},
 		// Remove event on query model
 		{"test.model", func(t *testing.T, r res.QueryRequest) {
-			AssertPanicNoRecover(t, func() {
+			restest.AssertPanicNoRecover(t, func() {
 				r.RemoveEvent(0)
 			})
 		}},
@@ -542,20 +546,20 @@ func TestInvalidQueryResponse(t *testing.T) {
 		}},
 	}
 
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
 			r.QueryModel(mock.Model, mock.NormalizedQuery)
 		}))
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
 			r.QueryCollection(mock.Collection, mock.NormalizedQuery)
 		}))
-	}, func(s *Session) {
+	}, func(s *restest.Session) {
 		ch := make(chan bool, 1)
 		for i, l := range tbl {
 			func() {
 				defer func() { ch <- true }()
 
-				s.With(l.RID, func(r res.Resource) {
+				s.Service().With(l.RID, func(r res.Resource) {
 					r.QueryEvent(func(r res.QueryRequest) {
 						if r != nil {
 							l.QueryRequestHandler(t, r)
@@ -564,15 +568,14 @@ func TestInvalidQueryResponse(t *testing.T) {
 				})
 
 				// Assert a query event for the resource
-				subj := s.GetMsg(t).
-					AssertSubject(t, "event."+l.RID+".query").
-					PathPayload(t, "subject").(string)
+				var subj string
+				s.GetMsg().AssertQueryEvent(l.RID, &subj)
 
-				// Send query request to the subject
-				inb := s.Request(subj, mock.QueryRequest())
-				resp := s.GetMsg(t).AssertSubject(t, inb)
+				// Send query request to the subject.
 				// Make sure we have an internal error
-				resp.AssertErrorCode(t, res.CodeInternalError)
+				s.QueryRequest(subj, mock.Query).
+					Response().
+					AssertErrorCode(res.CodeInternalError)
 			}()
 			select {
 			case <-ch:
@@ -587,5 +590,5 @@ func TestInvalidQueryResponse(t *testing.T) {
 			}
 		}
 		close(ch)
-	}, withGnatsd)
+	}, restest.WithGnatsd)
 }
