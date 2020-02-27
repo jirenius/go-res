@@ -59,9 +59,9 @@ func booksByTitleIndexQuery(qs *badgerstore.QueryStore, q url.Values) (*badgerst
 func (st *BookStore) Init() {
 	if err := st.Store.Init(func(add func(id string, v interface{})) error {
 		for _, book := range []Book{
-			Book{Title: "Animal Farm", Author: "George Orwell"},
-			Book{Title: "Brave New World", Author: "Aldous Huxley"},
-			Book{Title: "Coraline", Author: "Neil Gaiman"},
+			{Title: "Animal Farm", Author: "George Orwell"},
+			{Title: "Brave New World", Author: "Aldous Huxley"},
+			{Title: "Coraline", Author: "Neil Gaiman"},
 		} {
 			book.ID = xid.New().String()
 			add(book.ID, book)
