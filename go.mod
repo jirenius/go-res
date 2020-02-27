@@ -1,6 +1,6 @@
 module github.com/jirenius/go-res
 
-go 1.13
+go 1.12
 
 require (
 	github.com/dgraph-io/badger v1.6.0

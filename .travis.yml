@@ -1,16 +1,14 @@
 language: go
 go:
+- 1.14.x
 - 1.13.x
 - 1.12.x
-- 1.11.x
-before_install:
-- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.11\. ]]; then export GO111MODULE=off; fi
 install:
 - go get -t ./...
-- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.13\. ]]; then ./scripts/install-checks.sh; fi
+- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.14\. ]]; then ./scripts/install-checks.sh; fi
 before_script:
-- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.13\. ]]; then ./scripts/check.sh; fi
+- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.14\. ]]; then ./scripts/check.sh; fi
 - go build
 - go build $(go list ./examples/...)
 script:
-- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.13\. ]]; then ./scripts/cover.sh TRAVIS; else go test -i -race ./...; fi
+- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.14\. ]]; then ./scripts/cover.sh TRAVIS; else go test -i -race ./...; fi
