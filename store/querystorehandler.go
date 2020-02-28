@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"net/url"
 
 	res "github.com/jirenius/go-res"
@@ -204,24 +205,29 @@ func (o *queryHandler) changeHandler(qc QueryChange) {
 	if o.ar != nil {
 		rids := o.ar(qc)
 		for _, rid := range rids {
-			o.resourceEvent(rid, qc)
+			if err := o.resourceEvent(rid, qc); err != nil {
+				o.errorf("QueryHandler encountered error generating events for resource %s: %s", rid, err)
+				return
+			}
 		}
 	} else {
-		o.resourceEvent(o.pattern, qc)
+		if err := o.resourceEvent(o.pattern, qc); err != nil {
+			o.errorf("QueryHandler encountered error generating events for resource %s: %s", o.pattern, err)
+		}
 	}
 }
 
-func (o *queryHandler) resourceEvent(rid string, qc QueryChange) {
+func (o *queryHandler) resourceEvent(rid string, qc QueryChange) error {
 	r, err := o.s.Resource(rid)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error getting resource: %s", err)
 	}
 
 	var q url.Values
 	if o.rh != nil {
 		q, err = o.rh(r.ResourceName(), r.PathParams())
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("error calling RequestHandler: %s", err)
 		}
 	}
 
@@ -229,22 +235,22 @@ func (o *queryHandler) resourceEvent(rid string, qc QueryChange) {
 	// the query is affected or not, by returning a no events.
 	evs, reset, err := qc.Events(q)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error getting events: %s", err)
 	}
 
 	if reset {
 		r.ResetEvent()
-		return
+		return nil
 	}
 
 	if len(evs) == 0 {
-		return
+		return nil
 	}
 
 	if o.trans != nil {
 		evs, err = o.trans.TransformEvents(evs)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("error transforming events: %s", err)
 		}
 	}
 
@@ -257,9 +263,10 @@ func (o *queryHandler) resourceEvent(rid string, qc QueryChange) {
 		case "change":
 			r.ChangeEvent(ev.Changed)
 		default:
-			panic("invalid event name: " + ev.Name)
+			return fmt.Errorf("invalid event name: %s", ev.Name)
 		}
 	}
+	return nil
 }
 
 func (o *queryHandler) queryEvent(qrid string, qc QueryChange) {
@@ -344,4 +351,11 @@ func (o *queryHandler) getResult(q url.Values) (interface{}, error) {
 		}
 	}
 	return result, nil
+}
+
+func (o *queryHandler) errorf(format string, v ...interface{}) {
+	l := o.s.Logger()
+	if l != nil {
+		l.Errorf(format, v...)
+	}
 }

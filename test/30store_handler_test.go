@@ -162,7 +162,9 @@ func TestStoreHandler_UpdateModel_ExpectedEvent(t *testing.T) {
 				}
 			}()
 			// Assert there are no more events
-			s.Get("test.model").Response()
+			s.Get("test.model").
+				Response().
+				AssertModel(l.Update)
 		}, restest.WithTest(test))
 	}
 }
@@ -222,7 +224,7 @@ var testSetCollectionTbl = []struct {
 	}},
 }
 
-func TestStoreHandler_UpdateCollection_ExpectedEvent(t *testing.T) {
+func TestStoreHandler_UpdateCollection_ExpectedEvents(t *testing.T) {
 	for i, l := range testSetCollectionTbl {
 		test := fmt.Sprintf("test #%d", i)
 		st := mockstore.NewStore().Add("test.collection", l.Collection)
@@ -237,7 +239,7 @@ func TestStoreHandler_UpdateCollection_ExpectedEvent(t *testing.T) {
 				txn := st.Write("test.collection")
 				defer txn.Close()
 				restest.AssertNoError(t, txn.Update(l.Update), test)
-				// Assert we get expected change event
+				// Assert we get expected add/remove events
 				for _, ev := range l.ExpectedEvents {
 					switch ev.Name {
 					case "add":
@@ -251,7 +253,9 @@ func TestStoreHandler_UpdateCollection_ExpectedEvent(t *testing.T) {
 
 			}()
 			// Assert there are no more events
-			s.Get("test.collection").Response()
+			s.Get("test.collection").
+				Response().
+				AssertCollection(l.Update)
 		}, restest.WithTest(test))
 	}
 }

@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
 
 	res "github.com/jirenius/go-res"
 	"github.com/jirenius/go-res/restest"
@@ -45,6 +46,8 @@ type mockData struct {
 	CustomErrorCode string
 	Query           string
 	NormalizedQuery string
+	QueryValues     url.Values
+	URLValues       url.Values
 	IntValue        int
 }
 
@@ -88,11 +91,13 @@ var mock = mockData{
 	func() {}, // UnserializableValue
 	&res.Error{Code: "test.unserializable", Message: "Unserializable", Data: func() {}}, // UnserializableError
 	// Consts
-	"Custom error",             // ErrorMessage
-	"test.custom",              // CustomErrorCode
-	"zoo=baz&foo=bar",          // Query
-	"foo=bar&zoo=baz&limit=10", // NormalizedQuery
-	42,                         // IntValue
+	"Custom error",                                  // ErrorMessage
+	"test.custom",                                   // CustomErrorCode
+	"zoo=baz&foo=bar",                               // Query
+	"foo=bar&zoo=baz&limit=10",                      // NormalizedQuery
+	url.Values{"zoo": {"baz"}, "foo": {"bar"}},      // QueryValues
+	url.Values{"id": {"42"}, "foo": {"bar", "baz"}}, // URLValues
+	42, // IntValue
 }
 
 func (m *mockData) DefaultRequest() *restest.Request {

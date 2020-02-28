@@ -24,11 +24,7 @@ var _ store.QueryStore = &QueryStore{}
 //
 // It implements the store.QueryChange interface.
 type QueryChange struct {
-	IDValue        string
-	BeforeValue    interface{}
-	AfterValue     interface{}
-	OnAffectsQuery func(q url.Values) bool
-	OnEvents       func(q url.Values) ([]store.ResultEvent, bool, error)
+	OnEvents func(q url.Values) ([]store.ResultEvent, bool, error)
 }
 
 // Assert QueryChange implements the store.QueryChange interface.
@@ -58,21 +54,6 @@ func (qs *QueryStore) TriggerQueryChange(qc QueryChange) {
 	for _, cb := range qs.OnQueryChangeCallbacks {
 		cb(qc)
 	}
-}
-
-// ID returns the IDValue string.
-func (qc QueryChange) ID() string {
-	return qc.IDValue
-}
-
-// Before returns the BeforeValue.
-func (qc QueryChange) Before() interface{} {
-	return qc.BeforeValue
-}
-
-// After returns the AfterValue.
-func (qc QueryChange) After() interface{} {
-	return qc.AfterValue
 }
 
 // Events calls the OnEvents callback, or returns nil and false if OnEvents is

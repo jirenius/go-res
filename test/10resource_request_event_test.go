@@ -238,7 +238,7 @@ func TestAddEvent(t *testing.T) {
 		}, func(s *restest.Session) {
 			req := s.Call("test.collection", "method", nil)
 			s.GetMsg().
-				AssertEvent("test.collection", "add").
+				AssertEventName("test.collection", "add").
 				AssertPayload(l.Expected)
 			req.Response()
 		})
@@ -257,7 +257,7 @@ func TestAddEventUsingWith(t *testing.T) {
 				r.AddEvent(l.Value, l.Idx)
 			}))
 			s.GetMsg().
-				AssertEvent("test.collection", "add").
+				AssertEventName("test.collection", "add").
 				AssertPayload(l.Expected)
 		})
 	}
@@ -336,7 +336,7 @@ func TestRemoveEvent(t *testing.T) {
 		}, func(s *restest.Session) {
 			req := s.Call("test.collection", "method", nil)
 			s.GetMsg().
-				AssertEvent("test.collection", "remove").
+				AssertEventName("test.collection", "remove").
 				AssertPayload(l.Expected)
 			req.Response()
 		})
@@ -355,7 +355,7 @@ func TestRemoveEventUsingWith(t *testing.T) {
 				r.RemoveEvent(l.Idx)
 			}))
 			s.GetMsg().
-				AssertEvent("test.collection", "remove").
+				AssertEventName("test.collection", "remove").
 				AssertPayload(l.Expected)
 		})
 	}

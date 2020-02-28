@@ -116,19 +116,6 @@ type QueryStore interface {
 
 // QueryChange represents a change to a resource that may affects queries.
 type QueryChange interface {
-	// ID returns the ID of the changed resource triggering the event.
-	ID() string
-
-	// Before returns the resource value before the change. The value type is
-	// defined by the underlying store. If the resource was created, Before will
-	// return nil.
-	Before() interface{}
-
-	// After returns the resource value after the change. The value type is
-	// defined by the underlying store. If the resource was deleted, After will
-	// return nil.
-	After() interface{}
-
 	// Events returns a list of events that describes mutations of the results,
 	// caused by the change, for a given query.
 	//

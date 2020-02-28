@@ -31,7 +31,6 @@ var _ store.QueryStore = &QueryStore{}
 
 type queryChange struct {
 	qs     *QueryStore
-	id     string
 	before interface{}
 	after  interface{}
 }
@@ -215,7 +214,6 @@ func (qs *QueryStore) updateIndex(id string, before, after interface{}) error {
 	if updated {
 		qc := store.QueryChange(queryChange{
 			qs:     qs,
-			id:     id,
 			before: before,
 			after:  after,
 		})
@@ -224,18 +222,6 @@ func (qs *QueryStore) updateIndex(id string, before, after interface{}) error {
 		}
 	}
 	return nil
-}
-
-func (qc queryChange) ID() string {
-	return qc.id
-}
-
-func (qc queryChange) Before() interface{} {
-	return qc.before
-}
-
-func (qc queryChange) After() interface{} {
-	return qc.after
 }
 
 func (qc queryChange) Events(q url.Values) ([]store.ResultEvent, bool, error) {

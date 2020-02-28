@@ -179,7 +179,7 @@ func TestListenerAddEvent_WithApplyAdd_CallsListener(t *testing.T) {
 		}, func(s *restest.Session) {
 			req := s.Call("test.collection", "method", nil)
 			s.GetMsg().
-				AssertEvent("test.collection", "add").
+				AssertEventName("test.collection", "add").
 				AssertPayload(l.Expected)
 			req.Response().
 				AssertResult(nil)
@@ -210,7 +210,7 @@ func TestListenerAddEvent_WithoutApplyAdd_CallsListener(t *testing.T) {
 		}, func(s *restest.Session) {
 			req := s.Call("test.collection", "method", nil)
 			s.GetMsg().
-				AssertEvent("test.collection", "add").
+				AssertEventName("test.collection", "add").
 				AssertPayload(l.Expected)
 			req.Response().
 				AssertResult(nil)
@@ -253,7 +253,7 @@ func TestListenerRemoveEvent_WithApplyRemove_CallsListener(t *testing.T) {
 		}, func(s *restest.Session) {
 			req := s.Call("test.collection", "method", nil)
 			s.GetMsg().
-				AssertEvent("test.collection", "remove").
+				AssertEventName("test.collection", "remove").
 				AssertPayload(l.Expected)
 			req.Response().
 				AssertResult(nil)
@@ -284,7 +284,7 @@ func TestListenerRemoveEvent_WithoutApplyRemove_CallsListener(t *testing.T) {
 		}, func(s *restest.Session) {
 			req := s.Call("test.collection", "method", nil)
 			s.GetMsg().
-				AssertEvent("test.collection", "remove").
+				AssertEventName("test.collection", "remove").
 				AssertPayload(l.Expected)
 			req.Response().
 				AssertResult(nil)
@@ -315,7 +315,7 @@ func TestListenerCreateEvent_WithApplyCreate_CallsListener(t *testing.T) {
 	}, func(s *restest.Session) {
 		req := s.Call("test.model", "method", nil)
 		s.GetMsg().
-			AssertEvent("test.model", "create")
+			AssertEventName("test.model", "create")
 		req.Response().
 			AssertResult(nil)
 	})
@@ -341,7 +341,7 @@ func TestListenerCreateEvent_WithoutApplyCreate_CallsListener(t *testing.T) {
 	}, func(s *restest.Session) {
 		req := s.Call("test.model", "method", nil)
 		s.GetMsg().
-			AssertEvent("test.model", "create")
+			AssertEventName("test.model", "create")
 		req.Response().
 			AssertResult(nil)
 	})
@@ -370,7 +370,7 @@ func TestListenerDeleteEvent_WithApplyDelete_CallsListener(t *testing.T) {
 	}, func(s *restest.Session) {
 		req := s.Call("test.model", "method", nil)
 		s.GetMsg().
-			AssertEvent("test.model", "delete")
+			AssertEventName("test.model", "delete")
 		req.Response().
 			AssertResult(nil)
 	})
@@ -396,7 +396,7 @@ func TestListenerDeleteEvent_WithoutApplyDelete_CallsListener(t *testing.T) {
 	}, func(s *restest.Session) {
 		req := s.Call("test.model", "method", nil)
 		s.GetMsg().
-			AssertEvent("test.model", "delete")
+			AssertEventName("test.model", "delete")
 		req.Response().
 			AssertResult(nil)
 	})

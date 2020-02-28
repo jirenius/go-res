@@ -54,7 +54,7 @@ func TestQueryEventExpiration(t *testing.T) {
 	}, func(s *restest.Session, d func()) {
 		done = d
 		req := s.Call("test.model", "method", nil)
-		s.GetMsg().AssertEvent("test.model", "query")
+		s.GetMsg().AssertEventName("test.model", "query")
 		req.Response()
 		<-ch
 		done()

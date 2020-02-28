@@ -31,7 +31,7 @@ func TestApplyChangeEvent(t *testing.T) {
 			)
 		}, func(s *restest.Session) {
 			req := s.Call("test.model", "method", nil)
-			s.GetMsg().AssertEvent("test.model", "change")
+			s.GetMsg().AssertEventName("test.model", "change")
 			req.Response()
 		})
 	}
@@ -84,7 +84,7 @@ func TestApplyChangeEventUsingWith(t *testing.T) {
 				r.ChangeEvent(l.Payload)
 				restest.AssertEqualJSON(t, "called", called, true)
 			}))
-			s.GetMsg().AssertEvent("test.model", "change")
+			s.GetMsg().AssertEventName("test.model", "change")
 		})
 	}
 }
@@ -138,7 +138,7 @@ func TestApplyAddEvent(t *testing.T) {
 			)
 		}, func(s *restest.Session) {
 			req := s.Call("test.collection", "method", nil)
-			s.GetMsg().AssertEvent("test.collection", "add")
+			s.GetMsg().AssertEventName("test.collection", "add")
 			req.Response()
 		})
 	}
@@ -166,7 +166,7 @@ func TestApplyAddEventUsingWith(t *testing.T) {
 				r.AddEvent(l.Value, l.Idx)
 				restest.AssertEqualJSON(t, "called", called, true)
 			}))
-			s.GetMsg().AssertEvent("test.collection", "add")
+			s.GetMsg().AssertEventName("test.collection", "add")
 		})
 	}
 }
@@ -219,7 +219,7 @@ func TestApplyRemoveEvent(t *testing.T) {
 			)
 		}, func(s *restest.Session) {
 			req := s.Call("test.collection", "method", nil)
-			s.GetMsg().AssertEvent("test.collection", "remove")
+			s.GetMsg().AssertEventName("test.collection", "remove")
 			req.Response()
 		})
 	}
@@ -246,7 +246,7 @@ func TestApplyRemoveEventUsingWith(t *testing.T) {
 				r.RemoveEvent(l.Idx)
 				restest.AssertEqualJSON(t, "called", called, true)
 			}))
-			s.GetMsg().AssertEvent("test.collection", "remove")
+			s.GetMsg().AssertEventName("test.collection", "remove")
 		})
 	}
 }
@@ -295,7 +295,7 @@ func TestApplyCreateEvent(t *testing.T) {
 		)
 	}, func(s *restest.Session) {
 		req := s.Call("test.model", "method", nil)
-		s.GetMsg().AssertEvent("test.model", "create")
+		s.GetMsg().AssertEventName("test.model", "create")
 		req.Response()
 	})
 }
@@ -318,7 +318,7 @@ func TestApplyCreateEventUsingWith(t *testing.T) {
 			r.CreateEvent(mock.Model)
 			restest.AssertEqualJSON(t, "called", called, true)
 		}))
-		s.GetMsg().AssertEvent("test.model", "create")
+		s.GetMsg().AssertEventName("test.model", "create")
 	})
 }
 
@@ -360,7 +360,7 @@ func TestApplyDeleteEvent(t *testing.T) {
 		)
 	}, func(s *restest.Session) {
 		req := s.Call("test.model", "method", nil)
-		s.GetMsg().AssertEvent("test.model", "delete")
+		s.GetMsg().AssertEventName("test.model", "delete")
 		req.Response()
 	})
 }
@@ -382,7 +382,7 @@ func TestApplyDeleteEventUsingWith(t *testing.T) {
 			r.DeleteEvent()
 			restest.AssertEqualJSON(t, "called", called, true)
 		}))
-		s.GetMsg().AssertEvent("test.model", "delete")
+		s.GetMsg().AssertEventName("test.model", "delete")
 	})
 }
 
