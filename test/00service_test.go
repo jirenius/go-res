@@ -58,13 +58,13 @@ func TestServiceWith_WithoutMatchingPattern(t *testing.T) {
 	})
 }
 
-// Test that SetReset sets which resources are reset when calling Reset.
-func TestServiceSetReset(t *testing.T) {
+// Test that SetOwnedResources sets which resources are reset when calling Reset.
+func TestServiceSetOwnedResources(t *testing.T) {
 	resources := []string{"test.foo.>", "test.bar.>"}
 	access := []string{"test.zoo.>", "test.baz.>"}
 
 	runTest(t, func(s *res.Service) {
-		s.SetReset(resources, access)
+		s.SetOwnedResources(resources, access)
 	}, nil, restest.WithReset(resources, access))
 }
 
