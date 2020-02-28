@@ -41,20 +41,20 @@ type QueryHandler struct {
 	// AffectedResources return the following:
 	//
 	// 	[]string{"library.books.a", "library.books.b"}
-	AffectedResources func(QueryChange) []string
+	AffectedResources func(res.Pattern, QueryChange) []string
 }
 
 var _ res.Option = QueryHandler{}
 
 type queryHandler struct {
 	s       *res.Service
-	pattern string
+	pattern res.Pattern
 	typ     res.ResourceType
 	qs      QueryStore
 	qrh     func(string, map[string]string, url.Values) (url.Values, string, error)
 	rh      func(string, map[string]string) (url.Values, error)
 	trans   QueryTransformer
-	ar      func(QueryChange) []string
+	ar      func(res.Pattern, QueryChange) []string
 	isQuery bool
 }
 
@@ -83,7 +83,7 @@ func (qh QueryHandler) WithTransformer(transformer QueryTransformer) QueryHandle
 }
 
 // WithAffectedResources returns a new QueryHandler value with IDToRID set to f.
-func (qh QueryHandler) WithAffectedResources(f func(QueryChange) []string) QueryHandler {
+func (qh QueryHandler) WithAffectedResources(f func(res.Pattern, QueryChange) []string) QueryHandler {
 	qh.AffectedResources = f
 	return qh
 }
@@ -116,7 +116,7 @@ func (qh QueryHandler) SetOption(h *res.Handler) {
 	}
 }
 
-func (o *queryHandler) onRegister(s *res.Service, p string, h res.Handler) {
+func (o *queryHandler) onRegister(s *res.Service, p res.Pattern, h res.Handler) {
 	if res.Pattern(p).IndexWildcard() >= 0 {
 		if o.ar == nil {
 			panic("QueryHandler requires an AffectedResources callback when handling resources with tags or wildcards: " + p)
@@ -192,18 +192,18 @@ func (o *queryHandler) getQueryResource(r res.GetRequest) {
 
 func (o *queryHandler) queryChangeHandler(qc QueryChange) {
 	if o.ar != nil {
-		qrids := o.ar(qc)
+		qrids := o.ar(o.pattern, qc)
 		for _, qrid := range qrids {
 			o.queryEvent(qrid, qc)
 		}
 	} else {
-		o.queryEvent(o.pattern, qc)
+		o.queryEvent(string(o.pattern), qc)
 	}
 }
 
 func (o *queryHandler) changeHandler(qc QueryChange) {
 	if o.ar != nil {
-		rids := o.ar(qc)
+		rids := o.ar(o.pattern, qc)
 		for _, rid := range rids {
 			if err := o.resourceEvent(rid, qc); err != nil {
 				o.errorf("QueryHandler encountered error generating events for resource %s: %s", rid, err)
@@ -211,7 +211,7 @@ func (o *queryHandler) changeHandler(qc QueryChange) {
 			}
 		}
 	} else {
-		if err := o.resourceEvent(o.pattern, qc); err != nil {
+		if err := o.resourceEvent(string(o.pattern), qc); err != nil {
 			o.errorf("QueryHandler encountered error generating events for resource %s: %s", o.pattern, err)
 		}
 	}

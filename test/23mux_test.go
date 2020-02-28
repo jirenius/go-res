@@ -840,7 +840,7 @@ func TestMuxOnRegister_WithService_CallsCallback(t *testing.T) {
 	for i, l := range tbl {
 		s := res.NewService(l.Path)
 		called := false
-		s.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
+		s.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern res.Pattern, h res.Handler) {
 			called = true
 			restest.AssertTrue(t, "service to be passed as argument", s == service)
 			restest.AssertEqualJSON(t, "pattern", pattern, l.ExpectedPath)
@@ -855,12 +855,12 @@ func TestMuxOnRegister_MultipleListenersWithService_CallsCallbacks(t *testing.T)
 	called1 := 0
 	called2 := 0
 	s.Handle("model",
-		res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
+		res.OnRegister(func(service *res.Service, pattern res.Pattern, h res.Handler) {
 			called1++
 			restest.AssertEqualJSON(t, "pattern", pattern, "test.model")
 			restest.AssertTrue(t, "handler.OnRegister to be set", h.OnRegister != nil)
 		}),
-		res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
+		res.OnRegister(func(service *res.Service, pattern res.Pattern, h res.Handler) {
 			called2++
 			restest.AssertEqualJSON(t, "pattern", pattern, "test.model")
 			restest.AssertTrue(t, "handler.OnRegister to be set", h.OnRegister != nil)
@@ -899,7 +899,7 @@ func TestMuxOnRegister_BeforeMountingToService_CallsCallback(t *testing.T) {
 		s := res.NewService(l.Path)
 		m := res.NewMux("")
 		called := false
-		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
+		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern res.Pattern, h res.Handler) {
 			called = true
 			restest.AssertTrue(t, "service to be passed as argument", s == service)
 			restest.AssertEqualJSON(t, "pattern", pattern, l.ExpectedPath)
@@ -941,7 +941,7 @@ func TestMuxOnRegister_AfterMountingToService_CallsCallback(t *testing.T) {
 		m := res.NewMux("")
 		s.Mount("sub", m)
 		called := false
-		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern string, h res.Handler) {
+		m.Handle(l.Pattern, res.OnRegister(func(service *res.Service, pattern res.Pattern, h res.Handler) {
 			called = true
 			restest.AssertTrue(t, "service to be passed as argument", s == service)
 			restest.AssertEqualJSON(t, "pattern", pattern, l.ExpectedPath)

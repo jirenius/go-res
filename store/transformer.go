@@ -11,15 +11,15 @@ import (
 // for transforming store requests.
 type transformer struct {
 	ridToID   func(rid string, pathParams map[string]string) string
-	idToRID   func(id string, v interface{}) string
-	transform func(v interface{}) (interface{}, error)
+	idToRID   func(id string, v interface{}, p res.Pattern) string
+	transform func(id string, v interface{}) (interface{}, error)
 }
 
 var _ Transformer = transformer{}
 
 // TransformFuncs returns a Transformer that uses the provided functions. Any
 // nil function will pass the value untransformed.
-func TransformFuncs(ridToID func(rid string, pathParams map[string]string) string, idToRID func(id string, v interface{}) string, transform func(v interface{}) (interface{}, error)) Transformer {
+func TransformFuncs(ridToID func(rid string, pathParams map[string]string) string, idToRID func(id string, v interface{}, p res.Pattern) string, transform func(id string, v interface{}) (interface{}, error)) Transformer {
 	return transformer{
 		ridToID:   ridToID,
 		idToRID:   idToRID,
@@ -34,18 +34,35 @@ func (t transformer) RIDToID(rid string, pathParams map[string]string) string {
 	return t.ridToID(rid, pathParams)
 }
 
-func (t transformer) IDToRID(id string, v interface{}) string {
+func (t transformer) IDToRID(id string, v interface{}, p res.Pattern) string {
 	if t.idToRID == nil {
 		return id
 	}
-	return t.idToRID(id, v)
+	return t.idToRID(id, v, p)
 }
 
 func (t transformer) Transform(id string, v interface{}) (interface{}, error) {
 	if t.transform == nil {
 		return v, nil
 	}
-	return t.transform(v)
+	return t.transform(id, v)
+}
+
+// IDTransformer returns a transformer where the resource ID contains a single
+// tag that is the internal ID.
+//
+//  // Assuming pattern is "library.book.$bookid"
+//  IDTransformer("bookId", nil) // transforms "library.book.42" <=> "42"
+func IDTransformer(tagName string, transform func(id string, v interface{}) (interface{}, error)) Transformer {
+	return TransformFuncs(
+		func(_ string, pathParams map[string]string) string {
+			return pathParams[string(tagName)]
+		},
+		func(id string, _ interface{}, p res.Pattern) string {
+			return string(p.ReplaceTag(string(tagName), id))
+		},
+		transform,
+	)
 }
 
 // IDToRIDCollectionTransformer is a QueryTransformer that handles the common

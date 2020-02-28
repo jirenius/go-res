@@ -10,7 +10,6 @@ import (
 // BookHandler is a handler for book requests.
 type BookHandler struct {
 	BookStore *BookStore
-	pattern   res.Pattern
 }
 
 // SetOption sets the res.Handler options.
@@ -22,24 +21,23 @@ func (h *BookHandler) SetOption(rh *res.Handler) {
 		store.Handler{Store: h.BookStore, Transformer: h},
 		// Set call method handler, for updating the book's fields.
 		res.Call("set", h.set),
-		// On being registered to the res.Service, get the pattern (eg.
-		// "library.book.$id") for this resource. This will be used in the
-		// IDToRID transform function, to tell what external resource is
-		// affected when a book is changed in the store.
-		res.OnRegister(func(_ *res.Service, pattern string, _ res.Handler) {
-			h.pattern = res.Pattern(pattern)
-		}),
 	)
 }
 
 // RIDToID transforms an external resource ID to a book ID used by the store.
+//
+// Since id is equal is to the value of the $id tag in the resource name, we can
+// just take it from pathParams.
 func (h *BookHandler) RIDToID(rid string, pathParams map[string]string) string {
 	return pathParams["id"]
 }
 
 // IDToRID transforms a book ID used by the store to an external resource ID.
-func (h *BookHandler) IDToRID(id string, v interface{}) string {
-	return string(h.pattern.ReplaceTag("id", id))
+//
+// The pattern, p, is the full pattern registered to the service (eg.
+// "library.book.$id") for this resource.
+func (h *BookHandler) IDToRID(id string, v interface{}, p res.Pattern) string {
+	return string(p.ReplaceTag("id", id))
 }
 
 // Transform allows us to transform the stored book model before sending it off

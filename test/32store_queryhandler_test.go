@@ -50,7 +50,7 @@ func TestStoreQueryHandler_GetWithRequestHandlerAndPathParams_QueriesQueryStore(
 					restest.AssertEqualJSON(t, "pathParams", pathParams, map[string]string{"id": "foo"})
 					return url.Values{"id": {"foo"}}, nil
 				}).
-				WithAffectedResources(func(qc store.QueryChange) []string {
+				WithAffectedResources(func(_ res.Pattern, _ store.QueryChange) []string {
 					return nil // dummy
 				}),
 		)
@@ -102,7 +102,7 @@ func TestStoreQueryHandler_GetWithQueryRequestHandlerWithParams_QueriesQueryStor
 					restest.AssertEqualJSON(t, "query", query, mock.QueryValues)
 					return mock.URLValues, mock.NormalizedQuery, nil
 				}).
-				WithAffectedResources(func(qc store.QueryChange) []string {
+				WithAffectedResources(func(_ res.Pattern, _ store.QueryChange) []string {
 					return nil // dummy
 				}),
 		)
@@ -257,4 +257,44 @@ func TestStoreQueryHandler_QueryEventWithQueryRequestHandler_ExpectedEvents(t *t
 			}
 		}, restest.WithTest(test))
 	}
+}
+
+func TestStoreQueryHandler_QueryEventWithAffectedResources_ExpectedEvents(t *testing.T) {
+	// Create query store
+	qst := mockstore.NewQueryStore(func(query url.Values) (interface{}, error) {
+		restest.AssertNil(t, query)
+		return mock.Collection, nil
+	})
+	events := []restest.Event{{Name: "remove", Idx: 0}, {Name: "add", Value: 42, Idx: 0}}
+	runTest(t, func(s *res.Service) {
+		s.Handle("collection.$type",
+			res.Collection,
+			store.QueryHandler{}.
+				WithQueryStore(qst).
+				WithQueryRequestHandler(func(resourceName string, pathParams map[string]string, query url.Values) (url.Values, string, error) {
+					return nil, mock.NormalizedQuery, nil
+				}).
+				WithAffectedResources(func(pattern res.Pattern, qc store.QueryChange) []string {
+					return []string{string(pattern.ReplaceTag("type", "foo")), string(pattern.ReplaceTag("type", "bar"))}
+				}),
+		)
+	}, func(s *restest.Session) {
+		qst.TriggerQueryChange(mockstore.QueryChange{
+			OnEvents: func(q url.Values) ([]store.ResultEvent, bool, error) {
+				return restest.ToResultEvents(events), false, nil
+			},
+		})
+		// Assert two query events are sent
+		var fooSubj string
+		var barSubj string
+		msgs := s.GetParallelMsgs(2)
+		msgs.GetMsg("event.test.collection.foo.query").AssertQueryEvent("test.collection.foo", &fooSubj)
+		msgs.GetMsg("event.test.collection.bar.query").AssertQueryEvent("test.collection.bar", &barSubj)
+		if fooSubj == barSubj {
+			t.Errorf("expected event subjects not to be equal, but they were")
+		}
+		// Assert we can send query events on both
+		s.QueryRequest(fooSubj, mock.Query).Response().AssertEvents(events...)
+		s.QueryRequest(barSubj, mock.Query).Response().AssertEvents(events...)
+	})
 }

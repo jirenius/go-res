@@ -8,7 +8,6 @@ import (
 // CustomerHandler is a handler for customer requests.
 type CustomerHandler struct {
 	CustomerStore *CustomerStore
-	pattern       res.Pattern
 }
 
 // SetOption sets the res.Handler options.
@@ -22,24 +21,24 @@ func (h *CustomerHandler) SetOption(rh *res.Handler) {
 		res.Call("set", h.setCustomer),
 		// Delete call method handler, for deleting customers.
 		res.Call("delete", h.deleteCustomer),
-		// On being registered to the res.Service, get the pattern (eg.
-		// "search.customer.$id") for this resource. This will be used in the
-		// IDToRID transform function, to tell what external resource is
-		// affected when a customer is changed in the store.
-		res.OnRegister(func(_ *res.Service, pattern string, _ res.Handler) {
-			h.pattern = res.Pattern(pattern)
-		}),
 	)
 }
 
 // RIDToID transforms an external resource ID to a customer ID used by the store.
+//
+// Since id is equal is to the value of the $id tag in the resource name, we can
+// just take it from pathParams.
 func (h *CustomerHandler) RIDToID(rid string, pathParams map[string]string) string {
 	return pathParams["id"]
 }
 
-// IDToRID transforms a customer ID used by the store to an external resource ID.
-func (h *CustomerHandler) IDToRID(id string, v interface{}) string {
-	return string(h.pattern.ReplaceTag("id", id))
+// IDToRID transforms a customer ID used by the store to an external resource
+// ID.
+//
+// The pattern, p, is the full pattern registered to the service (eg.
+// "search.customer.$id") for this resource.
+func (h *CustomerHandler) IDToRID(id string, v interface{}, p res.Pattern) string {
+	return string(p.ReplaceTag("id", id))
 }
 
 // Transform allows us to transform the stored customer model before sending it

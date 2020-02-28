@@ -160,8 +160,10 @@ type Transformer interface {
 	RIDToID(rid string, pathParams map[string]string) string
 
 	// IDToRID transforms an internal ID, used by the store, to an external
-	// resource ID. An empty RID will be interpreted as resource not found.
-	IDToRID(id string, v interface{}) string
+	// resource ID. Pattern is the full pattern for the resource ID.
+	//
+	// An empty RID will be interpreted as resource not found.
+	IDToRID(id string, v interface{}, pattern res.Pattern) string
 
 	// Transform transforms an internal value, persisted in the store, to an
 	// external resource to send to the requesting client.

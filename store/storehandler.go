@@ -18,6 +18,7 @@ var _ res.Option = Handler{}
 
 type storeHandler struct {
 	s     *res.Service
+	p     res.Pattern
 	st    Store
 	typ   res.ResourceType
 	trans Transformer
@@ -53,7 +54,7 @@ func (sh Handler) SetOption(h *res.Handler) {
 	o.st.OnChange(o.changeHandler)
 }
 
-func (o *storeHandler) onRegister(s *res.Service, _ string, h res.Handler) {
+func (o *storeHandler) onRegister(s *res.Service, p res.Pattern, h res.Handler) {
 	if h.Type == res.TypeUnset {
 		panic("no Type is set")
 	}
@@ -61,6 +62,7 @@ func (o *storeHandler) onRegister(s *res.Service, _ string, h res.Handler) {
 		panic("Type must be set to TypeModel or TypeCollection")
 	}
 	o.s = s
+	o.p = p
 	o.typ = h.Type
 }
 
@@ -116,9 +118,9 @@ func (o *storeHandler) changeHandler(id string, before, after interface{}) {
 			}
 		}
 		if after != nil {
-			rid = o.trans.IDToRID(id, after)
+			rid = o.trans.IDToRID(id, after, o.p)
 		} else if before != nil {
-			rid = o.trans.IDToRID(id, before)
+			rid = o.trans.IDToRID(id, before, o.p)
 		}
 		if rid == "" {
 			return

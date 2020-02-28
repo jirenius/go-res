@@ -47,25 +47,13 @@ func newCollectionStore() *mockstore.Store {
 	}
 }
 
-func newTransformer(prefix string, transform func(v interface{}) (interface{}, error)) store.Transformer {
-	return store.TransformFuncs(
-		func(rid string, pathParams map[string]string) string {
-			return pathParams["id"]
-		},
-		func(id string, _ interface{}) string {
-			return prefix + "." + id
-		},
-		transform,
-	)
-}
-
 func TestStoreHandlerTransformer_GetModel_ReturnsModel(t *testing.T) {
 	runTest(t, func(s *res.Service) {
 		s.Handle("model.$id",
 			res.Model,
 			store.Handler{}.
 				WithStore(newModelStore()).
-				WithTransformer(newTransformer("test.model", nil)),
+				WithTransformer(store.IDTransformer("id", nil)),
 		)
 	}, func(s *restest.Session) {
 		s.Get("test.model.1").
@@ -80,7 +68,7 @@ func TestStoreHandlerTransformer_GetCollection_ReturnsCollection(t *testing.T) {
 			res.Collection,
 			store.Handler{}.
 				WithStore(newCollectionStore()).
-				WithTransformer(newTransformer("test.collection", nil)),
+				WithTransformer(store.IDTransformer("id", nil)),
 		)
 	}, func(s *restest.Session) {
 		s.Get("test.collection.1").
@@ -95,7 +83,7 @@ func TestStoreHandlerTransformer_GetMissingModel_ReturnsNotFound(t *testing.T) {
 			res.Model,
 			store.Handler{}.
 				WithStore(newModelStore()).
-				WithTransformer(newTransformer("test.model", nil)),
+				WithTransformer(store.IDTransformer("id", nil)),
 		)
 	}, func(s *restest.Session) {
 		s.Get("test.model.3").
@@ -110,7 +98,7 @@ func TestStoreHandlerTransformer_GetMissingCollection_ReturnsNotFound(t *testing
 			res.Collection,
 			store.Handler{}.
 				WithStore(newCollectionStore()).
-				WithTransformer(newTransformer("test.collection", nil)),
+				WithTransformer(store.IDTransformer("id", nil)),
 		)
 	}, func(s *restest.Session) {
 		s.Get("test.collection.3").
@@ -125,7 +113,7 @@ func TestStoreHandlerTransformer_GetErrorModel_ReturnsError(t *testing.T) {
 			res.Model,
 			store.Handler{}.
 				WithStore(newModelStore()).
-				WithTransformer(newTransformer("test.model", nil)),
+				WithTransformer(store.IDTransformer("id", nil)),
 		)
 	}, func(s *restest.Session) {
 		s.Get("test.model.error").
@@ -140,7 +128,7 @@ func TestStoreHandlerTransformer_GetErrorCollection_ReturnsError(t *testing.T) {
 			res.Collection,
 			store.Handler{}.
 				WithStore(newCollectionStore()).
-				WithTransformer(newTransformer("test.collection", nil)),
+				WithTransformer(store.IDTransformer("id", nil)),
 		)
 	}, func(s *restest.Session) {
 		s.Get("test.collection.error").
@@ -159,7 +147,7 @@ func TestStoreHandlerTransformer_UpdateModel_ExpectedEvent(t *testing.T) {
 				res.Model,
 				store.Handler{}.
 					WithStore(st).
-					WithTransformer(newTransformer("test.model", nil)),
+					WithTransformer(store.IDTransformer("id", nil)),
 			)
 		}, func(s *restest.Session) {
 			func() {
@@ -190,7 +178,7 @@ func TestStoreHandlerTransformer_UpdateCollection_ExpectedEvents(t *testing.T) {
 				res.Collection,
 				store.Handler{}.
 					WithStore(st).
-					WithTransformer(newTransformer("test.collection", nil)),
+					WithTransformer(store.IDTransformer("id", nil)),
 			)
 		}, func(s *restest.Session) {
 			func() {
@@ -224,7 +212,8 @@ func TestStoreHandlerTransformer_GetModelWithTransform_ReturnsTransformedModel(t
 			res.Model,
 			store.Handler{}.
 				WithStore(newCollectionStore()).
-				WithTransformer(newTransformer("test.model", func(value interface{}) (interface{}, error) {
+				WithTransformer(store.IDTransformer("id", func(id string, value interface{}) (interface{}, error) {
+					restest.AssertEqualJSON(t, "transformer id", id, "1")
 					restest.AssertEqualJSON(t, "transformer value", value, mock.Collection)
 					return mock.Model, nil
 				})),
@@ -242,7 +231,8 @@ func TestStoreHandlerTransformer_GetCollectionWithTransform_ReturnsTransformedCo
 			res.Collection,
 			store.Handler{}.
 				WithStore(newModelStore()).
-				WithTransformer(newTransformer("test.collection", func(value interface{}) (interface{}, error) {
+				WithTransformer(store.IDTransformer("id", func(id string, value interface{}) (interface{}, error) {
+					restest.AssertEqualJSON(t, "transformer id", id, "1")
 					restest.AssertEqualJSON(t, "transformer value", value, mock.Model)
 					return mock.Collection, nil
 				})),
@@ -260,7 +250,7 @@ func TestStoreHandlerTransformer_GetModelWithTransformError_ReturnsError(t *test
 			res.Model,
 			store.Handler{}.
 				WithStore(newCollectionStore()).
-				WithTransformer(newTransformer("test.model", func(value interface{}) (interface{}, error) {
+				WithTransformer(store.IDTransformer("id", func(id string, value interface{}) (interface{}, error) {
 					return nil, mock.CustomError
 				})),
 		)
@@ -277,7 +267,7 @@ func TestStoreHandlerTransformer_GetCollectionWithTransformError_ReturnsError(t 
 			res.Collection,
 			store.Handler{}.
 				WithStore(newModelStore()).
-				WithTransformer(newTransformer("test.collection", func(value interface{}) (interface{}, error) {
+				WithTransformer(store.IDTransformer("id", func(id string, value interface{}) (interface{}, error) {
 					return nil, mock.CustomError
 				})),
 		)
@@ -296,7 +286,7 @@ func TestStoreHandlerTransformer_UpdateModelWithTransformer_ExpectedEvent(t *tes
 			res.Model,
 			store.Handler{}.
 				WithStore(st).
-				WithTransformer(newTransformer("test.model", func(value interface{}) (interface{}, error) {
+				WithTransformer(store.IDTransformer("id", func(id string, value interface{}) (interface{}, error) {
 					m := value.(map[string]interface{})
 					return map[string]interface{}{"id": m["id"], "name": m["firstName"].(string) + " " + m["lastName"].(string)}, nil
 				})),
@@ -328,7 +318,7 @@ func TestStoreHandlerTransformer_UpdateCollectionWithTransformer_ExpectedEvent(t
 			res.Collection,
 			store.Handler{}.
 				WithStore(st).
-				WithTransformer(newTransformer("test.collection", func(value interface{}) (interface{}, error) {
+				WithTransformer(store.IDTransformer("id", func(id string, value interface{}) (interface{}, error) {
 					a := value.([]interface{})
 					return []interface{}{a[0], a[1].(string) + " " + a[2].(string)}, nil
 				})),
