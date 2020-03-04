@@ -64,14 +64,6 @@ func main() {
 >
 > Above examples are complete with both service and client.
 
-## Storage
-
-The [store subpackage](store/) contains handlers and interfaces for working with database storage.
-
-| Name | Description | Documentation
-| --- | --- | ---
-| [resbadger](store/badgerstore) | BadgerDB store implementation | <a href="https://pkg.go.dev/github.com/jirenius/go-res/store/badgerstore"><img src="https://img.shields.io/static/v1?label=reference&message=go.dev&color=5673ae" alt="Reference"></a>
-
 ## Usage
 
 #### Create a new service
@@ -211,6 +203,19 @@ s.Route("v2", func(m *res.Mux) {
 s.ListenAndServe("nats://localhost:4222")
 ```
 
+## Testing [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/restest)
+
+The [restest](restest/) subpackage is used for testing services and validate responses.
+
+## Storage [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/store)
+
+The [store](store/) subpackage contains handlers and interfaces for working with database storage.
+
+| Name | Description | Documentation
+| --- | --- | ---
+| [mockstore](store/mockstore/) | Mock store implementation for testing | [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/store/mockstore)
+| [badgerstore](store/badgerstore/) | BadgerDB store implementation | [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/store/badgerstore)
+
 ## Credits
 
 Inspiration on the go-res API has been taken from [github.com/go-chi/chi](https://github.com/go-chi/chi), a great package when writing ordinary HTTP services, and will continue to do so when it is time to implement Middleware, sub-handlers, and mounting.
@@ -222,3 +227,5 @@ The go-res package is still under development, but the API is mostly settled. An
 Once the API is fully settled, the package will be moved to the [resgateio](https://github.com/resgateio/) GitHub organization.
 
 If you find any issues, feel free to [report them](https://github.com/jirenius/go-res/issues/new) as an issue.
+
+[godev]: https://img.shields.io/static/v1?label=reference&message=go.dev&color=5673ae "Reference"
