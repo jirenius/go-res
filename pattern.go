@@ -226,10 +226,20 @@ func (p Pattern) Values(s string) (map[string]string, bool) {
 			}
 			return nil, false
 		default:
-			if c != s[si] {
-				return nil, false
+			for {
+				if c != s[si] {
+					return nil, false
+				}
+				si++
+				if c == '.' || pi == pl {
+					break
+				}
+				c = p[pi]
+				pi++
+				if si == sl {
+					return nil, false
+				}
 			}
-			si++
 		}
 	}
 	if si != sl {
