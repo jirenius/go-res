@@ -949,6 +949,7 @@ func (s *Service) handleReconnect(_ *nats.Conn) {
 //
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleDisconnect(_ *nats.Conn) {
+	s.infof("Disconnected from NATS.")
 	if s.onDisconnect != nil {
 		s.onDisconnect(s)
 	}
