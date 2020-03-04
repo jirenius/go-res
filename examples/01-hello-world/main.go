@@ -7,9 +7,9 @@ func main() {
 	s.Handle("model",
 		res.Access(res.AccessGranted),
 		res.GetModel(func(r res.ModelRequest) {
-			r.Model(map[string]string{
-				"message": "Hello, World!",
-			})
+			r.Model(struct {
+				Message string `json:"message"`
+			}{"Hello, World!"})
 		}),
 	)
 	s.ListenAndServe("nats://localhost:4222")
