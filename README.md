@@ -64,17 +64,13 @@ func main() {
 >
 > Above examples are complete with both service and client.
 
-## Middleware
+## Storage
 
-The *middleware* subfolder contains packages that adds handler functions to a `res.Handler`, to perform tasks such as:
-
-* store, load and update persisted data
-* synchronize changes between multiple service instances
-* perform live queries with indexed searches
+The [store subpackage](store/) contains handlers and interfaces for working with database storage.
 
 | Name | Description | Documentation
 | --- | --- | ---
-| [resbadger](middleware/resbadger) | BadgerDB storage middleware. | <a href="https://pkg.go.dev/github.com/jirenius/go-res/middleware/resbadger"><img src="https://img.shields.io/static/v1?label=reference&message=go.dev&color=5673ae" alt="Reference"></a>
+| [resbadger](store/badgerstore) | BadgerDB store implementation | <a href="https://pkg.go.dev/github.com/jirenius/go-res/store/badgerstore"><img src="https://img.shields.io/static/v1?label=reference&message=go.dev&color=5673ae" alt="Reference"></a>
 
 ## Usage
 
