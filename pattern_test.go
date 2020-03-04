@@ -252,8 +252,8 @@ func TestPatternReplaceTag_ValidPattern_ReturnsExpectedPattern(t *testing.T) {
 		{">", "model", "bar", ">"},
 		{"test.*", "model", "bar", "test.*"},
 		{"test.*.foo", "model", "bar", "test.*.foo"},
-		{"test.model.*", "", "bar", "test.model.foo"},
-		{"test.model.>", "model", "bar", "test.model"},
+		{"test.model.*", "", "bar", "test.model.*"},
+		{"test.model.>", "model", "bar", "test.model.>"},
 		// Replacement with wildcards
 		{"test.$model.*", "model", "bar", "test.bar.*"},
 		{"test.*.$foo", "foo", "bar", "test.*.bar"},
@@ -306,8 +306,8 @@ func TestPatternReplaceTags_ValidPattern_ReturnsExpectedPattern(t *testing.T) {
 		{">", map[string]string{"model": "bar"}, ">"},
 		{"test.*", map[string]string{"model": "bar"}, "test.*"},
 		{"test.*.foo", map[string]string{"model": "bar"}, "test.*.foo"},
-		{"test.model.*", map[string]string{"foo": "bar"}, "test.model.foo"},
-		{"test.model.>", map[string]string{"model": "bar"}, "test.model"},
+		{"test.model.*", map[string]string{"foo": "bar"}, "test.model.*"},
+		{"test.model.>", map[string]string{"model": "bar"}, "test.model.>"},
 		// Replacement with wildcards
 		{"test.$model.*", map[string]string{"model": "bar"}, "test.bar.*"},
 		{"test.*.$foo", map[string]string{"foo": "bar"}, "test.*.bar"},
