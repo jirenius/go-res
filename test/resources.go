@@ -3,8 +3,10 @@ package test
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
 
 	res "github.com/jirenius/go-res"
+	"github.com/jirenius/go-res/restest"
 )
 
 type modelDto struct {
@@ -24,9 +26,11 @@ type mockData struct {
 	// Resources
 	Model                   *modelDto
 	ModelResponse           json.RawMessage
+	ModelResult             json.RawMessage
 	QueryModelResponse      json.RawMessage
 	Collection              []interface{}
 	CollectionResponse      json.RawMessage
+	CollectionResult        json.RawMessage
 	QueryCollectionResponse json.RawMessage
 	Result                  json.RawMessage
 	ResultResponse          json.RawMessage
@@ -42,6 +46,8 @@ type mockData struct {
 	CustomErrorCode string
 	Query           string
 	NormalizedQuery string
+	QueryValues     url.Values
+	URLValues       url.Values
 	IntValue        int
 }
 
@@ -52,26 +58,28 @@ var mock = mockData{
 	"127.0.0.1", // RemoteAddr
 	"/ws",       // URI
 	map[string][]string{ // Header
-		"Accept-Encoding":          []string{"gzip, deflate, br"},
-		"Accept-Language":          []string{"*"},
-		"Cache-Control":            []string{"no-cache"},
-		"Connection":               []string{"Upgrade"},
-		"Origin":                   []string{"http://localhost"},
-		"Pragma":                   []string{"no-cache"},
-		"Sec-Websocket-Extensions": []string{"permessage-deflate; client_max_window_bits"},
-		"Sec-Websocket-Key":        []string{"dGhlIHNhbXBsZSBub25jZQ=="},
-		"Sec-Websocket-Version":    []string{"13"},
-		"Upgrade":                  []string{"websocket"},
-		"User-Agent":               []string{"GolangTest/1.0 (Test)"},
+		"Accept-Encoding":          {"gzip, deflate, br"},
+		"Accept-Language":          {"*"},
+		"Cache-Control":            {"no-cache"},
+		"Connection":               {"Upgrade"},
+		"Origin":                   {"http://localhost"},
+		"Pragma":                   {"no-cache"},
+		"Sec-Websocket-Extensions": {"permessage-deflate; client_max_window_bits"},
+		"Sec-Websocket-Key":        {"dGhlIHNhbXBsZSBub25jZQ=="},
+		"Sec-Websocket-Version":    {"13"},
+		"Upgrade":                  {"websocket"},
+		"User-Agent":               {"GolangTest/1.0 (Test)"},
 	},
 	json.RawMessage(`{"foo":"bar","baz":42}`), // Params
 	json.RawMessage(`{"user":"foo","id":42}`), // Token
 	// Resources
 	&modelDto{ID: 42, Foo: "bar"},                                                                    // Model
 	json.RawMessage(`{"result":{"model":{"id":42,"foo":"bar"}}}`),                                    // ModelResponse
+	json.RawMessage(`{"model":{"id":42,"foo":"bar"}}`),                                               // ModelResult
 	json.RawMessage(`{"result":{"model":{"id":42,"foo":"bar"},"query":"foo=bar&zoo=baz&limit=10"}}`), // QueryModelResponse
 	[]interface{}{42, "foo", nil},                                                                    // Collection
 	json.RawMessage(`{"result":{"collection":[42,"foo",null]}}`),                                     // CollectionResponse
+	json.RawMessage(`{"collection":[42,"foo",null]}`),                                                // CollectionResult
 	json.RawMessage(`{"result":{"collection":[42,"foo",null],"query":"foo=bar&zoo=baz&limit=10"}}`),  // QueryCollectionResponse
 	json.RawMessage(`{"foo":"bar","zoo":42}`),                                                        // Result
 	json.RawMessage(`{"result":{"foo":"bar","zoo":42}}`),                                             // ResultResponse
@@ -83,31 +91,33 @@ var mock = mockData{
 	func() {}, // UnserializableValue
 	&res.Error{Code: "test.unserializable", Message: "Unserializable", Data: func() {}}, // UnserializableError
 	// Consts
-	"Custom error",             // ErrorMessage
-	"test.custom",              // CustomErrorCode
-	"zoo=baz&foo=bar",          // Query
-	"foo=bar&zoo=baz&limit=10", // NormalizedQuery
-	42,                         // IntValue
+	"Custom error",                                  // ErrorMessage
+	"test.custom",                                   // CustomErrorCode
+	"zoo=baz&foo=bar",                               // Query
+	"foo=bar&zoo=baz&limit=10",                      // NormalizedQuery
+	url.Values{"zoo": {"baz"}, "foo": {"bar"}},      // QueryValues
+	url.Values{"id": {"42"}, "foo": {"bar", "baz"}}, // URLValues
+	42, // IntValue
 }
 
-func (m *mockData) DefaultRequest() *request {
-	return &request{
+func (m *mockData) DefaultRequest() *restest.Request {
+	return &restest.Request{
 		CID: m.CID,
 	}
 }
 
-func (m *mockData) QueryRequest() *request {
-	return &request{
+func (m *mockData) QueryRequest() *restest.Request {
+	return &restest.Request{
 		Query: m.Query,
 	}
 }
 
-func (m *mockData) Request() *request {
-	return &request{}
+func (m *mockData) Request() *restest.Request {
+	return &restest.Request{}
 }
 
-func (m *mockData) AuthRequest() *request {
-	return &request{
+func (m *mockData) AuthRequest() *restest.Request {
+	return &restest.Request{
 		CID:        m.CID,
 		Header:     m.Header,
 		Host:       m.Host,

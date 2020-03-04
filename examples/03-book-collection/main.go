@@ -1,6 +1,7 @@
 /*
 This is an example RES service that shows a lists of books, where book titles can be added,
 edited and deleted by multiple users simultaneously.
+
 * It exposes a collection, `library.books`, containing book model references.
 * It exposes book models, `library.book.<BOOK_ID>`, of each book.
 * It allows setting the books' *title* and *author* property through the `set` method.
@@ -8,7 +9,7 @@ edited and deleted by multiple users simultaneously.
 * It allows deleting existing books from the collection with the `delete` method.
 * It verifies that a *title* and *author* is always set.
 * It resets the collection and models on server restart.
-* It serves a web client at http://localhost:8084
+* It serves a web client at http://localhost:8083
 */
 package main
 
@@ -68,8 +69,8 @@ func main() {
 
 	// Run a simple webserver to serve the client.
 	// This is only for the purpose of making the example easier to run.
-	go func() { log.Fatal(http.ListenAndServe(":8084", http.FileServer(http.Dir("wwwroot/")))) }()
-	fmt.Println("Client at: http://localhost:8084/")
+	go func() { log.Fatal(http.ListenAndServe(":8083", http.FileServer(http.Dir("wwwroot/")))) }()
+	fmt.Println("Client at: http://localhost:8083/")
 
 	s.ListenAndServe("nats://localhost:4222")
 }

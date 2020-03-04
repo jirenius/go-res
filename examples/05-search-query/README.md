@@ -1,6 +1,6 @@
 # Search Query Example
 
-**Tags:** *Models*, *Collections*, *Linked resources*, *Queries*, *Pagination*, *Persistence*, *Call methods*, *Resource parameters*
+**Tags:** *Models*, *Collections*, *Linked resources*, *Queries*, *Pagination*, *Store*, *Call methods*, *Resource parameters*
 
 ## Description
 A customer management system, where you can search and filter customers by name and country. The search results are live and updated as customers are edited, added, or deleted by multiple users simultaneously.
@@ -14,13 +14,13 @@ A customer management system, where you can search and filter customers by name 
 
 ```text
 git clone https://github.com/jirenius/go-res
-cd go-res/examples/06-search-query
+cd go-res/examples/05-search-query
 go run .
 ```
 
 Open the client
 ```text
-http://localhost:8086
+http://localhost:8085
 ```
 
 ## Things to try out

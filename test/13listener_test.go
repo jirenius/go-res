@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	res "github.com/jirenius/go-res"
+	"github.com/jirenius/go-res/restest"
 )
 
 var listenerChangeEventTestData = []struct {
@@ -21,15 +22,15 @@ var listenerChangeEventTestData = []struct {
 
 func TestListenerChangeEvent_WithApplyChange_CallsListener(t *testing.T) {
 	for i, l := range listenerChangeEventTestData {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			ctx := fmt.Sprintf("test %d", i)
 			called := 0
 			rev := map[string]interface{}{"foo": "baz"}
 			s.Handle("model",
 				res.Call("method", func(r res.CallRequest) {
-					AssertEqual(t, "called", called, 0, ctx)
+					restest.AssertEqualJSON(t, "called", called, 0, ctx)
 					r.ChangeEvent(l.Changed)
-					AssertEqual(t, "called", called, 1, ctx)
+					restest.AssertEqualJSON(t, "called", called, 1, ctx)
 					r.OK(nil)
 				}),
 				res.ApplyChange(func(re res.Resource, changed map[string]interface{}) (map[string]interface{}, error) {
@@ -38,65 +39,61 @@ func TestListenerChangeEvent_WithApplyChange_CallsListener(t *testing.T) {
 			)
 			s.AddListener("model", func(ev *res.Event) {
 				called++
-				AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model", ctx)
-				AssertEqual(t, "ev.Name", ev.Name, "change", ctx)
-				AssertEqual(t, "ev.NewValues", ev.NewValues, l.Changed, ctx)
-				AssertEqual(t, "ev.OldValues", ev.OldValues, rev, ctx)
+				restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model", ctx)
+				restest.AssertEqualJSON(t, "ev.Name", ev.Name, "change", ctx)
+				restest.AssertEqualJSON(t, "ev.NewValues", ev.NewValues, l.Changed, ctx)
+				restest.AssertEqualJSON(t, "ev.OldValues", ev.OldValues, rev, ctx)
 			})
-		}, func(s *Session) {
-			inb := s.Request("call.test.model.method", mock.DefaultRequest())
-			s.GetMsg(t).
-				AssertSubject(t, "event.test.model.change").
-				AssertPayload(t, map[string]interface{}{"values": l.Changed})
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertResult(t, nil)
+		}, func(s *restest.Session) {
+			req := s.Call("test.model", "method", nil)
+			s.GetMsg().
+				AssertChangeEvent("test.model", l.Changed)
+			req.Response().
+				AssertResult(nil)
 		})
 	}
 }
 
 func TestListenerChangeEvent_WithoutApplyChange_CallsListener(t *testing.T) {
 	for i, l := range listenerChangeEventTestData {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			ctx := fmt.Sprintf("test %d", i)
 			called := 0
 			s.Handle("model",
 				res.Call("method", func(r res.CallRequest) {
-					AssertEqual(t, "called", called, 0, ctx)
+					restest.AssertEqualJSON(t, "called", called, 0, ctx)
 					r.ChangeEvent(l.Changed)
-					AssertEqual(t, "called", called, 1, ctx)
+					restest.AssertEqualJSON(t, "called", called, 1, ctx)
 					r.OK(nil)
 				}),
 			)
 			s.AddListener("model", func(ev *res.Event) {
 				called++
-				AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model", ctx)
-				AssertEqual(t, "ev.Name", ev.Name, "change", ctx)
-				AssertEqual(t, "ev.NewValues", ev.NewValues, l.Changed, ctx)
-				AssertEqual(t, "ev.OldValues", ev.OldValues, nil, ctx)
+				restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model", ctx)
+				restest.AssertEqualJSON(t, "ev.Name", ev.Name, "change", ctx)
+				restest.AssertEqualJSON(t, "ev.NewValues", ev.NewValues, l.Changed, ctx)
+				restest.AssertEqualJSON(t, "ev.OldValues", ev.OldValues, nil, ctx)
 			})
-		}, func(s *Session) {
-			inb := s.Request("call.test.model.method", mock.DefaultRequest())
-			s.GetMsg(t).
-				AssertSubject(t, "event.test.model.change").
-				AssertPayload(t, map[string]interface{}{"values": l.Changed})
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertResult(t, nil)
+		}, func(s *restest.Session) {
+			req := s.Call("test.model", "method", nil)
+			s.GetMsg().
+				AssertChangeEvent("test.model", l.Changed)
+			req.Response().
+				AssertResult(nil)
 		})
 	}
 }
 
 func TestListenerChangeEvent_EmptyRevertMap_NoCallToListener(t *testing.T) {
 	for i, l := range listenerChangeEventTestData {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			ctx := fmt.Sprintf("test %d", i)
 			called := 0
 			rev := map[string]interface{}{}
 			s.Handle("model",
 				res.Call("method", func(r res.CallRequest) {
 					r.ChangeEvent(l.Changed)
-					AssertEqual(t, "called", called, 0, ctx)
+					restest.AssertEqualJSON(t, "called", called, 0, ctx)
 					r.OK(nil)
 				}),
 				res.ApplyChange(func(re res.Resource, changed map[string]interface{}) (map[string]interface{}, error) {
@@ -104,24 +101,23 @@ func TestListenerChangeEvent_EmptyRevertMap_NoCallToListener(t *testing.T) {
 				}),
 			)
 			s.AddListener("model", func(ev *res.Event) { called++ })
-		}, func(s *Session) {
-			inb := s.Request("call.test.model.method", mock.DefaultRequest())
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertResult(t, nil)
+		}, func(s *restest.Session) {
+			s.Call("test.model", "method", nil).
+				Response().
+				AssertResult(nil)
 		})
 	}
 }
 
 func TestListenerChangeEvent_NilRevertMap_CallToListener(t *testing.T) {
 	for i, l := range listenerChangeEventTestData {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			ctx := fmt.Sprintf("test %d", i)
 			called := 0
 			s.Handle("model",
 				res.Call("method", func(r res.CallRequest) {
 					r.ChangeEvent(l.Changed)
-					AssertEqual(t, "called", called, 1, ctx)
+					restest.AssertEqualJSON(t, "called", called, 1, ctx)
 					r.OK(nil)
 				}),
 				res.ApplyChange(func(re res.Resource, changed map[string]interface{}) (map[string]interface{}, error) {
@@ -130,19 +126,17 @@ func TestListenerChangeEvent_NilRevertMap_CallToListener(t *testing.T) {
 			)
 			s.AddListener("model", func(ev *res.Event) {
 				called++
-				AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model", ctx)
-				AssertEqual(t, "ev.Name", ev.Name, "change", ctx)
-				AssertEqual(t, "ev.NewValues", ev.NewValues, l.Changed, ctx)
-				AssertEqual(t, "ev.OldValues", ev.OldValues, nil, ctx)
+				restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model", ctx)
+				restest.AssertEqualJSON(t, "ev.Name", ev.Name, "change", ctx)
+				restest.AssertEqualJSON(t, "ev.NewValues", ev.NewValues, l.Changed, ctx)
+				restest.AssertEqualJSON(t, "ev.OldValues", ev.OldValues, nil, ctx)
 			})
-		}, func(s *Session) {
-			inb := s.Request("call.test.model.method", mock.DefaultRequest())
-			s.GetMsg(t).
-				AssertSubject(t, "event.test.model.change").
-				AssertPayload(t, map[string]interface{}{"values": l.Changed})
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertResult(t, nil)
+		}, func(s *restest.Session) {
+			req := s.Call("test.model", "method", nil)
+			s.GetMsg().
+				AssertChangeEvent("test.model", l.Changed)
+			req.Response().
+				AssertResult(nil)
 		})
 	}
 }
@@ -161,14 +155,14 @@ var listenerAddEventTestData = []struct {
 
 func TestListenerAddEvent_WithApplyAdd_CallsListener(t *testing.T) {
 	for i, l := range listenerAddEventTestData {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			ctx := fmt.Sprintf("test %d", i)
 			called := 0
 			s.Handle("collection",
 				res.Call("method", func(r res.CallRequest) {
-					AssertEqual(t, "called", called, 0, ctx)
+					restest.AssertEqualJSON(t, "called", called, 0, ctx)
 					r.AddEvent(l.Value, l.Idx)
-					AssertEqual(t, "called", called, 1, ctx)
+					restest.AssertEqualJSON(t, "called", called, 1, ctx)
 					r.OK(nil)
 				}),
 				res.ApplyAdd(func(re res.Resource, value interface{}, idx int) error {
@@ -177,51 +171,49 @@ func TestListenerAddEvent_WithApplyAdd_CallsListener(t *testing.T) {
 			)
 			s.AddListener("collection", func(ev *res.Event) {
 				called++
-				AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.collection", ctx)
-				AssertEqual(t, "ev.Name", ev.Name, "add", ctx)
-				AssertEqual(t, "ev.Value", ev.Value, l.Value, ctx)
-				AssertEqual(t, "ev.Idx", ev.Idx, l.Idx, ctx)
+				restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.collection", ctx)
+				restest.AssertEqualJSON(t, "ev.Name", ev.Name, "add", ctx)
+				restest.AssertEqualJSON(t, "ev.Value", ev.Value, l.Value, ctx)
+				restest.AssertEqualJSON(t, "ev.Idx", ev.Idx, l.Idx, ctx)
 			})
-		}, func(s *Session) {
-			inb := s.Request("call.test.collection.method", mock.DefaultRequest())
-			s.GetMsg(t).
-				AssertSubject(t, "event.test.collection.add").
-				AssertPayload(t, l.Expected)
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertResult(t, nil)
+		}, func(s *restest.Session) {
+			req := s.Call("test.collection", "method", nil)
+			s.GetMsg().
+				AssertEventName("test.collection", "add").
+				AssertPayload(l.Expected)
+			req.Response().
+				AssertResult(nil)
 		})
 	}
 }
 
 func TestListenerAddEvent_WithoutApplyAdd_CallsListener(t *testing.T) {
 	for i, l := range listenerAddEventTestData {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			ctx := fmt.Sprintf("test %d", i)
 			called := 0
 			s.Handle("collection",
 				res.Call("method", func(r res.CallRequest) {
-					AssertEqual(t, "called", called, 0, ctx)
+					restest.AssertEqualJSON(t, "called", called, 0, ctx)
 					r.AddEvent(l.Value, l.Idx)
-					AssertEqual(t, "called", called, 1, ctx)
+					restest.AssertEqualJSON(t, "called", called, 1, ctx)
 					r.OK(nil)
 				}),
 			)
 			s.AddListener("collection", func(ev *res.Event) {
 				called++
-				AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.collection", ctx)
-				AssertEqual(t, "ev.Name", ev.Name, "add", ctx)
-				AssertEqual(t, "ev.Value", ev.Value, l.Value, ctx)
-				AssertEqual(t, "ev.Idx", ev.Idx, l.Idx, ctx)
+				restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.collection", ctx)
+				restest.AssertEqualJSON(t, "ev.Name", ev.Name, "add", ctx)
+				restest.AssertEqualJSON(t, "ev.Value", ev.Value, l.Value, ctx)
+				restest.AssertEqualJSON(t, "ev.Idx", ev.Idx, l.Idx, ctx)
 			})
-		}, func(s *Session) {
-			inb := s.Request("call.test.collection.method", mock.DefaultRequest())
-			s.GetMsg(t).
-				AssertSubject(t, "event.test.collection.add").
-				AssertPayload(t, l.Expected)
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertResult(t, nil)
+		}, func(s *restest.Session) {
+			req := s.Call("test.collection", "method", nil)
+			s.GetMsg().
+				AssertEventName("test.collection", "add").
+				AssertPayload(l.Expected)
+			req.Response().
+				AssertResult(nil)
 		})
 	}
 }
@@ -237,14 +229,14 @@ var listenerRemoveEventTestData = []struct {
 
 func TestListenerRemoveEvent_WithApplyRemove_CallsListener(t *testing.T) {
 	for i, l := range listenerRemoveEventTestData {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			ctx := fmt.Sprintf("test %d", i)
 			called := 0
 			s.Handle("collection",
 				res.Call("method", func(r res.CallRequest) {
-					AssertEqual(t, "called", called, 0, ctx)
+					restest.AssertEqualJSON(t, "called", called, 0, ctx)
 					r.RemoveEvent(l.Idx)
-					AssertEqual(t, "called", called, 1, ctx)
+					restest.AssertEqualJSON(t, "called", called, 1, ctx)
 					r.OK(nil)
 				}),
 				res.ApplyRemove(func(re res.Resource, idx int) (interface{}, error) {
@@ -253,63 +245,61 @@ func TestListenerRemoveEvent_WithApplyRemove_CallsListener(t *testing.T) {
 			)
 			s.AddListener("collection", func(ev *res.Event) {
 				called++
-				AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.collection", ctx)
-				AssertEqual(t, "ev.Name", ev.Name, "remove", ctx)
-				AssertEqual(t, "ev.Value", ev.Value, mock.IntValue, ctx)
-				AssertEqual(t, "ev.Idx", ev.Idx, l.Idx, ctx)
+				restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.collection", ctx)
+				restest.AssertEqualJSON(t, "ev.Name", ev.Name, "remove", ctx)
+				restest.AssertEqualJSON(t, "ev.Value", ev.Value, mock.IntValue, ctx)
+				restest.AssertEqualJSON(t, "ev.Idx", ev.Idx, l.Idx, ctx)
 			})
-		}, func(s *Session) {
-			inb := s.Request("call.test.collection.method", mock.DefaultRequest())
-			s.GetMsg(t).
-				AssertSubject(t, "event.test.collection.remove").
-				AssertPayload(t, l.Expected)
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertResult(t, nil)
+		}, func(s *restest.Session) {
+			req := s.Call("test.collection", "method", nil)
+			s.GetMsg().
+				AssertEventName("test.collection", "remove").
+				AssertPayload(l.Expected)
+			req.Response().
+				AssertResult(nil)
 		})
 	}
 }
 
 func TestListenerRemoveEvent_WithoutApplyRemove_CallsListener(t *testing.T) {
 	for i, l := range listenerRemoveEventTestData {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			ctx := fmt.Sprintf("test %d", i)
 			called := 0
 			s.Handle("collection",
 				res.Call("method", func(r res.CallRequest) {
-					AssertEqual(t, "called", called, 0, ctx)
+					restest.AssertEqualJSON(t, "called", called, 0, ctx)
 					r.RemoveEvent(l.Idx)
-					AssertEqual(t, "called", called, 1, ctx)
+					restest.AssertEqualJSON(t, "called", called, 1, ctx)
 					r.OK(nil)
 				}),
 			)
 			s.AddListener("collection", func(ev *res.Event) {
 				called++
-				AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.collection", ctx)
-				AssertEqual(t, "ev.Name", ev.Name, "remove", ctx)
-				AssertEqual(t, "ev.Value", ev.Value, nil, ctx)
-				AssertEqual(t, "ev.Idx", ev.Idx, l.Idx, ctx)
+				restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.collection", ctx)
+				restest.AssertEqualJSON(t, "ev.Name", ev.Name, "remove", ctx)
+				restest.AssertEqualJSON(t, "ev.Value", ev.Value, nil, ctx)
+				restest.AssertEqualJSON(t, "ev.Idx", ev.Idx, l.Idx, ctx)
 			})
-		}, func(s *Session) {
-			inb := s.Request("call.test.collection.method", mock.DefaultRequest())
-			s.GetMsg(t).
-				AssertSubject(t, "event.test.collection.remove").
-				AssertPayload(t, l.Expected)
-			s.GetMsg(t).
-				AssertSubject(t, inb).
-				AssertResult(t, nil)
+		}, func(s *restest.Session) {
+			req := s.Call("test.collection", "method", nil)
+			s.GetMsg().
+				AssertEventName("test.collection", "remove").
+				AssertPayload(l.Expected)
+			req.Response().
+				AssertResult(nil)
 		})
 	}
 }
 
 func TestListenerCreateEvent_WithApplyCreate_CallsListener(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		called := 0
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
-				AssertEqual(t, "called", called, 0)
+				restest.AssertEqualJSON(t, "called", called, 0)
 				r.CreateEvent(mock.Model)
-				AssertEqual(t, "called", called, 1)
+				restest.AssertEqualJSON(t, "called", called, 1)
 				r.OK(nil)
 			}),
 			res.ApplyCreate(func(re res.Resource, data interface{}) error {
@@ -318,57 +308,53 @@ func TestListenerCreateEvent_WithApplyCreate_CallsListener(t *testing.T) {
 		)
 		s.AddListener("model", func(ev *res.Event) {
 			called++
-			AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model")
-			AssertEqual(t, "ev.Name", ev.Name, "create")
-			AssertEqual(t, "ev.Data", ev.Data, mock.Model)
+			restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model")
+			restest.AssertEqualJSON(t, "ev.Name", ev.Name, "create")
+			restest.AssertEqualJSON(t, "ev.Data", ev.Data, mock.Model)
 		})
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", mock.DefaultRequest())
-		s.GetMsg(t).
-			AssertSubject(t, "event.test.model.create").
-			AssertPayload(t, nil)
-		s.GetMsg(t).
-			AssertSubject(t, inb).
-			AssertResult(t, nil)
+	}, func(s *restest.Session) {
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().
+			AssertEventName("test.model", "create")
+		req.Response().
+			AssertResult(nil)
 	})
 }
 
 func TestListenerCreateEvent_WithoutApplyCreate_CallsListener(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		called := 0
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
-				AssertEqual(t, "called", called, 0)
+				restest.AssertEqualJSON(t, "called", called, 0)
 				r.CreateEvent(mock.Model)
-				AssertEqual(t, "called", called, 1)
+				restest.AssertEqualJSON(t, "called", called, 1)
 				r.OK(nil)
 			}),
 		)
 		s.AddListener("model", func(ev *res.Event) {
 			called++
-			AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model")
-			AssertEqual(t, "ev.Name", ev.Name, "create")
-			AssertEqual(t, "ev.Data", ev.Data, mock.Model)
+			restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model")
+			restest.AssertEqualJSON(t, "ev.Name", ev.Name, "create")
+			restest.AssertEqualJSON(t, "ev.Data", ev.Data, mock.Model)
 		})
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", mock.DefaultRequest())
-		s.GetMsg(t).
-			AssertSubject(t, "event.test.model.create").
-			AssertPayload(t, nil)
-		s.GetMsg(t).
-			AssertSubject(t, inb).
-			AssertResult(t, nil)
+	}, func(s *restest.Session) {
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().
+			AssertEventName("test.model", "create")
+		req.Response().
+			AssertResult(nil)
 	})
 }
 
 func TestListenerDeleteEvent_WithApplyDelete_CallsListener(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		called := 0
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
-				AssertEqual(t, "called", called, 0)
+				restest.AssertEqualJSON(t, "called", called, 0)
 				r.DeleteEvent()
-				AssertEqual(t, "called", called, 1)
+				restest.AssertEqualJSON(t, "called", called, 1)
 				r.OK(nil)
 			}),
 			res.ApplyDelete(func(re res.Resource) (interface{}, error) {
@@ -377,45 +363,41 @@ func TestListenerDeleteEvent_WithApplyDelete_CallsListener(t *testing.T) {
 		)
 		s.AddListener("model", func(ev *res.Event) {
 			called++
-			AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model")
-			AssertEqual(t, "ev.Name", ev.Name, "delete")
-			AssertEqual(t, "ev.Data", ev.Data, mock.Model)
+			restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model")
+			restest.AssertEqualJSON(t, "ev.Name", ev.Name, "delete")
+			restest.AssertEqualJSON(t, "ev.Data", ev.Data, mock.Model)
 		})
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", mock.DefaultRequest())
-		s.GetMsg(t).
-			AssertSubject(t, "event.test.model.delete").
-			AssertPayload(t, nil)
-		s.GetMsg(t).
-			AssertSubject(t, inb).
-			AssertResult(t, nil)
+	}, func(s *restest.Session) {
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().
+			AssertEventName("test.model", "delete")
+		req.Response().
+			AssertResult(nil)
 	})
 }
 
 func TestListenerDeleteEvent_WithoutApplyDelete_CallsListener(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		called := 0
 		s.Handle("model",
 			res.Call("method", func(r res.CallRequest) {
-				AssertEqual(t, "called", called, 0)
+				restest.AssertEqualJSON(t, "called", called, 0)
 				r.DeleteEvent()
-				AssertEqual(t, "called", called, 1)
+				restest.AssertEqualJSON(t, "called", called, 1)
 				r.OK(nil)
 			}),
 		)
 		s.AddListener("model", func(ev *res.Event) {
 			called++
-			AssertEqual(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model")
-			AssertEqual(t, "ev.Name", ev.Name, "delete")
-			AssertEqual(t, "ev.Data", ev.Data, nil)
+			restest.AssertEqualJSON(t, "re.ResourceName", ev.Resource.ResourceName(), "test.model")
+			restest.AssertEqualJSON(t, "ev.Name", ev.Name, "delete")
+			restest.AssertEqualJSON(t, "ev.Data", ev.Data, nil)
 		})
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", mock.DefaultRequest())
-		s.GetMsg(t).
-			AssertSubject(t, "event.test.model.delete").
-			AssertPayload(t, nil)
-		s.GetMsg(t).
-			AssertSubject(t, inb).
-			AssertResult(t, nil)
+	}, func(s *restest.Session) {
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().
+			AssertEventName("test.model", "delete")
+		req.Response().
+			AssertResult(nil)
 	})
 }

@@ -56,7 +56,7 @@ func (r *getRequest) InvalidQuery(message string) {
 	}
 }
 
-func (r *getRequest) Error(err *Error) {
+func (r *getRequest) Error(err error) {
 	r.reply()
 	r.err = err
 }

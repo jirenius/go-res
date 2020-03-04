@@ -1,9 +1,9 @@
-# Book Collection Persisted Example
+# Book Collection Store Example
 
-**Tags:** *Models*, *Collections*, *Linked resources*, *Call methods*, *Resource parameters*, *Persistence*
+**Tags:** *Models*, *Collections*, *Linked resources*, *Call methods*, *Resource parameters*, *Store*
 
 ## Description
-This is the Book Collection example where all changes are persisted using the BadgerDB middleware. With a database middleware, both clients and database can be updated with a single event.
+This is the Book Collection example where all changes are persisted using a badgerDB store.
 
 ## Prerequisite
 
@@ -14,20 +14,22 @@ This is the Book Collection example where all changes are persisted using the Ba
 
 ```text
 git clone https://github.com/jirenius/go-res
-cd go-res/examples/05-book-collection-persisted
-go run main.go
+cd go-res/examples/04-book-collection-store
+go run .
 ```
 
 Open the client
 ```text
-http://localhost:8085
+http://localhost:8084
 ```
-
 
 ## Things to try out
 
 ### BadgerDB persistence
 Run the client and make changes to the list of books. Restart the service and observe that all changes are persisted.
+
+### Title sorting
+The store sorts books by title. Change the title of one of the books. Observe how the list remains sorted by title.
 
 ## API
 

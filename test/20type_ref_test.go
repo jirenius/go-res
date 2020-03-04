@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	res "github.com/jirenius/go-res"
+	"github.com/jirenius/go-res/restest"
 )
 
 // Test Ref IsValid method
@@ -87,8 +88,8 @@ func TestRefMarshalJSON(t *testing.T) {
 
 	for _, l := range tbl {
 		out, err := l.RID.MarshalJSON()
-		AssertNoError(t, err)
-		AssertEqual(t, "Ref.MarshalJSON()", json.RawMessage(out), json.RawMessage(l.Expected))
+		restest.AssertNoError(t, err)
+		restest.AssertEqualJSON(t, "Ref.MarshalJSON()", json.RawMessage(out), json.RawMessage(l.Expected))
 	}
 }
 
@@ -131,9 +132,9 @@ func TestRefUnmarshalJSON(t *testing.T) {
 		var ref res.Ref
 		err := ref.UnmarshalJSON(l.JSON)
 		if l.Error {
-			AssertError(t, err, fmt.Sprintf("test #%d", i+1))
+			restest.AssertError(t, err, fmt.Sprintf("test #%d", i+1))
 		} else {
-			AssertNoError(t, err, fmt.Sprintf("test #%d", i+1))
+			restest.AssertNoError(t, err, fmt.Sprintf("test #%d", i+1))
 		}
 		if ref != l.Expected {
 			t.Errorf("expected ref to be:\n%s\nbut got:\n%s", ref, l.Expected)

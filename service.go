@@ -14,7 +14,7 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
-// Supported RES protocol version
+// Supported RES protocol version.
 const protocolVersion = "1.2.0"
 
 // The size of the in channel receiving messages from NATS Server.
@@ -26,17 +26,16 @@ const workerCount = 32
 const defaultQueryEventDuration = time.Second * 3
 
 var (
-	errNotStopped      = errors.New("res: service is not stopped")
-	errNotStarted      = errors.New("res: service is not started")
-	errHandlerNotFound = errors.New("res: no matching handlers found")
+	errNotStopped = errors.New("res: service is not stopped")
+	errNotStarted = errors.New("res: service is not started")
 )
 
 // Option set one or more of the handler functions for a resource Handler.
 type Option interface{ SetOption(*Handler) }
 
-// The OptionFunc type is an adapter to allow the use of ordinary functions
-// as options. If f is a function with the appropriate signature,
-// OptionFunc(f) is an Option that calls f.
+// The OptionFunc type is an adapter to allow the use of ordinary functions as
+// options. If f is a function with the appropriate signature, OptionFunc(f) is
+// an Option that calls f.
 type OptionFunc func(*Handler)
 
 // SetOption calls f(hs)
@@ -59,18 +58,19 @@ type CallHandler func(CallRequest)
 
 // NewHandler is a function called on new resource call requests
 //
-// Deprecated: Use CallHandler with Resource response instead; deprecated in RES protocol v1.2.0
+// Deprecated: Use CallHandler with Resource response instead; deprecated in RES
+// protocol v1.2.0
 type NewHandler func(NewRequest)
 
 // AuthHandler is a function called on resource auth requests
 type AuthHandler func(AuthRequest)
 
-// ApplyChangeHandler is a function called to apply a model change event.
-// Must return a map with the values to apply to revert the changes, or error.
+// ApplyChangeHandler is a function called to apply a model change event. Must
+// return a map with the values to apply to revert the changes, or error.
 type ApplyChangeHandler func(r Resource, changes map[string]interface{}) (map[string]interface{}, error)
 
-// ApplyAddHandler is a function called to apply a collection add event.
-// Must return an error if the add event couldn't be applied to the resource.
+// ApplyAddHandler is a function called to apply a collection add event. Must
+// return an error if the add event couldn't be applied to the resource.
 type ApplyAddHandler func(r Resource, value interface{}, idx int) error
 
 // ApplyRemoveHandler is a function called to apply a collection remove event.
@@ -101,7 +101,8 @@ type Handler struct {
 
 	// New handler for new call requests
 	//
-	// Deprecated: Use Call with Resource response instead; deprecated in RES protocol v1.2.0
+	// Deprecated: Use Call with Resource response instead; deprecated in RES
+	// protocol v1.2.0
 	New NewHandler
 
 	// Auth handler for auth requests
@@ -122,27 +123,29 @@ type Handler struct {
 	// ApplyDelete handler for applying delete event
 	ApplyDelete ApplyDeleteHandler
 
-	// Group is the identifier of the group the resource belongs to.
-	// All resources of the same group will be handled on the same
-	// goroutine.
-	// The group may contain tags, ${tagName}, where the tag name matches
-	// a parameter placeholder name in the resource pattern.
-	// If empty, the resource name will be used as identifier.
+	// Group is the identifier of the group the resource belongs to. All
+	// resources of the same group will be handled on the same goroutine. The
+	// group may contain tags, ${tagName}, where the tag name matches a
+	// parameter placeholder name in the resource pattern. If empty, the
+	// resource name will be used as identifier.
 	Group string
 
-	// OnRegister is callback that is to be call when the handler
-	// has been registered to a service.
+	// OnRegister is callback that is to be call when the handler has been
+	// registered to a service.
 	//
-	// The pattern string is the full resource pattern for the
-	// resource, including any service name or mount paths.
-	OnRegister func(service *Service, pattern string)
+	// The pattern is the full resource pattern for the resource, including any
+	// service name or mount paths.
+	//
+	// The handler is the handler being registered, and should be considered
+	// immutable.
+	OnRegister func(service *Service, pattern Pattern, rh Handler)
 
-	// Listeners is a map of event listeners, where the key is the
-	// resource pattern being listened on, and the value being
-	// the callback called on events.
+	// Listeners is a map of event listeners, where the key is the resource
+	// pattern being listened on, and the value being the callback called on
+	// events.
 	//
-	// The callback will be called in the context of the resource
-	// emitting the event.
+	// The callback will be called in the context of the resource emitting the
+	// event.
 	Listeners map[string]func(*Event)
 }
 
@@ -171,6 +174,13 @@ var (
 	})
 )
 
+// Option sets handler fields by passing one or more handler options.
+func (h *Handler) Option(hf ...Option) {
+	for _, f := range hf {
+		f.SetOption(h)
+	}
+}
+
 // A Service handles incoming requests from NATS Server and calls the
 // appropriate callback on the resource handlers.
 type Service struct {
@@ -195,10 +205,10 @@ type Service struct {
 
 // NewService creates a new Service.
 //
-// The name is the service name which will be prefixed to all resources.
-// It must be an alphanumeric string with no embedded whitespace, or empty.
-// If name is an empty string, the Service will by default handle all resources
-// for all namespaces. Use SetReset to limit the namespace scope.
+// The name is the service name which will be prefixed to all resources. It must
+// be an alphanumeric string with no embedded whitespace, or empty. If name is
+// an empty string, the Service will by default handle all resources for all
+// namespaces. Use SetReset to limit the namespace scope.
 func NewService(name string) *Service {
 	s := &Service{
 		Mux:           NewMux(name),
@@ -209,8 +219,7 @@ func NewService(name string) *Service {
 	return s
 }
 
-// SetLogger sets the logger.
-// Panics if service is already started.
+// SetLogger sets the logger. Panics if service is already started.
 func (s *Service) SetLogger(l logger.Logger) *Service {
 	if s.nc != nil {
 		panic("res: service already started")
@@ -219,9 +228,8 @@ func (s *Service) SetLogger(l logger.Logger) *Service {
 	return s
 }
 
-// SetQueryEventDuration sets the duration for which the service
-// will listen for query requests sent on a query event.
-// Default is 3 seconds
+// SetQueryEventDuration sets the duration for which the service will listen for
+// query requests sent on a query event. Default is 3 seconds
 func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
 	if s.nc != nil {
 		panic("res: service already started")
@@ -230,8 +238,8 @@ func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
 	return s
 }
 
-// SetOnServe sets a function to call when the service has started
-// after sending the initial system reset event.
+// SetOnServe sets a function to call when the service has started after sending
+// the initial system reset event.
 func (s *Service) SetOnServe(f func(*Service)) {
 	s.onServe = f
 }
@@ -242,14 +250,14 @@ func (s *Service) SetOnDisconnect(f func(*Service)) {
 	s.onDisconnect = f
 }
 
-// SetOnReconnect sets a function to call when the service has
-// reconnected to NATS server and sent a system reset event.
+// SetOnReconnect sets a function to call when the service has reconnected to
+// NATS server and sent a system reset event.
 func (s *Service) SetOnReconnect(f func(*Service)) {
 	s.onReconnect = f
 }
 
-// SetOnError sets a function to call on errors within the service,
-// or incoming messages not complying with the RES protocol.
+// SetOnError sets a function to call on errors within the service, or incoming
+// messages not complying with the RES protocol.
 func (s *Service) SetOnError(f func(*Service, string)) {
 	s.onError = f
 }
@@ -291,7 +299,7 @@ func (s *Service) tracef(format string, v ...interface{}) {
 	s.logger.Tracef(format, v...)
 }
 
-// Access sets a handler for resource access requests
+// Access sets a handler for resource access requests.
 func Access(h AccessHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.Access != nil {
@@ -301,7 +309,7 @@ func Access(h AccessHandler) Option {
 	})
 }
 
-// GetModel sets a handler for model get requests
+// GetModel sets a handler for model get requests.
 func GetModel(h ModelHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		Model(hs)
@@ -310,7 +318,7 @@ func GetModel(h ModelHandler) Option {
 	})
 }
 
-// GetCollection sets a handler for collection get requests
+// GetCollection sets a handler for collection get requests.
 func GetCollection(h CollectionHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		Collection(hs)
@@ -319,7 +327,7 @@ func GetCollection(h CollectionHandler) Option {
 	})
 }
 
-// GetResource sets a handler for untyped resource get requests
+// GetResource sets a handler for untyped resource get requests.
 func GetResource(h GetHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		validateGetHandler(*hs)
@@ -328,7 +336,9 @@ func GetResource(h GetHandler) Option {
 }
 
 // Call sets a handler for resource call requests.
+//
 // Panics if the method is the pre-defined call method set.
+//
 // For pre-defined set call methods, the handler Set should be used instead.
 func Call(method string, h CallHandler) Option {
 	if !isValidPart(method) {
@@ -346,6 +356,7 @@ func Call(method string, h CallHandler) Option {
 }
 
 // Set sets a handler for set resource requests.
+//
 // Is a n alias for Call("set", h)
 func Set(h CallHandler) Option {
 	return Call("set", h)
@@ -353,7 +364,8 @@ func Set(h CallHandler) Option {
 
 // New sets a handler for new resource requests.
 //
-// Deprecated: Use Call with Resource response instead; deprecated in RES protocol v1.2.0
+// Deprecated: Use Call with Resource response instead; deprecated in RES
+// protocol v1.2.0
 func New(h NewHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.New != nil {
@@ -363,7 +375,7 @@ func New(h NewHandler) Option {
 	})
 }
 
-// Auth sets a handler for resource auth requests
+// Auth sets a handler for resource auth requests.
 func Auth(method string, h AuthHandler) Option {
 	if !isValidPart(method) {
 		panic("res: invalid method name: " + method)
@@ -379,7 +391,7 @@ func Auth(method string, h AuthHandler) Option {
 	})
 }
 
-// ApplyChange sets a handler for applying change events
+// ApplyChange sets a handler for applying change events.
 func ApplyChange(h ApplyChangeHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.ApplyChange != nil {
@@ -389,7 +401,7 @@ func ApplyChange(h ApplyChangeHandler) Option {
 	})
 }
 
-// ApplyAdd sets a handler for applying add events
+// ApplyAdd sets a handler for applying add events.
 func ApplyAdd(h ApplyAddHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.ApplyAdd != nil {
@@ -399,7 +411,7 @@ func ApplyAdd(h ApplyAddHandler) Option {
 	})
 }
 
-// ApplyRemove sets a handler for applying remove events
+// ApplyRemove sets a handler for applying remove events.
 func ApplyRemove(h ApplyRemoveHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.ApplyRemove != nil {
@@ -409,7 +421,7 @@ func ApplyRemove(h ApplyRemoveHandler) Option {
 	})
 }
 
-// ApplyCreate sets a handler for applying create events
+// ApplyCreate sets a handler for applying create events.
 func ApplyCreate(h ApplyCreateHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.ApplyCreate != nil {
@@ -419,7 +431,7 @@ func ApplyCreate(h ApplyCreateHandler) Option {
 	})
 }
 
-// ApplyDelete sets a handler for applying delete events
+// ApplyDelete sets a handler for applying delete events.
 func ApplyDelete(h ApplyDeleteHandler) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.ApplyDelete != nil {
@@ -429,28 +441,29 @@ func ApplyDelete(h ApplyDeleteHandler) Option {
 	})
 }
 
-// Group sets a group ID. All resources of the same group will be handled
-// on the same goroutine.
-// The group may contain tags, ${tagName}, where the tag name matches
-// a parameter placeholder name in the resource pattern.
+// Group sets a group ID. All resources of the same group will be handled on the
+// same goroutine.
+//
+// The group may contain tags, ${tagName}, where the tag name matches a
+// parameter placeholder name in the resource pattern.
 func Group(group string) Option {
 	return OptionFunc(func(hs *Handler) {
 		hs.Group = group
 	})
 }
 
-// OnRegister sets a callback to be called when the handler is registered
-// to a service.
+// OnRegister sets a callback to be called when the handler is registered to a
+// service.
 //
-// If a callback is already registered, the new callback will be called
-// after the previous one.
-func OnRegister(callback func(service *Service, pattern string)) Option {
+// If a callback is already registered, the new callback will be called after
+// the previous one.
+func OnRegister(callback func(service *Service, pattern Pattern, rh Handler)) Option {
 	return OptionFunc(func(hs *Handler) {
 		if hs.OnRegister != nil {
 			prevcb := hs.OnRegister
-			hs.OnRegister = func(service *Service, pattern string) {
-				prevcb(service, pattern)
-				callback(service, pattern)
+			hs.OnRegister = func(service *Service, pattern Pattern, rh Handler) {
+				prevcb(service, pattern, rh)
+				callback(service, pattern, rh)
 			}
 		} else {
 			hs.OnRegister = callback
@@ -459,14 +472,15 @@ func OnRegister(callback func(service *Service, pattern string)) Option {
 }
 
 // SetReset is an alias for SetOwnedResources.
+//
 // Deprecated: Renamed to SetOwnedResources to match API of similar libraries.
 func (s *Service) SetReset(resources, access []string) *Service {
 	return s.SetOwnedResources(resources, access)
 }
 
-// SetOwnedResources sets the patterns which the service will handle requests for.
-// The resources slice patterns ill be listened to for get, call, and auth requests.
-// The access slice patterns will be listened to for access requests.
+// SetOwnedResources sets the patterns which the service will handle requests
+// for. The resources slice patterns ill be listened to for get, call, and auth
+// requests. The access slice patterns will be listened to for access requests.
 // These patterns will be used when a ResetAll is made.
 //
 //  // Handle all requests for resources prefixed "library."
@@ -476,13 +490,13 @@ func (s *Service) SetReset(resources, access []string) *Service {
 //  // Handle non-access requests for a subset of resources
 //  service.SetOwnedResources([]string{"library.book", "library.books.*"}, []string{})
 //
-// If set to nil (default), the service will default to set ownership of all resources
-// prefixed with its own path if one was provided when creating the service
-// (eg. "serviceName.>"), or to all resources if no name was provided.
-// It will take resource ownership if it has at least one registered handler has a
-// Get, Call, or Auth handler method not being nil.
-// It will take access ownership if it has at least one registered handler with the
-// Access method not being nil.
+// If set to nil (default), the service will default to set ownership of all
+// resources prefixed with its own path if one was provided when creating the
+// service (eg. "serviceName.>"), or to all resources if no name was provided.
+// It will take resource ownership if it has at least one registered handler has
+// a Get, Call, or Auth handler method not being nil. It will take access
+// ownership if it has at least one registered handler with the Access method
+// not being nil.
 //
 // For more details on system reset, see:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#system-reset-event
@@ -492,16 +506,16 @@ func (s *Service) SetOwnedResources(resources, access []string) *Service {
 	return s
 }
 
-// ListenAndServe connects to the NATS server at the url. Once connected,
-// it subscribes to incoming requests and serves them on a single goroutine
-// in the order they are received. For each request, it calls the appropriate
-// handler, or replies with the appropriate error if no handler is available.
+// ListenAndServe connects to the NATS server at the url. Once connected, it
+// subscribes to incoming requests and serves them on a single goroutine in the
+// order they are received. For each request, it calls the appropriate handler,
+// or replies with the appropriate error if no handler is available.
 //
-// In case of disconnect, it will try to reconnect until Close is called,
-// or until successfully reconnecting, upon which Reset will be called.
+// In case of disconnect, it will try to reconnect until Close is called, or
+// until successfully reconnecting, upon which Reset will be called.
 //
-// ListenAndServe returns an error if failes to connect or subscribe.
-// Otherwise, nil is returned once the connection is closed using Close.
+// ListenAndServe returns an error if failes to connect or subscribe. Otherwise,
+// nil is returned once the connection is closed using Close.
 func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 	if !atomic.CompareAndSwapInt32(&s.state, stateStopped, stateStarting) {
 		return errNotStopped
@@ -532,13 +546,13 @@ func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 	return s.serve(nc)
 }
 
-// Serve subscribes to incoming requests on the *Conn nc, serving them on
-// a single goroutine in the order they are received. For each request,
-// it calls the appropriate handler, or replies with the appropriate
-// error if no handler is available.
+// Serve subscribes to incoming requests on the *Conn nc, serving them on a
+// single goroutine in the order they are received. For each request, it calls
+// the appropriate handler, or replies with the appropriate error if no handler
+// is available.
 //
-// Serve returns an error if failes to subscribe. Otherwise, nil is
-// returned once the *Conn is closed.
+// Serve returns an error if failes to subscribe. Otherwise, nil is returned
+// once the *Conn is closed.
 func (s *Service) Serve(nc Conn) error {
 	if !atomic.CompareAndSwapInt32(&s.state, stateStopped, stateStarting) {
 		return errNotStopped
@@ -659,8 +673,9 @@ func (s *Service) reset(resources []string, access []string) {
 	})
 }
 
-// ResetAll will send a system.reset to trigger any gateway to update their cache
-// for all resources handled by the service.
+// ResetAll will send a system.reset to trigger any gateway to update their
+// cache for all resources handled by the service.
+//
 // The method is automatically called on server start and reconnects.
 func (s *Service) ResetAll() {
 	if atomic.LoadInt32(&s.state) != stateStarted {
@@ -673,9 +688,12 @@ func (s *Service) ResetAll() {
 	s.reset(s.resetResources, s.resetAccess)
 }
 
-// TokenEvent sends a connection token event that sets the connection's access token,
-// discarding any previously set token.
-// A change of token will invalidate any previous access response received using the old token.
+// TokenEvent sends a connection token event that sets the connection's access
+// token, discarding any previously set token.
+//
+// A change of token will invalidate any previous access response received using
+// the old token.
+//
 // A nil token clears any previously set token.
 func (s *Service) TokenEvent(cid string, token interface{}) {
 	if atomic.LoadInt32(&s.state) != stateStarted {
@@ -694,7 +712,7 @@ func (s *Service) setDefaultOwnership() {
 		if s.Contains(func(h Handler) bool {
 			return h.Get != nil || len(h.Call) > 0 || len(h.Auth) > 0 || h.New != nil
 		}) {
-			s.resetResources = []string{mergePattern(s.Mux.path, ">")}
+			s.resetResources = []string{s.Mux.path, mergePattern(s.Mux.path, ">")}
 		} else {
 			s.resetResources = []string{}
 		}
@@ -704,30 +722,50 @@ func (s *Service) setDefaultOwnership() {
 		if s.Contains(func(h Handler) bool {
 			return h.Access != nil
 		}) {
-			s.resetAccess = []string{mergePattern(s.Mux.path, ">")}
+			s.resetAccess = []string{s.Mux.path, mergePattern(s.Mux.path, ">")}
 		} else {
 			s.resetAccess = []string{}
 		}
 	}
 }
 
-// subscribe makes a nats subscription for each required request type, based
-// on the patterns used for ResetAll.
+// subscribe makes a nats subscription for each required request type, based on
+// the patterns used for ResetAll.
 func (s *Service) subscribe() error {
 	s.setDefaultOwnership()
 	if len(s.resetResources) == 0 && len(s.resetAccess) == 0 {
 		return errors.New("res: no resources to serve")
 	}
+	var patterns []string
 	for _, t := range []string{RequestTypeGet, RequestTypeCall, RequestTypeAuth} {
 		for _, p := range s.resetResources {
-			_, err := s.nc.ChanSubscribe(t+"."+p, s.inCh)
-			if err != nil {
-				return err
+			pattern := t + "." + p
+			if pattern[len(pattern)-1] != '>' && t != RequestTypeGet {
+				pattern += ".*"
 			}
+			patterns = append(patterns, pattern)
+
 		}
 	}
 	for _, p := range s.resetAccess {
-		_, err := s.nc.ChanSubscribe("access."+p, s.inCh)
+		pattern := "access." + p
+		s.tracef("sub %s", pattern)
+		_, err := s.nc.ChanSubscribe(pattern, s.inCh)
+		if err != nil {
+			return err
+		}
+	}
+
+next:
+	for i, pattern := range patterns {
+		// Skip patterns that overlap one another
+		for j, mpattern := range patterns {
+			if i != j && Pattern(mpattern).Matches(pattern) {
+				continue next
+			}
+		}
+		s.tracef("sub %s", pattern)
+		_, err := s.nc.ChanSubscribe(pattern, s.inCh)
 		if err != nil {
 			return err
 		}
@@ -814,11 +852,12 @@ func (s *Service) runWith(wid string, cb func()) {
 	}
 }
 
-// With matches the resource ID, rid, with the registered Handlers
-// before calling the callback, cb, on the worker goroutine for the
-// resource name or group.
-// With will return an error and not call the callback if there is
-// no matching handler found.
+// With matches the resource ID, rid, with the registered Handlers before
+// calling the callback, cb, on the worker goroutine for the resource name or
+// group.
+//
+// With will return an error and not call the callback if there is no matching
+// handler found.
 func (s *Service) With(rid string, cb func(r Resource)) error {
 	r, err := s.Resource(rid)
 	if err != nil {
@@ -832,9 +871,9 @@ func (s *Service) With(rid string, cb func(r Resource)) error {
 	return nil
 }
 
-// WithResource enqueues the callback, cb, to be called by the resource's
-// worker goroutine. If the resource belongs to a group, it will be called
-// on the group's worker goroutine.
+// WithResource enqueues the callback, cb, to be called by the resource's worker
+// goroutine. If the resource belongs to a group, it will be called on the
+// group's worker goroutine.
 func (s *Service) WithResource(r Resource, cb func()) {
 	s.runWith(r.Group(), cb)
 }
@@ -844,16 +883,16 @@ func (s *Service) WithGroup(group string, cb func(s *Service)) {
 	s.runWith(group, func() { cb(s) })
 }
 
-// Resource matches the resource ID, rid, with the registered Handlers
-// and returns the resource, or an error if there is no matching handler
-// found.
-// Should only be called from within the resource's group goroutine.
-// Using the returned value from another goroutine may cause race conditions.
+// Resource matches the resource ID, rid, with the registered Handlers and
+// returns the resource, or an error if there is no matching handler found.
+//
+// Should only be called from within the resource's group goroutine. Using the
+// returned value from another goroutine may cause race conditions.
 func (s *Service) Resource(rid string) (Resource, error) {
 	rname, q := parseRID(rid)
 	mh := s.GetHandler(rname)
 	if mh == nil {
-		return nil, errHandlerNotFound
+		return nil, fmt.Errorf("res: no matching handlers found for %#v", rid)
 	}
 
 	return &resource{
@@ -867,8 +906,8 @@ func (s *Service) Resource(rid string) (Resource, error) {
 	}, nil
 }
 
-// event marshals the data and publishes it on a subject,
-// and logs it as an outgoing event.
+// event marshals the data and publishes it on a subject, and logs it as an
+// outgoing event.
 func (s *Service) event(subj string, data interface{}) {
 	if data == nil {
 		s.rawEvent(subj, nil)
@@ -885,8 +924,8 @@ func (s *Service) event(subj string, data interface{}) {
 	}
 }
 
-// rawEvent publishes the payload on a subject,
-// and logs it as an outgoing event.
+// rawEvent publishes the payload on a subject, and logs it as an outgoing
+// event.
 func (s *Service) rawEvent(subj string, payload []byte) {
 	s.tracef("<-- %s: %s", subj, payload)
 	err := s.nc.Publish(subj, payload)
@@ -896,6 +935,7 @@ func (s *Service) rawEvent(subj string, payload []byte) {
 }
 
 // handleReconnect is called when nats has reconnected.
+//
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleReconnect(_ *nats.Conn) {
 	s.infof("Reconnected to NATS. Sending reset event.")
@@ -906,8 +946,10 @@ func (s *Service) handleReconnect(_ *nats.Conn) {
 }
 
 // handleDisconnect is called when nats is disconnected.
+//
 // It calls a system.reset to have the resgates update their caches.
 func (s *Service) handleDisconnect(_ *nats.Conn) {
+	s.infof("Disconnected from NATS.")
 	if s.onDisconnect != nil {
 		s.onDisconnect(s)
 	}
@@ -923,10 +965,11 @@ func validateGetHandler(h Handler) {
 	}
 }
 
-// parseRID parses a resource ID, rid, and splits it into the resource name
-// and query, if one is available.
-// The question mark query separator is not included in the returned
-// query string.
+// parseRID parses a resource ID, rid, and splits it into the resource name and
+// query, if one is available.
+//
+// The question mark query separator is not included in the returned query
+// string.
 func parseRID(rid string) (rname string, q string) {
 	i := strings.IndexByte(rid, '?')
 	if i == -1 {
@@ -946,12 +989,14 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *M
 	}
 
 	var rc resRequest
-	err := json.Unmarshal(m.Data, &rc)
-	if err != nil {
-		r = &Request{resource: resource{s: s}, msg: m}
-		s.errorf("Error unmarshaling incoming request: %s", err)
-		r.error(ToError(err))
-		return
+	if len(m.Data) > 0 {
+		err := json.Unmarshal(m.Data, &rc)
+		if err != nil {
+			r = &Request{resource: resource{s: s}, msg: m}
+			s.errorf("Error unmarshaling incoming request: %s", err)
+			r.error(ToError(err))
+			return
+		}
 	}
 
 	r = &Request{

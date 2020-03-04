@@ -37,7 +37,7 @@ type IndexSet struct {
 	// List of indexes
 	Indexes []Index
 	// Index listener callbacks to be called on changes in the index.
-	listeners []func(r res.Resource, before, after interface{})
+	listeners []indexListener
 }
 
 // IndexQuery represents a query towards an index.
@@ -52,6 +52,13 @@ type IndexQuery struct {
 	Offset int
 	// Limit how many items to read. Negative means unlimited.
 	Limit int
+	// Reverse flag to tell if order is reversed
+	Reverse bool
+}
+
+type indexListener struct {
+	cb   func(r res.Resource, before, after interface{})
+	name string
 }
 
 // Byte that separates the index key prefix from the resource ID.
@@ -68,13 +75,23 @@ const maxInt = int(^uint(0) >> 1)
 // The model before value will be nil if the model was created, or if previously not indexed.
 // The model after value will be nil if the model was deleted, or if no longer indexed.
 func (i *IndexSet) Listen(cb func(r res.Resource, before, after interface{})) {
-	i.listeners = append(i.listeners, cb)
+	i.listeners = append(i.listeners, indexListener{cb: cb})
+}
+
+// ListenIndex adds a callback listening to the changes of a specific index.
+//
+// The model before value will be nil if the model was created, or if previously not indexed.
+// The model after value will be nil if the model was deleted, or if no longer indexed.
+func (i *IndexSet) ListenIndex(name string, cb func(r res.Resource, before, after interface{})) {
+	i.listeners = append(i.listeners, indexListener{cb: cb, name: name})
 }
 
 // triggerListeners calls the callback of each registered listener.
-func (i *IndexSet) triggerListeners(r res.Resource, before, after interface{}) {
-	for _, cb := range i.listeners {
-		cb(r, before, after)
+func (i *IndexSet) triggerListeners(name string, r res.Resource, before, after interface{}) {
+	for _, il := range i.listeners {
+		if il.name == name {
+			il.cb(r, before, after)
+		}
 	}
 }
 
@@ -142,6 +159,7 @@ func (iq *IndexQuery) FetchCollection(db *badger.DB) ([]res.Ref, error) {
 	if err := db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
+		opts.Reverse = iq.Reverse
 		it := txn.NewIterator(opts)
 		defer it.Close()
 		for it.Seek(queryPrefix); it.ValidForPrefix(queryPrefix); it.Next() {

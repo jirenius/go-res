@@ -21,6 +21,9 @@ type Model struct {
 	Type interface{}
 	// IndexSet defines a set of indexes to be created for the model.
 	IndexSet *IndexSet
+	// Map defines a map callback to transform the model when
+	// responding to get requests.
+	Map func(interface{}) (interface{}, error)
 }
 
 // WithDefault returns a new BadgerDB value with the Default resource value set to i.
@@ -41,6 +44,15 @@ func (o Model) WithIndexSet(idxs *IndexSet) Model {
 	return o
 }
 
+// WithMap returns a new Model value with the Map set to m.
+//
+// The m callback takes the model value v, with the type being Type,
+// and returns the value to send in response to the get request.
+func (o Model) WithMap(m func(interface{}) (interface{}, error)) Model {
+	o.Map = m
+	return o
+}
+
 // RebuildIndexes drops existing indexes and creates new entries for the
 // models with the given resource pattern.
 //
@@ -50,7 +62,7 @@ func (o Model) WithIndexSet(idxs *IndexSet) Model {
 // 	test.resource.>
 func (o Model) RebuildIndexes(pattern string) error {
 	// Quick exit in case no index exists
-	if len(o.IndexSet.Indexes) == 0 {
+	if o.IndexSet == nil || len(o.IndexSet.Indexes) == 0 {
 		return nil
 	}
 
@@ -121,6 +133,7 @@ func (o Model) SetOption(hs *res.Handler) {
 	b := resourceHandler{
 		def:      o.Default,
 		idxs:     o.IndexSet,
+		m:        o.Map,
 		BadgerDB: o.BadgerDB,
 	}
 

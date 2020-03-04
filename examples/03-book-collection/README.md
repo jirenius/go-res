@@ -14,13 +14,13 @@ A simple library management system, listing books by title and author. Books can
 
 ```text
 git clone https://github.com/jirenius/go-res
-cd go-res/examples/04-book-collection
-go run main.go
+cd go-res/examples/03-book-collection
+go run .
 ```
 
 Open the client
 ```text
-http://localhost:8084
+http://localhost:8083
 ```
 
 
