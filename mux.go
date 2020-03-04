@@ -166,7 +166,7 @@ func (m *Mux) callOnRegister() {
 	fp := m.FullPath()
 	traverse(m.root, make([]string, 0, 32), 0, func(n *node, path []string, mountIdx int) {
 		if n.hs.OnRegister != nil {
-			n.hs.OnRegister(s, mergePattern(fp, pathSliceToString(n, path, mountIdx)))
+			n.hs.OnRegister(s, Pattern(mergePattern(fp, pathSliceToString(n, path, mountIdx))), n.hs.Handler)
 		}
 	})
 }
@@ -288,10 +288,10 @@ func (m *Mux) add(pattern string, hs *regHandler) {
 	}
 
 	// Try call OnRegister callback
-	if hs.Handler.OnRegister != nil {
+	if hs.OnRegister != nil {
 		s := m.registeredService()
 		if s != nil {
-			hs.Handler.OnRegister(s, mergePattern(m.FullPath(), pattern))
+			hs.OnRegister(s, Pattern(mergePattern(m.FullPath(), pattern)), hs.Handler)
 		}
 	}
 }

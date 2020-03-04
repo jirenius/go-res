@@ -5,6 +5,7 @@ import (
 	"time"
 
 	res "github.com/jirenius/go-res"
+	"github.com/jirenius/go-res/restest"
 )
 
 var testRequestValueTbl = []struct {
@@ -16,7 +17,7 @@ var testRequestValueTbl = []struct {
 		// ForValue returns true
 		"ForValue",
 		func(t *testing.T, r res.GetRequest) {
-			AssertEqual(t, "r.ForValue()", r.ForValue(), true)
+			restest.AssertEqualJSON(t, "r.ForValue()", r.ForValue(), true)
 			r.NotFound()
 		},
 		func(t *testing.T, r res.Resource) { r.Value() },
@@ -27,8 +28,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.Model(mock.Model) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertNoError(t, err)
-			AssertEqual(t, "r.Value()", v, mock.Model)
+			restest.AssertNoError(t, err)
+			restest.AssertEqualJSON(t, "r.Value()", v, mock.Model)
 		},
 	},
 	{
@@ -37,8 +38,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.QueryModel(mock.Model, mock.NormalizedQuery) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertNoError(t, err)
-			AssertEqual(t, "r.Value()", v, mock.Model)
+			restest.AssertNoError(t, err)
+			restest.AssertEqualJSON(t, "r.Value()", v, mock.Model)
 		},
 	},
 	{
@@ -47,8 +48,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.Collection(mock.Collection) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertNoError(t, err)
-			AssertEqual(t, "r.Value()", v, mock.Collection)
+			restest.AssertNoError(t, err)
+			restest.AssertEqualJSON(t, "r.Value()", v, mock.Collection)
 		},
 	},
 	{
@@ -57,8 +58,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.QueryCollection(mock.Collection, mock.NormalizedQuery) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertNoError(t, err)
-			AssertEqual(t, "r.Value()", v, mock.Collection)
+			restest.AssertNoError(t, err)
+			restest.AssertEqualJSON(t, "r.Value()", v, mock.Collection)
 		},
 	},
 	{
@@ -67,8 +68,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.Error(mock.CustomError) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertResError(t, err, mock.CustomError)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertResError(t, err, mock.CustomError)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -77,8 +78,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.NotFound() },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertResError(t, err, res.ErrNotFound)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertResError(t, err, res.ErrNotFound)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -87,8 +88,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.InvalidQuery("") },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertResError(t, err, res.ErrInvalidQuery)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertResError(t, err, res.ErrInvalidQuery)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -97,8 +98,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.InvalidQuery(mock.ErrorMessage) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertResError(t, err, &res.Error{Code: res.CodeInvalidQuery, Message: mock.ErrorMessage})
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertResError(t, err, &res.Error{Code: res.CodeInvalidQuery, Message: mock.ErrorMessage})
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -107,8 +108,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { panic(mock.CustomError) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertResError(t, err, mock.CustomError)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertResError(t, err, mock.CustomError)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -117,8 +118,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { panic(mock.Error) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertErrorCode(t, err, res.CodeInternalError)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertErrorCode(t, err, res.CodeInternalError)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -127,8 +128,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { panic(mock.ErrorMessage) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertErrorCode(t, err, res.CodeInternalError)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertErrorCode(t, err, res.CodeInternalError)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -137,8 +138,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { panic(42) },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertErrorCode(t, err, res.CodeInternalError)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertErrorCode(t, err, res.CodeInternalError)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -147,8 +148,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) {},
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertErrorCode(t, err, res.CodeInternalError)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertErrorCode(t, err, res.CodeInternalError)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -157,8 +158,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.Value() },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertErrorCode(t, err, res.CodeInternalError)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertErrorCode(t, err, res.CodeInternalError)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -167,8 +168,8 @@ var testRequestValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.RequireValue() },
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertErrorCode(t, err, res.CodeInternalError)
-			AssertEqual(t, "r.Value()", v, nil)
+			restest.AssertErrorCode(t, err, res.CodeInternalError)
+			restest.AssertEqualJSON(t, "r.Value()", v, nil)
 		},
 	},
 	{
@@ -180,15 +181,15 @@ var testRequestValueTbl = []struct {
 		},
 		func(t *testing.T, r res.Resource) {
 			v, err := r.Value()
-			AssertNoError(t, err)
-			AssertEqual(t, "r.Value()", v, mock.Model)
+			restest.AssertNoError(t, err)
+			restest.AssertEqualJSON(t, "r.Value()", v, mock.Model)
 		},
 	},
 }
 
 func TestValue_UsingCall_ReturnsCorrectData(t *testing.T) {
 	for _, l := range testRequestValueTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("model",
 				res.GetResource(func(r res.GetRequest) {
 					l.Get(t, r)
@@ -198,27 +199,26 @@ func TestValue_UsingCall_ReturnsCorrectData(t *testing.T) {
 					r.OK(nil)
 				}),
 			)
-		}, func(s *Session) {
-			inb := s.Request("call.test.model.method", nil)
-			s.GetMsg(t).AssertSubject(t, inb)
-		}, withName(l.Name))
+		}, func(s *restest.Session) {
+			s.Call("test.model", "method", nil).Response()
+		}, restest.WithTest(l.Name))
 	}
 }
 
 func TestValue_UsingWith_ReturnsCorrectData(t *testing.T) {
 	for _, l := range testRequestValueTbl {
-		runTestAsync(t, func(s *Session) {
+		runTestAsync(t, func(s *res.Service) {
 			s.Handle("model",
 				res.GetResource(func(r res.GetRequest) {
 					l.Get(t, r)
 				}),
 			)
-		}, func(s *Session, done func()) {
-			s.With("test.model", func(r res.Resource) {
+		}, func(s *restest.Session, done func()) {
+			s.Service().With("test.model", func(r res.Resource) {
 				l.Assert(t, r)
 				done()
 			})
-		}, withName(l.Name))
+		}, restest.WithTest(l.Name))
 	}
 }
 
@@ -231,7 +231,7 @@ var testRequestRequireValueTbl = []struct {
 		// ForValue returns true
 		"ForValue",
 		func(t *testing.T, r res.GetRequest) {
-			AssertEqual(t, "r.ForValue()", r.ForValue(), true)
+			restest.AssertEqualJSON(t, "r.ForValue()", r.ForValue(), true)
 			r.Model(mock.Model)
 		},
 		func(t *testing.T, r res.Resource) { r.RequireValue() },
@@ -242,7 +242,7 @@ var testRequestRequireValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.Model(mock.Model) },
 		func(t *testing.T, r res.Resource) {
 			v := r.RequireValue()
-			AssertEqual(t, "r.RequireValue()", v, mock.Model)
+			restest.AssertEqualJSON(t, "r.RequireValue()", v, mock.Model)
 		},
 	},
 	{
@@ -251,7 +251,7 @@ var testRequestRequireValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.QueryModel(mock.Model, mock.NormalizedQuery) },
 		func(t *testing.T, r res.Resource) {
 			v := r.RequireValue()
-			AssertEqual(t, "r.RequireValue()", v, mock.Model)
+			restest.AssertEqualJSON(t, "r.RequireValue()", v, mock.Model)
 		},
 	},
 	{
@@ -260,7 +260,7 @@ var testRequestRequireValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.Collection(mock.Collection) },
 		func(t *testing.T, r res.Resource) {
 			v := r.RequireValue()
-			AssertEqual(t, "r.RequireValue()", v, mock.Collection)
+			restest.AssertEqualJSON(t, "r.RequireValue()", v, mock.Collection)
 		},
 	},
 	{
@@ -269,7 +269,7 @@ var testRequestRequireValueTbl = []struct {
 		func(t *testing.T, r res.GetRequest) { r.QueryCollection(mock.Collection, mock.NormalizedQuery) },
 		func(t *testing.T, r res.Resource) {
 			v := r.RequireValue()
-			AssertEqual(t, "r.RequireValue()", v, mock.Collection)
+			restest.AssertEqualJSON(t, "r.RequireValue()", v, mock.Collection)
 		},
 	},
 	{
@@ -277,7 +277,7 @@ var testRequestRequireValueTbl = []struct {
 		"Error",
 		func(t *testing.T, r res.GetRequest) { r.Error(mock.CustomError) },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -285,7 +285,7 @@ var testRequestRequireValueTbl = []struct {
 		"NotFound",
 		func(t *testing.T, r res.GetRequest) { r.NotFound() },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -293,7 +293,7 @@ var testRequestRequireValueTbl = []struct {
 		"InvalidQuery",
 		func(t *testing.T, r res.GetRequest) { r.InvalidQuery("") },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -301,7 +301,7 @@ var testRequestRequireValueTbl = []struct {
 		"InvalidQuery_WithMessage",
 		func(t *testing.T, r res.GetRequest) { r.InvalidQuery(mock.ErrorMessage) },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -309,7 +309,7 @@ var testRequestRequireValueTbl = []struct {
 		"Panic_WithResError",
 		func(t *testing.T, r res.GetRequest) { panic(mock.CustomError) },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -317,7 +317,7 @@ var testRequestRequireValueTbl = []struct {
 		"Panic_WithError",
 		func(t *testing.T, r res.GetRequest) { panic(mock.Error) },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -325,7 +325,7 @@ var testRequestRequireValueTbl = []struct {
 		"Panic_WithString",
 		func(t *testing.T, r res.GetRequest) { panic(mock.ErrorMessage) },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -333,7 +333,7 @@ var testRequestRequireValueTbl = []struct {
 		"Panic_WithInt",
 		func(t *testing.T, r res.GetRequest) { panic(42) },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -341,7 +341,7 @@ var testRequestRequireValueTbl = []struct {
 		"NoResponse",
 		func(t *testing.T, r res.GetRequest) {},
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -349,7 +349,7 @@ var testRequestRequireValueTbl = []struct {
 		"Value",
 		func(t *testing.T, r res.GetRequest) { r.Value() },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -357,7 +357,7 @@ var testRequestRequireValueTbl = []struct {
 		"RequireValue",
 		func(t *testing.T, r res.GetRequest) { r.RequireValue() },
 		func(t *testing.T, r res.Resource) {
-			AssertPanic(t, func() { r.RequireValue() })
+			restest.AssertPanic(t, func() { r.RequireValue() })
 		},
 	},
 	{
@@ -369,14 +369,14 @@ var testRequestRequireValueTbl = []struct {
 		},
 		func(t *testing.T, r res.Resource) {
 			v := r.RequireValue()
-			AssertEqual(t, "r.RequireValue()", v, mock.Model)
+			restest.AssertEqualJSON(t, "r.RequireValue()", v, mock.Model)
 		},
 	},
 }
 
 func TestRequireValue_UsingCall_ReturnsCorrectData(t *testing.T) {
 	for _, l := range testRequestRequireValueTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("model",
 				res.GetResource(func(r res.GetRequest) {
 					l.Get(t, r)
@@ -386,39 +386,38 @@ func TestRequireValue_UsingCall_ReturnsCorrectData(t *testing.T) {
 					r.OK(nil)
 				}),
 			)
-		}, func(s *Session) {
-			inb := s.Request("call.test.model.method", nil)
-			s.GetMsg(t).AssertSubject(t, inb)
-		}, withName(l.Name))
+		}, func(s *restest.Session) {
+			s.Call("test.model", "method", nil).Response()
+		}, restest.WithTest(l.Name))
 	}
 }
 
 func TestRequireValue_UsingWith_ReturnsCorrectData(t *testing.T) {
 	for _, l := range testRequestRequireValueTbl {
-		runTestAsync(t, func(s *Session) {
+		runTestAsync(t, func(s *res.Service) {
 			s.Handle("model",
 				res.GetResource(func(r res.GetRequest) {
 					l.Get(t, r)
 				}),
 			)
-		}, func(s *Session, done func()) {
-			s.With("test.model", func(r res.Resource) {
+		}, func(s *restest.Session, done func()) {
+			s.Service().With("test.model", func(r res.Resource) {
 				l.Assert(t, r)
 				done()
 			})
-		}, withName(l.Name))
+		}, restest.WithTest(l.Name))
 	}
 }
 
 // Test that Value returns an error on missing get handler.
 func TestValueWithoutHandler(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
+	runTestAsync(t, func(s *res.Service) {
 		s.Handle("model", res.Access(res.AccessGranted))
-	}, func(s *Session, done func()) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
+	}, func(s *restest.Session, done func()) {
+		restest.AssertNoError(t, s.Service().With("test.model", func(r res.Resource) {
 			v, err := r.Value()
-			AssertEqual(t, "value", v, nil)
-			AssertEqual(t, "error", err, res.ErrNotFound)
+			restest.AssertEqualJSON(t, "value", v, nil)
+			restest.AssertEqualJSON(t, "error", err, res.ErrNotFound)
 			done()
 		}))
 	})

@@ -32,9 +32,9 @@ func main() {
    s.Handle("model",
       res.Access(res.AccessGranted),
       res.GetModel(func(r res.ModelRequest) {
-         r.Model(map[string]string{
-            "message": "Hello, World!",
-         })
+         r.Model(struct {
+            Message string `json:"message"`
+         }{"Hello, World!"})
       }),
    )
    s.ListenAndServe("nats://localhost:4222")
@@ -56,26 +56,13 @@ func main() {
 | --- | ---
 | [Hello World](examples/01-hello-world/) | Smallest of services serving a static message.
 | [Edit Text](examples/02-edit-text/) | Single text field that is updated in real time.
-| [Edit Text Persisted](examples/03-edit-text-persisted/) | Edit Text example persisting changes using BadgerDB middleware.
-| [Book Collection](examples/04-book-collection/) | List of book titles & authors that can be edited by many.
-| [Book Collection Persisted](examples/05-book-collection-persisted/) | Book Collection example persisting changes using BadgerBD middleware.
-| [Search Query](examples/06-search-query/) | Make live queries against a large customer database.
+| [Book Collection](examples/03-book-collection/) | List of book titles & authors that can be edited by many.
+| [Book Collection Store](examples/04-book-collection-store/) | Book Collection example persisting changes using BadgerBD store.
+| [Search Query](examples/05-search-query/) | Make live queries against a large customer database.
 
 > **Note**
 >
 > Above examples are complete with both service and client.
-
-## Middleware
-
-The *middleware* subfolder contains packages that adds handler functions to a `res.Handler`, to perform tasks such as:
-
-* store, load and update persisted data
-* synchronize changes between multiple service instances
-* perform live queries with indexed searches
-
-| Name | Description | Documentation
-| --- | --- | ---
-| [resbadger](middleware/resbadger) | BadgerDB storage middleware. | <a href="https://pkg.go.dev/github.com/jirenius/go-res/middleware/resbadger"><img src="https://img.shields.io/static/v1?label=reference&message=go.dev&color=5673ae" alt="Reference"></a>
 
 ## Usage
 
@@ -216,6 +203,19 @@ s.Route("v2", func(m *res.Mux) {
 s.ListenAndServe("nats://localhost:4222")
 ```
 
+## Testing [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/restest)
+
+The [restest](restest/) subpackage is used for testing services and validate responses.
+
+## Storage [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/store)
+
+The [store](store/) subpackage contains handlers and interfaces for working with database storage.
+
+| Name | Description | Documentation
+| --- | --- | ---
+| [mockstore](store/mockstore/) | Mock store implementation for testing | [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/store/mockstore)
+| [badgerstore](store/badgerstore/) | BadgerDB store implementation | [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/store/badgerstore)
+
 ## Credits
 
 Inspiration on the go-res API has been taken from [github.com/go-chi/chi](https://github.com/go-chi/chi), a great package when writing ordinary HTTP services, and will continue to do so when it is time to implement Middleware, sub-handlers, and mounting.
@@ -227,3 +227,5 @@ The go-res package is still under development, but the API is mostly settled. An
 Once the API is fully settled, the package will be moved to the [resgateio](https://github.com/resgateio/) GitHub organization.
 
 If you find any issues, feel free to [report them](https://github.com/jirenius/go-res/issues/new) as an issue.
+
+[godev]: https://img.shields.io/static/v1?label=reference&message=go.dev&color=5673ae "Reference"

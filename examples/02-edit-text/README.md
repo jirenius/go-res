@@ -15,7 +15,7 @@ A simple text field that can be edited by multiple clients simultaneously.
 ```text
 git clone https://github.com/jirenius/go-res
 cd go-res/examples/02-edit-text
-go run main.go
+go run .
 ```
 
 Open the client

@@ -3,18 +3,11 @@
 <p align="center">
 <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
 <a href="https://pkg.go.dev/github.com/jirenius/go-res/middleware/resbadger"><img src="https://img.shields.io/static/v1?label=reference&message=go.dev&color=5673ae" alt="Reference"></a>
-<img src="https://img.shields.io/static/v1?label=status&message=experimental&color=red" alt="Status">
+<img src="https://img.shields.io/static/v1?label=status&message=deprecated&color=red" alt="Status">
 </p>
 
 ---
 
-BadgerDB middleware to use together with the [go-res package](https://github.com/jirenius/go-res).
+This package is deprecated, please use the [store package](../../store) together with the [badgerstore package](../../store/badgerstore) instead.
 
-See the [go.dev reference](https://pkg.go.dev/github.com/jirenius/go-res/middleware/resbadger) for documentation, or the [go-res package examples](https://github.com/jirenius/go-res#examples) for complete examples.
-
-
-## Contributing
-
-The middleware is still experimental. Any feedback on the package API or its implementation is highly appreciated!
-
-If you find any issues, feel free to [report them](https://github.com/jirenius/go-res/issues/new) as an issue.
+The *store* interface provides superior structure for building services that scales well.

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	res "github.com/jirenius/go-res"
+	"github.com/jirenius/go-res/restest"
 )
 
 var eventTestTbl = []struct {
@@ -57,15 +58,16 @@ var removeEventTestTbl = []struct {
 // Test method Event sends a custom event on the resource.
 func TestEvent(t *testing.T) {
 	for _, l := range eventTestTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("model", res.Call("method", func(r res.CallRequest) {
 				r.Event(l.Event, l.Payload)
 				r.OK(nil)
 			}))
-		}, func(s *Session) {
-			inb := s.Request("call.test.model.method", nil)
-			s.GetMsg(t).AssertSubject(t, "event.test.model."+l.Event).AssertPayload(t, l.Payload)
-			s.GetMsg(t).AssertSubject(t, inb)
+		}, func(s *restest.Session) {
+			req := s.Call("test.model", "method", nil)
+			s.GetMsg().
+				AssertCustomEvent("test.model", l.Event, l.Payload)
+			req.Response()
 		})
 	}
 }
@@ -73,13 +75,14 @@ func TestEvent(t *testing.T) {
 // Test method Event sends a custom event on the resource, using With.
 func TestEventUsingWith(t *testing.T) {
 	for _, l := range eventTestTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
-		}, func(s *Session) {
-			AssertNoError(t, s.With("test.model", func(r res.Resource) {
+		}, func(s *restest.Session) {
+			restest.AssertNoError(t, s.Service().With("test.model", func(r res.Resource) {
 				r.Event(l.Event, l.Payload)
 			}))
-			s.GetMsg(t).AssertSubject(t, "event.test.model."+l.Event).AssertPayload(t, l.Payload)
+			s.GetMsg().
+				AssertCustomEvent("test.model", l.Event, l.Payload)
 		})
 	}
 }
@@ -107,11 +110,11 @@ func TestEventPanicsOnInvalid(t *testing.T) {
 	}
 
 	for _, l := range tbl {
-		runTestAsync(t, func(s *Session) {
+		runTestAsync(t, func(s *res.Service) {
 			s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
-		}, func(s *Session, done func()) {
-			AssertNoError(t, s.With("test.model", func(r res.Resource) {
-				AssertPanic(t, func() {
+		}, func(s *restest.Session, done func()) {
+			restest.AssertNoError(t, s.Service().With("test.model", func(r res.Resource) {
+				restest.AssertPanic(t, func() {
 					r.Event(l.Event, nil)
 				})
 				done()
@@ -124,7 +127,7 @@ func TestEventPanicsOnInvalid(t *testing.T) {
 // and their new values.
 func TestChangeEvent(t *testing.T) {
 	for _, l := range changeEventTestTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("model",
 				res.GetModel(func(r res.ModelRequest) {
 					r.NotFound()
@@ -134,19 +137,18 @@ func TestChangeEvent(t *testing.T) {
 					r.OK(nil)
 				}),
 			)
-		}, func(s *Session) {
-			inb := s.Request("call.test.model.method", nil)
-			s.GetMsg(t).AssertPayload(t, struct {
-				Values map[string]interface{} `json:"values"`
-			}{Values: l.Payload}).AssertSubject(t, "event.test.model.change")
-			s.GetMsg(t).AssertSubject(t, inb)
+		}, func(s *restest.Session) {
+			req := s.Call("test.model", "method", nil)
+			s.GetMsg().
+				AssertChangeEvent("test.model", l.Payload)
+			req.Response()
 		})
 	}
 }
 
 // Test ChangeEvents does not sends a change event when no properties has been changed.
 func TestEmptyChangeEvent(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.NotFound()
@@ -156,9 +158,8 @@ func TestEmptyChangeEvent(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
+	}, func(s *restest.Session) {
+		s.Call("test.model", "method", nil).Response()
 	})
 }
 
@@ -166,24 +167,23 @@ func TestEmptyChangeEvent(t *testing.T) {
 // and their new values, using With
 func TestChangeEventUsingWith(t *testing.T) {
 	for _, l := range changeEventTestTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("model", res.GetModel(func(r res.ModelRequest) {
 				r.NotFound()
 			}))
-		}, func(s *Session) {
-			AssertNoError(t, s.With("test.model", func(r res.Resource) {
+		}, func(s *restest.Session) {
+			restest.AssertNoError(t, s.Service().With("test.model", func(r res.Resource) {
 				r.ChangeEvent(l.Payload)
 			}))
-			s.GetMsg(t).AssertPayload(t, struct {
-				Values map[string]interface{} `json:"values"`
-			}{Values: l.Payload}).AssertSubject(t, "event.test.model.change")
+			s.GetMsg().
+				AssertChangeEvent("test.model", l.Payload)
 		})
 	}
 }
 
 // Test ChangeEvent panics if the resource is a collection
 func TestChangeEventPanicsOnCollection(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("collection",
 			res.GetCollection(func(r res.CollectionRequest) {
 				r.NotFound()
@@ -200,21 +200,21 @@ func TestChangeEventPanicsOnCollection(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.collection.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
+	}, func(s *restest.Session) {
+		s.Call("test.collection", "method", nil).Response()
+
 	})
 }
 
 // Test ChangeEvent panics if the resource is a collection, using With
 func TestChangeEventPanicsOnCollectionUsingWith(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
+	runTestAsync(t, func(s *res.Service) {
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
 			r.NotFound()
 		}))
-	}, func(s *Session, done func()) {
-		s.With("test.collection", func(r res.Resource) {
-			AssertPanic(t, func() {
+	}, func(s *restest.Session, done func()) {
+		s.Service().With("test.collection", func(r res.Resource) {
+			restest.AssertPanic(t, func() {
 				r.ChangeEvent(map[string]interface{}{"foo": 42})
 			})
 			done()
@@ -225,7 +225,7 @@ func TestChangeEventPanicsOnCollectionUsingWith(t *testing.T) {
 // Test AddEvent sends an add event with idx and the added value.
 func TestAddEvent(t *testing.T) {
 	for _, l := range addEventTestTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("collection",
 				res.GetCollection(func(r res.CollectionRequest) {
 					r.NotFound()
@@ -235,10 +235,12 @@ func TestAddEvent(t *testing.T) {
 					r.OK(nil)
 				}),
 			)
-		}, func(s *Session) {
-			inb := s.Request("call.test.collection.method", nil)
-			s.GetMsg(t).AssertPayload(t, l.Expected).AssertSubject(t, "event.test.collection.add")
-			s.GetMsg(t).AssertSubject(t, inb)
+		}, func(s *restest.Session) {
+			req := s.Call("test.collection", "method", nil)
+			s.GetMsg().
+				AssertEventName("test.collection", "add").
+				AssertPayload(l.Expected)
+			req.Response()
 		})
 	}
 }
@@ -246,22 +248,24 @@ func TestAddEvent(t *testing.T) {
 // Test AddEvent sends an add event with idx and the added value, using With
 func TestAddEventUsingWith(t *testing.T) {
 	for _, l := range addEventTestTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
 				r.NotFound()
 			}))
-		}, func(s *Session) {
-			AssertNoError(t, s.With("test.collection", func(r res.Resource) {
+		}, func(s *restest.Session) {
+			restest.AssertNoError(t, s.Service().With("test.collection", func(r res.Resource) {
 				r.AddEvent(l.Value, l.Idx)
 			}))
-			s.GetMsg(t).AssertPayload(t, l.Expected).AssertSubject(t, "event.test.collection.add")
+			s.GetMsg().
+				AssertEventName("test.collection", "add").
+				AssertPayload(l.Expected)
 		})
 	}
 }
 
 // Test AddEvent panics if the resource is a model
 func TestAddEventPanicsOnModel(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.NotFound()
@@ -278,21 +282,21 @@ func TestAddEventPanicsOnModel(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
+	}, func(s *restest.Session) {
+		s.Call("test.model", "method", nil).Response()
+
 	})
 }
 
 // Test AddEvent panics if the resource is a model, using With
 func TestAddEventPanicsOnModelUsingWith(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
+	runTestAsync(t, func(s *res.Service) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
 			r.NotFound()
 		}))
-	}, func(s *Session, done func()) {
-		s.With("test.model", func(r res.Resource) {
-			AssertPanic(t, func() {
+	}, func(s *restest.Session, done func()) {
+		s.Service().With("test.model", func(r res.Resource) {
+			restest.AssertPanic(t, func() {
 				r.AddEvent("foo", 0)
 			})
 			done()
@@ -302,13 +306,13 @@ func TestAddEventPanicsOnModelUsingWith(t *testing.T) {
 
 // Test AddEvent panics if idx is less than zero
 func TestAddEventPanicsOnIdxLessThanZero(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
+	runTestAsync(t, func(s *res.Service) {
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
 			r.NotFound()
 		}))
-	}, func(s *Session, done func()) {
-		s.With("test.collection", func(r res.Resource) {
-			AssertPanic(t, func() {
+	}, func(s *restest.Session, done func()) {
+		s.Service().With("test.collection", func(r res.Resource) {
+			restest.AssertPanic(t, func() {
 				r.AddEvent("foo", -1)
 			})
 			done()
@@ -319,7 +323,7 @@ func TestAddEventPanicsOnIdxLessThanZero(t *testing.T) {
 // Test RemoveEvent sends a remove event with idx.
 func TestRemoveEvent(t *testing.T) {
 	for _, l := range removeEventTestTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("collection",
 				res.GetCollection(func(r res.CollectionRequest) {
 					r.NotFound()
@@ -329,10 +333,12 @@ func TestRemoveEvent(t *testing.T) {
 					r.OK(nil)
 				}),
 			)
-		}, func(s *Session) {
-			inb := s.Request("call.test.collection.method", nil)
-			s.GetMsg(t).AssertPayload(t, l.Expected).AssertSubject(t, "event.test.collection.remove")
-			s.GetMsg(t).AssertSubject(t, inb)
+		}, func(s *restest.Session) {
+			req := s.Call("test.collection", "method", nil)
+			s.GetMsg().
+				AssertEventName("test.collection", "remove").
+				AssertPayload(l.Expected)
+			req.Response()
 		})
 	}
 }
@@ -340,22 +346,24 @@ func TestRemoveEvent(t *testing.T) {
 // Test RemoveEvent sends an remove event with idx, using With
 func TestRemoveEventUsingWith(t *testing.T) {
 	for _, l := range removeEventTestTbl {
-		runTest(t, func(s *Session) {
+		runTest(t, func(s *res.Service) {
 			s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
 				r.NotFound()
 			}))
-		}, func(s *Session) {
-			AssertNoError(t, s.With("test.collection", func(r res.Resource) {
+		}, func(s *restest.Session) {
+			restest.AssertNoError(t, s.Service().With("test.collection", func(r res.Resource) {
 				r.RemoveEvent(l.Idx)
 			}))
-			s.GetMsg(t).AssertPayload(t, l.Expected).AssertSubject(t, "event.test.collection.remove")
+			s.GetMsg().
+				AssertEventName("test.collection", "remove").
+				AssertPayload(l.Expected)
 		})
 	}
 }
 
 // Test RemoveEvent panics if the resource is a model
 func TestRemoveEventPanicsOnModel(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model",
 			res.GetModel(func(r res.ModelRequest) {
 				r.NotFound()
@@ -372,21 +380,21 @@ func TestRemoveEventPanicsOnModel(t *testing.T) {
 				r.OK(nil)
 			}),
 		)
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).AssertSubject(t, inb)
+	}, func(s *restest.Session) {
+		s.Call("test.model", "method", nil).Response()
+
 	})
 }
 
 // Test RemoveEvent panics if the resource is a model, using With
 func TestRemoveEventPanicsOnModelUsingWith(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
+	runTestAsync(t, func(s *res.Service) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) {
 			r.NotFound()
 		}))
-	}, func(s *Session, done func()) {
-		s.With("test.model", func(r res.Resource) {
-			AssertPanic(t, func() {
+	}, func(s *restest.Session, done func()) {
+		s.Service().With("test.model", func(r res.Resource) {
+			restest.AssertPanic(t, func() {
 				r.RemoveEvent(0)
 			})
 			done()
@@ -396,13 +404,13 @@ func TestRemoveEventPanicsOnModelUsingWith(t *testing.T) {
 
 // Test RemoveEvent panics if idx is less than zero
 func TestRemoveEventPanicsOnIdxLessThanZero(t *testing.T) {
-	runTestAsync(t, func(s *Session) {
+	runTestAsync(t, func(s *res.Service) {
 		s.Handle("collection", res.GetCollection(func(r res.CollectionRequest) {
 			r.NotFound()
 		}))
-	}, func(s *Session, done func()) {
-		s.With("test.collection", func(r res.Resource) {
-			AssertPanic(t, func() {
+	}, func(s *restest.Session, done func()) {
+		s.Service().With("test.collection", func(r res.Resource) {
+			restest.AssertPanic(t, func() {
 				r.RemoveEvent(-1)
 			})
 			done()
@@ -412,78 +420,84 @@ func TestRemoveEventPanicsOnIdxLessThanZero(t *testing.T) {
 
 // Test ReaccessEvent sends a reaccess event.
 func TestReaccessEvent(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.ReaccessEvent()
 			r.OK(nil)
 		}))
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).AssertSubject(t, "event.test.model.reaccess").AssertPayload(t, nil)
-		s.GetMsg(t).AssertSubject(t, inb)
+	}, func(s *restest.Session) {
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().
+			AssertReaccessEvent("test.model")
+		req.Response()
 	})
 }
 
 // Test ReaccessEvent sends a reaccess event, using With.
 func TestReaccessEventUsingWith(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
-	}, func(s *Session) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
+	}, func(s *restest.Session) {
+		restest.AssertNoError(t, s.Service().With("test.model", func(r res.Resource) {
 			r.ReaccessEvent()
 		}))
-		s.GetMsg(t).AssertSubject(t, "event.test.model.reaccess").AssertPayload(t, nil)
+		s.GetMsg().
+			AssertReaccessEvent("test.model")
 	})
 }
 
 // Test CreateEvent sends a create event.
 func TestCreateEvent(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.CreateEvent(map[string]interface{}{"foo": "bar"})
 			r.OK(nil)
 		}))
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).AssertSubject(t, "event.test.model.create").AssertPayload(t, nil)
-		s.GetMsg(t).AssertSubject(t, inb)
+	}, func(s *restest.Session) {
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().
+			AssertCreateEvent("test.model")
+		req.Response()
 	})
 }
 
 // Test CreateEvent sends a create event, using With.
 func TestCreateEventUsingWith(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
-	}, func(s *Session) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
+	}, func(s *restest.Session) {
+		restest.AssertNoError(t, s.Service().With("test.model", func(r res.Resource) {
 			r.CreateEvent(map[string]interface{}{"foo": "bar"})
 		}))
-		s.GetMsg(t).AssertSubject(t, "event.test.model.create").AssertPayload(t, nil)
+		s.GetMsg().
+			AssertCreateEvent("test.model")
 	})
 }
 
 // Test DeleteEvent sends a delete event.
 func TestDeleteEvent(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.Call("method", func(r res.CallRequest) {
 			r.DeleteEvent()
 			r.OK(nil)
 		}))
-	}, func(s *Session) {
-		inb := s.Request("call.test.model.method", nil)
-		s.GetMsg(t).AssertSubject(t, "event.test.model.delete").AssertPayload(t, nil)
-		s.GetMsg(t).AssertSubject(t, inb)
+	}, func(s *restest.Session) {
+		req := s.Call("test.model", "method", nil)
+		s.GetMsg().
+			AssertDeleteEvent("test.model")
+		req.Response()
 	})
 }
 
 // Test DeleteEvent sends a delete event, using With.
 func TestDeleteEventUsingWith(t *testing.T) {
-	runTest(t, func(s *Session) {
+	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
-	}, func(s *Session) {
-		AssertNoError(t, s.With("test.model", func(r res.Resource) {
+	}, func(s *restest.Session) {
+		restest.AssertNoError(t, s.Service().With("test.model", func(r res.Resource) {
 			r.DeleteEvent()
 		}))
-		s.GetMsg(t).AssertSubject(t, "event.test.model.delete").AssertPayload(t, nil)
+		s.GetMsg().
+			AssertDeleteEvent("test.model")
 	})
 }

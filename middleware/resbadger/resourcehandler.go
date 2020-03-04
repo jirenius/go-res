@@ -15,6 +15,7 @@ type resourceHandler struct {
 	rawDefault json.RawMessage
 	t          reflect.Type
 	idxs       *IndexSet
+	m          func(interface{}) (interface{}, error)
 	BadgerDB
 }
 
@@ -72,15 +73,25 @@ func (b *resourceHandler) getResource(r res.GetRequest) {
 	}
 
 	var resource interface{}
-	if r.ForValue() {
+	if r.ForValue() || b.m != nil {
 		v := reflect.New(b.t)
 		err = json.Unmarshal(dta, v.Interface())
 		if err != nil {
 			r.Error(res.ToError(err))
 		}
 		resource = v.Elem().Interface()
-	} else {
-		resource = json.RawMessage(dta)
+	}
+
+	if !r.ForValue() {
+		if b.m != nil {
+			resource, err = b.m(resource)
+			if err != nil {
+				r.Error(res.ToError(err))
+				return
+			}
+		} else {
+			resource = json.RawMessage(dta)
+		}
 	}
 
 	switch r.ResourceType() {
@@ -100,7 +111,10 @@ func (b *resourceHandler) applyChange(r res.Resource, changes map[string]interfa
 	}
 	var rev map[string]interface{}
 	var beforeValue, afterValue interface{}
-	idxUpdated := false
+	var updatedIdxs []string
+	if b.idxs != nil {
+		updatedIdxs = make([]string, 0, len(b.idxs.Indexes))
+	}
 
 	err := b.DB.Update(func(txn *badger.Txn) error {
 		var m map[string]interface{}
@@ -197,7 +211,7 @@ func (b *resourceHandler) applyChange(r res.Resource, changes map[string]interfa
 					// [TODO] Log warning of failing to create index entry
 					_ = txn.Set(idx.getKey(rname, afterKey), nil)
 				}
-				idxUpdated = true
+				updatedIdxs = append(updatedIdxs, idx.Name)
 			}
 		}
 
@@ -207,8 +221,11 @@ func (b *resourceHandler) applyChange(r res.Resource, changes map[string]interfa
 		return nil, err
 	}
 
-	if idxUpdated {
-		b.idxs.triggerListeners(r, beforeValue, afterValue)
+	if len(updatedIdxs) > 0 {
+		for _, idxname := range updatedIdxs {
+			b.idxs.triggerListeners(idxname, r, beforeValue, afterValue)
+		}
+		b.idxs.triggerListeners("", r, beforeValue, afterValue)
 	}
 
 	return rev, nil
@@ -340,6 +357,10 @@ func (b *resourceHandler) applyCreate(r res.Resource, value interface{}) error {
 	if typ == res.TypeUnset {
 		return errors.New("create event on unset resource type")
 	}
+	var updatedIdxs []string
+	if b.idxs != nil {
+		updatedIdxs = make([]string, 0, len(b.idxs.Indexes))
+	}
 
 	err := b.DB.Update(func(txn *badger.Txn) error {
 		rname := []byte(r.ResourceName())
@@ -372,10 +393,11 @@ func (b *resourceHandler) applyCreate(r res.Resource, value interface{}) error {
 			// [TODO] Check if value's type is the same as b.t. If not, use reflection to marshal into type b.t.
 			for _, idx := range b.idxs.Indexes {
 				iv := idx.Key(value)
-				// Ignore empty keys
-				if len(iv) > 0 {
+				// Ignore nil keys
+				if iv != nil {
 					// [TODO] Log warning of failing to create index
 					_ = txn.Set(idx.getKey(rname, iv), nil)
+					updatedIdxs = append(updatedIdxs, idx.Name)
 				}
 			}
 		}
@@ -388,8 +410,11 @@ func (b *resourceHandler) applyCreate(r res.Resource, value interface{}) error {
 	}
 
 	// Call index listeners
-	if b.idxs != nil {
-		b.idxs.triggerListeners(r, nil, value)
+	if len(updatedIdxs) > 0 {
+		for _, idxname := range updatedIdxs {
+			b.idxs.triggerListeners(idxname, r, nil, value)
+		}
+		b.idxs.triggerListeners("", r, nil, value)
 	}
 
 	return nil
@@ -398,6 +423,10 @@ func (b *resourceHandler) applyCreate(r res.Resource, value interface{}) error {
 func (b *resourceHandler) applyDelete(r res.Resource) (interface{}, error) {
 	var dta []byte
 	var value interface{}
+	var updatedIdxs []string
+	if b.idxs != nil {
+		updatedIdxs = make([]string, 0, len(b.idxs.Indexes))
+	}
 
 	err := b.DB.Update(func(txn *badger.Txn) error {
 		rname := []byte(r.ResourceName())
@@ -434,10 +463,11 @@ func (b *resourceHandler) applyDelete(r res.Resource) (interface{}, error) {
 			// Delete index entry
 			for _, idx := range b.idxs.Indexes {
 				iv := idx.Key(value)
-				// Ignore empty keys
-				if len(iv) > 0 {
+				// Ignore nil keys
+				if iv != nil {
 					// [TODO] Log warning of failing to delete index
 					_ = txn.Delete(idx.getKey(rname, iv))
+					updatedIdxs = append(updatedIdxs, idx.Name)
 				}
 			}
 		}
@@ -450,7 +480,10 @@ func (b *resourceHandler) applyDelete(r res.Resource) (interface{}, error) {
 
 	// If we have index, call index listeners
 	if b.idxs != nil {
-		b.idxs.triggerListeners(r, value, nil)
+		for _, idxname := range updatedIdxs {
+			b.idxs.triggerListeners(idxname, r, value, nil)
+		}
+		b.idxs.triggerListeners("", r, value, nil)
 	} else {
 		// If not, we need to unmarshal the data
 		// and get a proper value
