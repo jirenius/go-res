@@ -99,22 +99,22 @@ Add handlers for authentication:
 
 Add handlers for access control:
 
-s.Handle("mymodel",
-	res.Access(func(r res.AccessRequest) {
-		var t struct {
-			User string `json:"user"`
-		}
-		r.ParseToken(&t)
-		if t.User == "admin" {
-			r.AccessGranted()
-		} else {
-			r.AccessDenied()
-		}
-	}),
-	res.GetModel(func(r res.ModelRequest) {
-		r.Model(mymodel)
-	}),
-)
+	s.Handle("mymodel",
+		res.Access(func(r res.AccessRequest) {
+			var t struct {
+				User string `json:"user"`
+			}
+			r.ParseToken(&t)
+			if t.User == "admin" {
+				r.AccessGranted()
+			} else {
+				r.AccessDenied()
+			}
+		}),
+		res.GetModel(func(r res.ModelRequest) {
+			r.Model(mymodel)
+		}),
+	)
 
 Start service:
 
