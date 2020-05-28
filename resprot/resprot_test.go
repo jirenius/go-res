@@ -45,7 +45,7 @@ func TestUsage_SendCallRequest(t *testing.T) {
 
 	response := resprot.SendRequest(conn, "call.math.add", resprot.Request{Params: struct {
 		A float64 `json:"a"`
-		B float64 `json:"a"`
+		B float64 `json:"b"`
 	}{5, 6}}, time.Second)
 
 	var result struct {
