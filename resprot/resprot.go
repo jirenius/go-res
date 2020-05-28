@@ -16,7 +16,6 @@ var (
 	errResourceResponse          = errors.New("response is a resource response")
 	errInvalidModelResponse      = errors.New("invalid model response")
 	errInvalidCollectionResponse = errors.New("invalid collection response")
-	errInvalidAccessResponse     = errors.New("invalid access response")
 )
 
 var emptyRequest = []byte(`{}`)
