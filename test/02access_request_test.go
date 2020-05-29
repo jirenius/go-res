@@ -230,7 +230,7 @@ func TestAccess_WithMultipleResponses_CausesPanic(t *testing.T) {
 			})
 		}))
 	}, func(s *restest.Session) {
-		s.Access("test.model", mock.Request()).
+		s.Access("test.model", nil).
 			Response().
 			AssertAccess(true, "*")
 	})
@@ -247,5 +247,18 @@ func TestAccessRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
 		s.GetMsg().
 			AssertSubject(inb).
 			AssertErrorCode(res.CodeInternalError)
+	})
+}
+
+// Test AccessRequest getter methods
+func TestAccessRequestGetters(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.Access(func(r res.AccessRequest) {
+			restest.AssertEqualJSON(t, "CID", r.CID(), mock.CID)
+			r.AccessGranted()
+		}))
+	}, func(s *restest.Session) {
+		s.Access("test.model", nil).
+			Response()
 	})
 }

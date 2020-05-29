@@ -40,14 +40,15 @@ type Request struct {
 // AccessRequest has methods for responding to access requests.
 type AccessRequest interface {
 	Resource
+	CID() string
+	RawToken() json.RawMessage
+	ParseToken(interface{})
 	Access(get bool, call string)
 	AccessDenied()
 	AccessGranted()
 	NotFound()
 	InvalidQuery(message string)
 	Error(err error)
-	RawToken() json.RawMessage
-	ParseToken(interface{})
 	Timeout(d time.Duration)
 }
 

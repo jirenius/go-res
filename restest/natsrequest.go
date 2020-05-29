@@ -72,7 +72,7 @@ func (c *MockConn) Auth(rid string, method string, req *Request) *NATSRequest {
 // 	test.model?q=foo
 func (c *MockConn) Access(rid string, req *Request) *NATSRequest {
 	if req == nil {
-		req = DefaultAuthRequest()
+		req = DefaultAccessRequest()
 	}
 	r := *req
 	rname, q := parseRID(rid)

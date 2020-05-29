@@ -22,7 +22,7 @@ type MockConn struct {
 	cfg        MockConnConfig
 	mu         sync.Mutex
 	subs       map[*nats.Subscription]*mockSubscription
-	subStrings map[string]struct{}
+	subStrings map[string]string
 	rch        chan *nats.Msg
 
 	// Mock server fields
@@ -69,7 +69,7 @@ func NewMockConn(t *testing.T, cfg *MockConnConfig) *MockConn {
 			t:          t,
 			cfg:        *cfg,
 			subs:       make(map[*nats.Subscription]*mockSubscription),
-			subStrings: make(map[string]struct{}),
+			subStrings: make(map[string]string),
 			rch:        make(chan *nats.Msg, 256),
 		}
 	}
@@ -109,7 +109,7 @@ func NewMockConn(t *testing.T, cfg *MockConnConfig) *MockConn {
 		nc:         nc,
 		rc:         rc,
 		rch:        rch,
-		subStrings: make(map[string]struct{}),
+		subStrings: make(map[string]string),
 	}
 }
 
@@ -161,8 +161,8 @@ func (c *MockConn) PublishRequest(subj, reply string, payload []byte) error {
 	return nil
 }
 
-// ChanSubscribe subscribes to messages matching the subject pattern.
-func (c *MockConn) ChanSubscribe(subj string, ch chan *nats.Msg) (*nats.Subscription, error) {
+// ChanQueueSubscribe subscribes to messages matching the subject pattern.
+func (c *MockConn) ChanQueueSubscribe(subj, queue string, ch chan *nats.Msg) (*nats.Subscription, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.failNextSubscription {
@@ -174,7 +174,7 @@ func (c *MockConn) ChanSubscribe(subj string, ch chan *nats.Msg) (*nats.Subscrip
 		panic("test: subscription for " + subj + " already exists")
 	}
 
-	c.subStrings[subj] = struct{}{}
+	c.subStrings[subj] = queue
 
 	if c.cfg.UseGnatsd {
 		return c.nc.ChanSubscribe(subj, ch)
@@ -185,6 +185,13 @@ func (c *MockConn) ChanSubscribe(subj string, ch chan *nats.Msg) (*nats.Subscrip
 	c.subs[sub] = msub
 
 	return sub, nil
+}
+
+// ChanSubscribe subscribes to messages matching the subject pattern.
+//
+// Same as ChanQueueSubscribe with an empty ("") queue name.
+func (c *MockConn) ChanSubscribe(subj string, ch chan *nats.Msg) (*nats.Subscription, error) {
+	return c.ChanQueueSubscribe(subj, "", ch)
 }
 
 // Close will close the connection to the server.
@@ -273,6 +280,21 @@ func (c *MockConn) AssertSubscription(subj string) {
 	_, ok := c.subStrings[subj]
 	if !ok {
 		c.t.Fatalf("expected subscription for %#v, but found none", subj)
+	}
+}
+
+// AssertQueueSubscription asserts that the given subjects is subscribed with
+// the channel, on a specific queue group.
+func (c *MockConn) AssertQueueSubscription(subj, queue string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	q, ok := c.subStrings[subj]
+	if !ok {
+		c.t.Fatalf("expected subscription for %#v, but found none", subj)
+	}
+	if queue != q {
+		c.t.Fatalf("expected queue group for subscription %#v to be %#v, but found %#v", subj, queue, q)
 	}
 }
 

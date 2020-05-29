@@ -193,6 +193,7 @@ type Service struct {
 	wg             sync.WaitGroup         // WaitGroup for all workers
 	mu             sync.Mutex             // Mutex to protect rwork map
 	logger         logger.Logger          // Logger
+	queueGroup     string                 // Queue group to use with CharQueueSubscribe
 	resetResources []string               // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
 	resetAccess    []string               // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
 	queryTQ        *timerqueue.Queue      // Timer queue for query events duration
@@ -212,6 +213,7 @@ type Service struct {
 func NewService(name string) *Service {
 	s := &Service{
 		Mux:           NewMux(name),
+		queueGroup:    name,
 		logger:        logger.NewStdLogger(),
 		queryDuration: defaultQueryEventDuration,
 	}
@@ -235,6 +237,16 @@ func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
 		panic("res: service already started")
 	}
 	s.queryDuration = d
+	return s
+}
+
+// SetQueueGroup sets the queue group to use when subscribing to resources. By
+// default it will be the same as the service name.
+//
+// If queue is set to an empty string, the service will not belong to any queue
+// group.
+func (s *Service) SetQueueGroup(queue string) *Service {
+	s.queueGroup = queue
 	return s
 }
 
@@ -751,6 +763,7 @@ func (s *Service) setDefaultOwnership() {
 // subscribe makes a nats subscription for each required request type, based on
 // the patterns used for ResetAll.
 func (s *Service) subscribe() error {
+	var err error
 	s.setDefaultOwnership()
 	if len(s.resetResources) == 0 && len(s.resetAccess) == 0 {
 		return errors.New("res: no resources to serve")
@@ -769,7 +782,11 @@ func (s *Service) subscribe() error {
 	for _, p := range s.resetAccess {
 		pattern := "access." + p
 		s.tracef("sub %s", pattern)
-		_, err := s.nc.ChanSubscribe(pattern, s.inCh)
+		if s.queueGroup == "" {
+			_, err = s.nc.ChanSubscribe(pattern, s.inCh)
+		} else {
+			_, err = s.nc.ChanQueueSubscribe(pattern, s.queueGroup, s.inCh)
+		}
 		if err != nil {
 			return err
 		}
@@ -784,7 +801,11 @@ next:
 			}
 		}
 		s.tracef("sub %s", pattern)
-		_, err := s.nc.ChanSubscribe(pattern, s.inCh)
+		if s.queueGroup == "" {
+			_, err = s.nc.ChanSubscribe(pattern, s.inCh)
+		} else {
+			_, err = s.nc.ChanQueueSubscribe(pattern, s.queueGroup, s.inCh)
+		}
 		if err != nil {
 			return err
 		}
