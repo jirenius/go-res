@@ -149,15 +149,18 @@ func (qe *queryEvent) handleQueryRequest(m *nats.Msg) {
 	}
 
 	var rqr resQueryRequest
-	err := json.Unmarshal(m.Data, &rqr)
-	if err != nil {
-		s.errorf("Error unmarshaling incoming query request: %s", err)
-		qr.error(ToError(err))
-		return
+	var err error
+	if len(m.Data) > 0 {
+		err = json.Unmarshal(m.Data, &rqr)
+		if err != nil {
+			s.errorf("Error unmarshaling incoming query request: %s", err)
+			qr.error(ToError(err))
+			return
+		}
 	}
 
 	if rqr.Query == "" {
-		s.errorf("Missing query on incoming query request: %s", err)
+		s.errorf("Missing query on incoming query request: %s", m.Data)
 		qr.reply(responseMissingQuery)
 		return
 	}
