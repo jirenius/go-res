@@ -251,3 +251,18 @@ func TestServiceWithGroup_WithMatchingResource_CallsCallback(t *testing.T) {
 		}
 	})
 }
+
+func TestConn_BeforeServe_ReturnsNil(t *testing.T) {
+	s := res.NewService("test")
+	restest.AssertTrue(t, "Conn() returns nil", s.Conn() == nil)
+}
+
+func TestConn_AfterServe_ReturnsConn(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *restest.Session) {
+		conn, ok := s.Service().Conn().(*restest.MockConn)
+		restest.AssertTrue(t, "conn is not nil", conn != nil)
+		restest.AssertTrue(t, "conn is of type *MockConn", ok)
+	})
+}
