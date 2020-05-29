@@ -401,12 +401,11 @@ func (r *Request) New(rid Ref) {
 //
 // Only valid for call and auth requests.
 func (r *Request) ParseParams(p interface{}) {
-	if len(r.params) == 0 {
-		return
-	}
-	err := json.Unmarshal(r.params, p)
-	if err != nil {
-		panic(&Error{Code: CodeInvalidParams, Message: err.Error()})
+	if len(r.params) > 0 {
+		err := json.Unmarshal(r.params, p)
+		if err != nil {
+			panic(&Error{Code: CodeInvalidParams, Message: err.Error()})
+		}
 	}
 }
 
@@ -416,12 +415,11 @@ func (r *Request) ParseParams(p interface{}) {
 //
 // Not valid for get requests.
 func (r *Request) ParseToken(t interface{}) {
-	if len(r.token) == 0 {
-		return
-	}
-	err := json.Unmarshal(r.token, t)
-	if err != nil {
-		panic(InternalError(err))
+	if len(r.token) > 0 {
+		err := json.Unmarshal(r.token, t)
+		if err != nil {
+			panic(InternalError(err))
+		}
 	}
 }
 

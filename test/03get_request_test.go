@@ -592,3 +592,16 @@ func TestGet_WithMultipleResponses_CausesPanic(t *testing.T) {
 			AssertModel(mock.Model)
 	})
 }
+
+func TestGetResource_WithEmptyRequestPayload_ReturnsModel(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model.foo", res.GetResource(func(r res.GetRequest) {
+			r.Model(mock.Model)
+		}))
+	}, func(s *restest.Session) {
+		inb := s.RequestRaw("get.test.model.foo", nil)
+		s.GetMsg().
+			AssertSubject(inb).
+			AssertModel(mock.Model)
+	})
+}

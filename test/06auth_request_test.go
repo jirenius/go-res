@@ -453,3 +453,16 @@ func TestAuthRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
 			AssertErrorCode(res.CodeInternalError)
 	})
 }
+
+func TestAuthRequest_WithEmptyRequestPayload_ReturnsResult(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model.foo",
+			res.Auth("method", func(r res.AuthRequest) { r.OK(nil) }),
+		)
+	}, func(s *restest.Session) {
+		inb := s.RequestRaw("auth.test.model.foo.method", nil)
+		s.GetMsg().
+			AssertSubject(inb).
+			AssertResult(nil)
+	})
+}

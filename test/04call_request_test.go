@@ -434,3 +434,16 @@ func TestCallRequest_InvalidJSON_RespondsWithInternalError(t *testing.T) {
 			AssertErrorCode(res.CodeInternalError)
 	})
 }
+
+func TestCallRequest_WithEmptyRequestPayload_ReturnsResult(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model.foo",
+			res.Call("method", func(r res.CallRequest) { r.OK(nil) }),
+		)
+	}, func(s *restest.Session) {
+		inb := s.RequestRaw("call.test.model.foo.method", nil)
+		s.GetMsg().
+			AssertSubject(inb).
+			AssertResult(nil)
+	})
+}
