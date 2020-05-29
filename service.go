@@ -272,6 +272,17 @@ func (s *Service) ProtocolVersion() string {
 	return protocolVersion
 }
 
+// Conn returns the connection instance used by the service.
+//
+// If the service is not started, nil is returned.
+//
+// If the service was started using ListenAndServe, the connection will be of
+// type *nats.Conn:
+// 	nc := service.Conn().(*nats.Conn)
+func (s *Service) Conn() Conn {
+	return s.nc
+}
+
 // infof logs a formatted info entry.
 func (s *Service) infof(format string, v ...interface{}) {
 	if s.logger == nil {
@@ -507,9 +518,8 @@ func (s *Service) SetOwnedResources(resources, access []string) *Service {
 }
 
 // ListenAndServe connects to the NATS server at the url. Once connected, it
-// subscribes to incoming requests and serves them on a single goroutine in the
-// order they are received. For each request, it calls the appropriate handler,
-// or replies with the appropriate error if no handler is available.
+// subscribes to incoming requests. For each request, it calls the appropriate
+// handler, or replies with the appropriate error if no handler is available.
 //
 // In case of disconnect, it will try to reconnect until Close is called, or
 // until successfully reconnecting, upon which Reset will be called.
@@ -539,25 +549,34 @@ func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 		return err
 	}
 
-	nc.SetReconnectHandler(s.handleReconnect)
-	nc.SetDisconnectHandler(s.handleDisconnect)
-	nc.SetClosedHandler(s.handleClosed)
-
 	return s.serve(nc)
 }
 
-// Serve subscribes to incoming requests on the *Conn nc, serving them on a
-// single goroutine in the order they are received. For each request, it calls
-// the appropriate handler, or replies with the appropriate error if no handler
-// is available.
+// Serve starts serving incoming requests received on the connection conn. For
+// each request, it calls the appropriate handler, or replies with the
+// appropriate error if no handler is available.
+//
+// If the connection conn is of type *nats.Conn, Service will call
+// SetReconnectHandler, SetDisconnectHandler, and SetClosedHandler, replacing
+// any existing event handlers.
+//
+// In case of disconnect, it will try to reconnect until Close is called, or
+// until successfully reconnecting, upon which Reset will be called.
 //
 // Serve returns an error if failes to subscribe. Otherwise, nil is returned
-// once the *Conn is closed.
-func (s *Service) Serve(nc Conn) error {
+// once the connection is closed.
+func (s *Service) Serve(conn Conn) error {
 	if !atomic.CompareAndSwapInt32(&s.state, stateStopped, stateStarting) {
 		return errNotStopped
 	}
-	return s.serve(nc)
+
+	if nc, ok := conn.(*nats.Conn); ok {
+		nc.SetReconnectHandler(s.handleReconnect)
+		nc.SetDisconnectHandler(s.handleDisconnect)
+		nc.SetClosedHandler(s.handleClosed)
+	}
+
+	return s.serve(conn)
 }
 
 func (s *Service) serve(nc Conn) error {
