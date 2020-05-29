@@ -148,7 +148,7 @@ func (r Response) ParseModel(model interface{}) (string, error) {
 		}
 	}
 
-	if result.Collection != nil || result.Model != nil {
+	if result.Collection != nil || result.Model == nil {
 		return "", errInvalidModelResponse
 	}
 
@@ -181,7 +181,7 @@ func (r Response) ParseCollection(collection interface{}) (string, error) {
 		}
 	}
 
-	if result.Model != nil || result.Collection != nil {
+	if result.Model != nil || result.Collection == nil {
 		return "", errInvalidCollectionResponse
 	}
 
@@ -327,7 +327,7 @@ type QueryResult struct {
 //
 // SendRequest handles pre-responses that may extend timeout. Reference:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#pre-response
-func SendRequest(nc *nats.Conn, subject string, req interface{}, timeout time.Duration) Response {
+func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Duration) Response {
 	var r Response
 
 	// Marshal the request

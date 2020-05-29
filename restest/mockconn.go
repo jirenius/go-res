@@ -60,7 +60,7 @@ var testOptions = server.Options{
 
 // NewMockConn creates a new MockConn.
 func NewMockConn(t *testing.T, cfg *MockConnConfig) *MockConn {
-	if cfg != nil {
+	if cfg == nil {
 		cfg = &MockConnConfig{TimeoutDuration: DefaultTimeoutDuration}
 	}
 	if !cfg.UseGnatsd {
@@ -133,6 +133,27 @@ func (c *MockConn) Publish(subj string, payload []byte) error {
 	msg := &nats.Msg{
 		Subject: subj,
 		Data:    payload,
+	}
+
+	c.rch <- msg
+
+	return nil
+}
+
+// PublishRequest publishes a request expecting a response on the reply
+// subject.
+func (c *MockConn) PublishRequest(subj, reply string, payload []byte) error {
+	if c.cfg.UseGnatsd {
+		return c.nc.PublishRequest(subj, reply, payload)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	msg := &nats.Msg{
+		Subject: subj,
+		Data:    payload,
+		Reply:   reply,
 	}
 
 	c.rch <- msg
