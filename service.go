@@ -15,7 +15,7 @@ import (
 )
 
 // Supported RES protocol version.
-const protocolVersion = "1.2.0"
+const protocolVersion = "1.2.1"
 
 // The size of the in channel receiving messages from NATS Server.
 const inChannelSize = 256
