@@ -32,6 +32,7 @@ var changeEventTestTbl = []struct {
 	{map[string]interface{}{"foo": 12, "bar": true}},
 	{map[string]interface{}{"foo": "bar", "deleted": res.DeleteAction}},
 	{map[string]interface{}{"foo": res.Ref("test.model.bar")}},
+	{map[string]interface{}{"foo": res.SoftRef("test.model.bar")}},
 }
 
 var addEventTestTbl = []struct {
@@ -44,6 +45,7 @@ var addEventTestTbl = []struct {
 	{nil, 2, json.RawMessage(`{"value":null,"idx":2}`)},
 	{true, 3, json.RawMessage(`{"value":true,"idx":3}`)},
 	{res.Ref("test.model.bar"), 4, json.RawMessage(`{"value":{"rid":"test.model.bar"},"idx":4}`)},
+	{res.SoftRef("test.model.bar"), 5, json.RawMessage(`{"value":{"rid":"test.model.bar","soft":true},"idx":5}`)},
 }
 
 var removeEventTestTbl = []struct {
