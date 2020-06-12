@@ -15,6 +15,33 @@ type Ref string
 //  {"rid":"userService.user.42","soft":true}
 type SoftRef string
 
+// DataValue is a wrapper for values that may marshal into any type of json
+// value, including objects, arrays, or nested structures.
+//
+// If a value marshals into a json object or array, it must be wrapped with
+// DataValue or similar, or else the value will be considered invalid.
+//
+// Example:
+// 	s.Handle("timezones", res.GetCollection(func(r res.CollectionRequest) {
+// 		type tz struct {
+// 			Abbr   string `json:"abbr"`
+// 			Offset int    `json:"offset"`
+// 		}
+// 		r.Collection([]res.DataValue{
+// 			res.DataValue{tz{"GMT", 0}},
+// 			res.DataValue{tz{"CET", 1}},
+// 		})
+// 	}))
+//
+// For objects and arrays, it marshals into a data value object, eg.:
+//  json.Marshal(res.DataValue{[]int{1, 2, 3}}) // Result: {"data":[1,2,3]}
+//
+// For strings, numbers, booleans, and null values, it marshals into a primitive value, eg.:
+//  json.Marshal(res.DataValue{nil}) // Result: null
+type DataValue struct {
+	Data interface{} `json:"data"`
+}
+
 var (
 	refPrefix     = []byte(`{"rid":`)
 	softRefSuffix = []byte(`,"soft":true}`)
