@@ -14,10 +14,12 @@ type QueryHandler struct {
 	// A QueryStore from where to fetch the resource references.
 	QueryStore QueryStore
 	// QueryRequestHandler transforms an external query request and path param
-	// values into a query that can be handled by the QueryStore. The QueryHandler will rerespond with a query resource.
+	// values into a query that can be handled by the QueryStore. The
+	// QueryHandler will respond with a query resource.
 	//
-	// A non-empty normalized query string based on the url.Values must be returned.
-	// See: https://resgate.io/docs/specification/res-service-protocol/#get-request
+	// A non-empty normalized query string based on the url.Values must be
+	// returned. See:
+	// https://resgate.io/docs/specification/res-service-protocol/#get-request
 	//
 	// Must not be set if RequestHandler is set.
 	QueryRequestHandler func(rname string, pathParams map[string]string, q url.Values) (url.Values, string, error)
@@ -26,8 +28,8 @@ type QueryHandler struct {
 	//
 	// Must not be set if QueryRequestHandler is set.
 	RequestHandler func(rname string, pathParams map[string]string) (url.Values, error)
-	// Transformer transforms the internal query results and events into an external
-	// resource, and events for the external resource.
+	// Transformer transforms the internal query results and events into an
+	// external resource, and events for the external resource.
 	Transformer QueryTransformer
 	// AffectedResources is called on query change, and should return a list of
 	// resources affected by the change.
@@ -36,11 +38,11 @@ type QueryHandler struct {
 	//
 	// Example
 	//
-	// If a the handler listens for requests on: library.books.$firstLetter
-	// A change of a book's name from "Alpha" to "Beta" should have
+	// If a the handler listens for requests on: library.books.$firstLetter A
+	// change of a book's name from "Alpha" to "Beta" should have
 	// AffectedResources return the following:
 	//
-	// 	[]string{"library.books.a", "library.books.b"}
+	//  []string{"library.books.a", "library.books.b"}
 	AffectedResources func(res.Pattern, QueryChange) []string
 }
 
@@ -58,25 +60,29 @@ type queryHandler struct {
 	isQuery bool
 }
 
-// WithQueryStore returns a new QueryHandler value with QueryStore set to qstore.
+// WithQueryStore returns a new QueryHandler value with QueryStore set to
+// qstore.
 func (qh QueryHandler) WithQueryStore(qstore QueryStore) QueryHandler {
 	qh.QueryStore = qstore
 	return qh
 }
 
-// WithQueryRequestHandler returns a new QueryHandler value with QueryRequestHandler set to f.
+// WithQueryRequestHandler returns a new QueryHandler value with
+// QueryRequestHandler set to f.
 func (qh QueryHandler) WithQueryRequestHandler(f func(rname string, pathParams map[string]string, q url.Values) (url.Values, string, error)) QueryHandler {
 	qh.QueryRequestHandler = f
 	return qh
 }
 
-// WithRequestHandler returns a new QueryHandler value with RequestHandler set to f.
+// WithRequestHandler returns a new QueryHandler value with RequestHandler set
+// to f.
 func (qh QueryHandler) WithRequestHandler(f func(rname string, pathParams map[string]string) (url.Values, error)) QueryHandler {
 	qh.RequestHandler = f
 	return qh
 }
 
-// WithTransformer returns a new QueryHandler value with Tranformer set to transformer.
+// WithTransformer returns a new QueryHandler value with Tranformer set to
+// transformer.
 func (qh QueryHandler) WithTransformer(transformer QueryTransformer) QueryHandler {
 	qh.Transformer = transformer
 	return qh
@@ -88,7 +94,7 @@ func (qh QueryHandler) WithAffectedResources(f func(res.Pattern, QueryChange) []
 	return qh
 }
 
-// SetOption is to implement the res.Option interface
+// SetOption is to implement the res.Option interface.
 func (qh QueryHandler) SetOption(h *res.Handler) {
 	if qh.QueryStore == nil {
 		panic("no QueryStore is set")

@@ -18,11 +18,19 @@ var (
 	errInvalidCollectionResponse = errors.New("invalid collection response")
 )
 
-var emptyRequest = []byte(`{}`)
+var (
+	emptyRequest = []byte(`{}`)
+)
+
+var (
+	errUnexpectedEnd     = errors.New("unexpected end of JSON input")
+	errUnexpectedBracket = errors.New("unexpected character '[' looking for beginning of primitive value or data value object")
+	errMissingDataKey    = errors.New(`object is missing "data" key string`)
+)
 
 // Request represents the payload of a request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#requests
 type Request struct {
 
@@ -77,7 +85,7 @@ type Request struct {
 
 // Response represents the response to a request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#response
 type Response struct {
 
@@ -237,7 +245,7 @@ func (r Response) ParseResult(v interface{}) error {
 
 // AccessResult is the result of an access request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#access-request
 type AccessResult struct {
 	Get  bool   `json:"get,omitempty"`
@@ -246,7 +254,7 @@ type AccessResult struct {
 
 // GetResult is the result of a get request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#get-request
 type GetResult struct {
 	Model      json.RawMessage `json:"model,omitempty"`
@@ -256,7 +264,7 @@ type GetResult struct {
 
 // ResetEvent is the payload of a system reset event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#system-reset-event
 type ResetEvent struct {
 	Resources []string `json:"resources,omitempty"`
@@ -265,7 +273,7 @@ type ResetEvent struct {
 
 // TokenEvent is the payload of a connection token event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#connection-token-event
 type TokenEvent struct {
 	Token interface{} `json:"token"`
@@ -273,7 +281,7 @@ type TokenEvent struct {
 
 // ChangeEvent is the payload of a model change event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#model-change-event
 type ChangeEvent struct {
 	Values map[string]interface{} `json:"values"`
@@ -281,7 +289,7 @@ type ChangeEvent struct {
 
 // AddEvent is the payload of a collection add event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#collection-add-event
 type AddEvent struct {
 	Value interface{} `json:"value"`
@@ -290,7 +298,7 @@ type AddEvent struct {
 
 // RemoveEvent is the payload of a collection remove event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#collection-remove-event
 type RemoveEvent struct {
 	Idx int `json:"idx"`
@@ -298,7 +306,7 @@ type RemoveEvent struct {
 
 // QueryEvent is the payload of a query event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-event
 type QueryEvent struct {
 	Subject string `json:"subject"`
@@ -312,7 +320,7 @@ type EventEntry struct {
 
 // QueryResult is the result of an query request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-request
 type QueryResult struct {
 	Events []EventEntry `json:"events"`
@@ -325,7 +333,7 @@ type QueryResult struct {
 //
 // if req is nil, an empty json object, {}, will be sent as payload instead.
 //
-// SendRequest handles pre-responses that may extend timeout. Reference:
+// SendRequest handles pre-responses that may extend timeout. See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#pre-response
 func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Duration) Response {
 	var r Response
@@ -390,4 +398,98 @@ func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Dura
 			}
 		}
 	}
+}
+
+// UnmarshalDataValue parses the JSON-encoded data and stores the result in the value pointed to by v, similar to json.Unmarshal.
+//
+// If the JSON data starts with an object, UnmarshalDataValue will use the value of the object key "data" to store in v, or will return an error if the object key "data" does not exist.
+//
+// If the JSON data start with an array, UnmarshalDataValue will return an error.
+//
+// 	UnmarshalDataValue([]byte(`42`), v)                     // sets v to 42
+// 	UnmarshalDataValue([]byte(`"foo"`), v)                  // sets v to "foo"
+// 	UnmarshalDataValue([]byte(`{"data":true}`), v)          // sets v to true
+// 	UnmarshalDataValue([]byte(`{"data":["foo","bar"]}`), v) // sets v to []string{"foo", "bar"}
+// 	UnmarshalDataValue([]byte(`{"foo":"bar"}`), v)          // returns error
+// 	UnmarshalDataValue([]byte(`[1,2,3]`), v)                // returns error
+//
+// UnmarshalDataValue can be used to implement the json.Unmarshaler interface:
+//
+// 	func (t *T) UnmarshalJSON([]byte) error
+// 		return UnmarshalDataValue(data, t)
+// 	}
+//
+// See:
+// https://github.com/resgateio/resgate/blob/master/docs/res-protocol.md#data-values
+func UnmarshalDataValue(data []byte, v interface{}) error {
+	// Get first non-whitespace character
+	var c byte
+	i := 0
+	for {
+		if i == len(data) {
+			return errUnexpectedEnd
+		}
+		c = data[i]
+		if c != 0x20 && c != 0x09 && c != 0x0A && c != 0x0D {
+			break
+		}
+		i++
+	}
+
+	// Data values cannot be arrays
+	if c == '[' {
+		return errUnexpectedBracket
+	}
+
+	// Data value object start
+	if c == '{' {
+		var dv struct {
+			Data json.RawMessage `json:"data"`
+		}
+		err := json.Unmarshal(data, &dv)
+		if err != nil {
+			return err
+		}
+		if dv.Data == nil {
+			return errMissingDataKey
+		}
+		data = dv.Data
+	}
+
+	return json.Unmarshal(data, v)
+}
+
+// MarshalDataValue returns the JSON encoding of v, similar to json.Marshal.
+//
+// If v encodes into a JSON object or array, MarshalDataValue will wrap the value in a data object, where the value is stored under the key "data".
+//
+// 	MarshalDataValue(42)                        // Returns []byte(`42`)
+// 	MarshalDataValue("foo"), v)                 // Returns []byte(`"foo"`)
+// 	MarshalDataValue([]string{"foo", "bar"})    // Returns []byte(`{"data":["foo","bar"]}`)
+// 	MarshalDataValue(map[string]int{"foo": 42}) // Returns []byte(`{"data":{"foo":42}}`)
+//
+// MarshalDataValue can be used to implement the json.Marshaler interface:
+//
+// 	func (t T) MarshalJSON() ([]byte, error)
+// 		return MarshalDataValue(t)
+// 	}
+//
+// See:
+// https://github.com/resgateio/resgate/blob/master/docs/res-protocol.md#data-values
+func MarshalDataValue(v interface{}) ([]byte, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	c := data[0]
+	// Wrap in data value object if the value is an object or array
+	if c == '[' || c == '{' {
+		o := make([]byte, len(data)+9) // 9 = len(`{"data":}`)
+		copy(o, `{"data":`)
+		copy(o[8:], data)
+		o[len(o)-1] = '}'
+		return o, nil
+	}
+
+	return data, nil
 }
