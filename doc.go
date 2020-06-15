@@ -1,17 +1,18 @@
 /*
-Package res provides RES service implementations for realtime API's through Resgate:
+Package res is used to create REST, real time, and RPC APIs, where all your
+reactive web clients are synchronized seamlessly through Resgate:
 
 https://github.com/resgateio/resgate
 
-The implementation provides low level methods to listen to and handle incoming
-requests, and to send events.
+The implementation provides structs and methods for creating services that
+listen to requests and send events over NATS server.
 
 Concurrency
 
 Requests are handled concurrently for multiple resources, but the package
-guarantees that only one goroutine is executing handlers for any unique
-resource at any one time. This allows handlers to modify models and collections
-without additional synchronization such as mutexes.
+guarantees that only one goroutine is executing handlers for any unique resource
+at any one time. This allows handlers to modify models and collections without
+additional synchronization such as mutexes.
 
 Usage
 
@@ -99,22 +100,22 @@ Add handlers for authentication:
 
 Add handlers for access control:
 
-s.Handle("mymodel",
-	res.Access(func(r res.AccessRequest) {
-		var t struct {
-			User string `json:"user"`
-		}
-		r.ParseToken(&t)
-		if t.User == "admin" {
-			r.AccessGranted()
-		} else {
-			r.AccessDenied()
-		}
-	}),
-	res.GetModel(func(r res.ModelRequest) {
-		r.Model(mymodel)
-	}),
-)
+	s.Handle("mymodel",
+		res.Access(func(r res.AccessRequest) {
+			var t struct {
+				User string `json:"user"`
+			}
+			r.ParseToken(&t)
+			if t.User == "admin" {
+				r.AccessGranted()
+			} else {
+				r.AccessDenied()
+			}
+		}),
+		res.GetModel(func(r res.ModelRequest) {
+			r.Model(mymodel)
+		}),
+	)
 
 Start service:
 

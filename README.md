@@ -207,6 +207,10 @@ s.ListenAndServe("nats://localhost:4222")
 
 The [restest](restest/) subpackage is used for testing services and validate responses.
 
+## Inter-service communication [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/resprot)
+
+The [resprot](resprot/) subpackage provides low level structs and methods for communicating with other services over NATS server.
+
 ## Storage [![Reference][godev]](https://pkg.go.dev/github.com/jirenius/go-res/store)
 
 The [store](store/) subpackage contains handlers and interfaces for working with database storage.

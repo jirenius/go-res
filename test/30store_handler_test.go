@@ -193,8 +193,11 @@ var testSetCollectionTbl = []struct {
 	{mock.Collection, json.RawMessage(`[42,false,"foo",null]`), []store.ResultEvent{
 		{Name: "add", Value: false, Idx: 1},
 	}},
-	{mock.Collection, json.RawMessage(`[42,"foo",null,{"rid":"test.ref"}]`), []store.ResultEvent{
-		{Name: "add", Value: res.Ref("test.ref"), Idx: 3},
+	{mock.Collection, json.RawMessage(`[42,"foo",{"rid":"test.ref"},null]`), []store.ResultEvent{
+		{Name: "add", Value: res.Ref("test.ref"), Idx: 2},
+	}},
+	{mock.Collection, json.RawMessage(`[42,"foo",null,{"rid":"test.ref","soft":true}]`), []store.ResultEvent{
+		{Name: "add", Value: res.SoftRef("test.ref"), Idx: 3},
 	}},
 	// Replace
 	{mock.Collection, json.RawMessage(`[true,"foo",null]`), []store.ResultEvent{

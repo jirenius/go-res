@@ -36,7 +36,7 @@ func TestService(t *testing.T) {
 // Test that the service returns the correct protocol version
 func TestServiceProtocolVersion(t *testing.T) {
 	s := res.NewService("test")
-	restest.AssertEqualJSON(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.0")
+	restest.AssertEqualJSON(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.1")
 }
 
 // Test that the service can be served without error
@@ -249,5 +249,20 @@ func TestServiceWithGroup_WithMatchingResource_CallsCallback(t *testing.T) {
 				t.Fatal("expected WithGroup callback to be called, but it wasn't")
 			}
 		}
+	})
+}
+
+func TestConn_BeforeServe_ReturnsNil(t *testing.T) {
+	s := res.NewService("test")
+	restest.AssertTrue(t, "Conn() returns nil", s.Conn() == nil)
+}
+
+func TestConn_AfterServe_ReturnsConn(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *restest.Session) {
+		conn, ok := s.Service().Conn().(*restest.MockConn)
+		restest.AssertTrue(t, "conn is not nil", conn != nil)
+		restest.AssertTrue(t, "conn is of type *MockConn", ok)
 	})
 }

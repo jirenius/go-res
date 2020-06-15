@@ -12,11 +12,11 @@ func TestRegisterModelHandler(t *testing.T) {
 	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.GetModel(func(r res.ModelRequest) { r.NotFound() }))
 	}, func(s *restest.Session) {
-		s.AssertSubscription("get.test")
-		s.AssertSubscription("get.test.>")
-		s.AssertSubscription("call.test.>")
+		s.AssertQueueSubscription("get.test", "test")
+		s.AssertQueueSubscription("get.test.>", "test")
+		s.AssertQueueSubscription("call.test.>", "test")
 		s.AssertNoSubscription("call.test")
-		s.AssertSubscription("auth.test.>")
+		s.AssertQueueSubscription("auth.test.>", "test")
 		s.AssertNoSubscription("auth.test")
 		s.AssertNoSubscription("access.test.>")
 		s.AssertNoSubscription("access.test")
@@ -35,8 +35,8 @@ func TestRegisterAccessHandler(t *testing.T) {
 		s.AssertNoSubscription("call.test")
 		s.AssertNoSubscription("auth.test.>")
 		s.AssertNoSubscription("auth.test")
-		s.AssertSubscription("access.test.>")
-		s.AssertSubscription("access.test")
+		s.AssertQueueSubscription("access.test.>", "test")
+		s.AssertQueueSubscription("access.test", "test")
 	}, restest.WithReset(nil, []string{"test", "test.>"}))
 }
 
@@ -49,14 +49,14 @@ func TestRegisterModelAndAccessHandler(t *testing.T) {
 			res.Access(res.AccessGranted),
 		)
 	}, func(s *restest.Session) {
-		s.AssertSubscription("get.test")
-		s.AssertSubscription("get.test.>")
-		s.AssertSubscription("call.test.>")
+		s.AssertQueueSubscription("get.test", "test")
+		s.AssertQueueSubscription("get.test.>", "test")
+		s.AssertQueueSubscription("call.test.>", "test")
 		s.AssertNoSubscription("call.test")
-		s.AssertSubscription("auth.test.>")
+		s.AssertQueueSubscription("auth.test.>", "test")
 		s.AssertNoSubscription("auth.test")
-		s.AssertSubscription("access.test.>")
-		s.AssertSubscription("access.test")
+		s.AssertQueueSubscription("access.test.>", "test")
+		s.AssertQueueSubscription("access.test", "test")
 	}, restest.WithReset([]string{"test", "test.>"}, []string{"test", "test.>"}))
 }
 
@@ -146,4 +146,42 @@ func TestHandler_InvalidHandlerOptions_CausesPanic(t *testing.T) {
 			})
 		}, nil, restest.WithoutReset)
 	}
+}
+
+func TestSetQueueGroup_WithDifferentGroup_RegisterModelAndAccessHandlerOnGroup(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.SetQueueGroup("foo").
+			Handle("model",
+				res.GetModel(func(r res.ModelRequest) { r.NotFound() }),
+				res.Access(res.AccessGranted),
+			)
+	}, func(s *restest.Session) {
+		s.AssertQueueSubscription("get.test", "foo")
+		s.AssertQueueSubscription("get.test.>", "foo")
+		s.AssertQueueSubscription("call.test.>", "foo")
+		s.AssertNoSubscription("call.test")
+		s.AssertQueueSubscription("auth.test.>", "foo")
+		s.AssertNoSubscription("auth.test")
+		s.AssertQueueSubscription("access.test.>", "foo")
+		s.AssertQueueSubscription("access.test", "foo")
+	}, restest.WithReset([]string{"test", "test.>"}, []string{"test", "test.>"}))
+}
+
+func TestSetQueueGroup_WithEmptyGroup_RegisterModelAndAccessHandlerWithoutGroup(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.SetQueueGroup("").
+			Handle("model",
+				res.GetModel(func(r res.ModelRequest) { r.NotFound() }),
+				res.Access(res.AccessGranted),
+			)
+	}, func(s *restest.Session) {
+		s.AssertQueueSubscription("get.test", "")
+		s.AssertQueueSubscription("get.test.>", "")
+		s.AssertQueueSubscription("call.test.>", "")
+		s.AssertNoSubscription("call.test")
+		s.AssertQueueSubscription("auth.test.>", "")
+		s.AssertNoSubscription("auth.test")
+		s.AssertQueueSubscription("access.test.>", "")
+		s.AssertQueueSubscription("access.test", "")
+	}, restest.WithReset([]string{"test", "test.>"}, []string{"test", "test.>"}))
 }

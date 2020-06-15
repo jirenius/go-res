@@ -15,7 +15,7 @@ import (
 )
 
 // Supported RES protocol version.
-const protocolVersion = "1.2.0"
+const protocolVersion = "1.2.1"
 
 // The size of the in channel receiving messages from NATS Server.
 const inChannelSize = 256
@@ -193,6 +193,7 @@ type Service struct {
 	wg             sync.WaitGroup         // WaitGroup for all workers
 	mu             sync.Mutex             // Mutex to protect rwork map
 	logger         logger.Logger          // Logger
+	queueGroup     string                 // Queue group to use with CharQueueSubscribe
 	resetResources []string               // List of resource name patterns used on system.reset for resources. Defaults to serviceName+">"
 	resetAccess    []string               // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
 	queryTQ        *timerqueue.Queue      // Timer queue for query events duration
@@ -212,6 +213,7 @@ type Service struct {
 func NewService(name string) *Service {
 	s := &Service{
 		Mux:           NewMux(name),
+		queueGroup:    name,
 		logger:        logger.NewStdLogger(),
 		queryDuration: defaultQueryEventDuration,
 	}
@@ -235,6 +237,16 @@ func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
 		panic("res: service already started")
 	}
 	s.queryDuration = d
+	return s
+}
+
+// SetQueueGroup sets the queue group to use when subscribing to resources. By
+// default it will be the same as the service name.
+//
+// If queue is set to an empty string, the service will not belong to any queue
+// group.
+func (s *Service) SetQueueGroup(queue string) *Service {
+	s.queueGroup = queue
 	return s
 }
 
@@ -270,6 +282,17 @@ func (s *Service) Logger() logger.Logger {
 // ProtocolVersion returns the supported RES protocol version.
 func (s *Service) ProtocolVersion() string {
 	return protocolVersion
+}
+
+// Conn returns the connection instance used by the service.
+//
+// If the service is not started, nil is returned.
+//
+// If the service was started using ListenAndServe, the connection will be of
+// type *nats.Conn:
+// 	nc := service.Conn().(*nats.Conn)
+func (s *Service) Conn() Conn {
+	return s.nc
 }
 
 // infof logs a formatted info entry.
@@ -507,9 +530,8 @@ func (s *Service) SetOwnedResources(resources, access []string) *Service {
 }
 
 // ListenAndServe connects to the NATS server at the url. Once connected, it
-// subscribes to incoming requests and serves them on a single goroutine in the
-// order they are received. For each request, it calls the appropriate handler,
-// or replies with the appropriate error if no handler is available.
+// subscribes to incoming requests. For each request, it calls the appropriate
+// handler, or replies with the appropriate error if no handler is available.
 //
 // In case of disconnect, it will try to reconnect until Close is called, or
 // until successfully reconnecting, upon which Reset will be called.
@@ -539,25 +561,34 @@ func (s *Service) ListenAndServe(url string, options ...nats.Option) error {
 		return err
 	}
 
-	nc.SetReconnectHandler(s.handleReconnect)
-	nc.SetDisconnectHandler(s.handleDisconnect)
-	nc.SetClosedHandler(s.handleClosed)
-
 	return s.serve(nc)
 }
 
-// Serve subscribes to incoming requests on the *Conn nc, serving them on a
-// single goroutine in the order they are received. For each request, it calls
-// the appropriate handler, or replies with the appropriate error if no handler
-// is available.
+// Serve starts serving incoming requests received on the connection conn. For
+// each request, it calls the appropriate handler, or replies with the
+// appropriate error if no handler is available.
+//
+// If the connection conn is of type *nats.Conn, Service will call
+// SetReconnectHandler, SetDisconnectHandler, and SetClosedHandler, replacing
+// any existing event handlers.
+//
+// In case of disconnect, it will try to reconnect until Close is called, or
+// until successfully reconnecting, upon which Reset will be called.
 //
 // Serve returns an error if failes to subscribe. Otherwise, nil is returned
-// once the *Conn is closed.
-func (s *Service) Serve(nc Conn) error {
+// once the connection is closed.
+func (s *Service) Serve(conn Conn) error {
 	if !atomic.CompareAndSwapInt32(&s.state, stateStopped, stateStarting) {
 		return errNotStopped
 	}
-	return s.serve(nc)
+
+	if nc, ok := conn.(*nats.Conn); ok {
+		nc.SetReconnectHandler(s.handleReconnect)
+		nc.SetDisconnectHandler(s.handleDisconnect)
+		nc.SetClosedHandler(s.handleClosed)
+	}
+
+	return s.serve(conn)
 }
 
 func (s *Service) serve(nc Conn) error {
@@ -732,6 +763,7 @@ func (s *Service) setDefaultOwnership() {
 // subscribe makes a nats subscription for each required request type, based on
 // the patterns used for ResetAll.
 func (s *Service) subscribe() error {
+	var err error
 	s.setDefaultOwnership()
 	if len(s.resetResources) == 0 && len(s.resetAccess) == 0 {
 		return errors.New("res: no resources to serve")
@@ -750,7 +782,11 @@ func (s *Service) subscribe() error {
 	for _, p := range s.resetAccess {
 		pattern := "access." + p
 		s.tracef("sub %s", pattern)
-		_, err := s.nc.ChanSubscribe(pattern, s.inCh)
+		if s.queueGroup == "" {
+			_, err = s.nc.ChanSubscribe(pattern, s.inCh)
+		} else {
+			_, err = s.nc.ChanQueueSubscribe(pattern, s.queueGroup, s.inCh)
+		}
 		if err != nil {
 			return err
 		}
@@ -765,7 +801,11 @@ next:
 			}
 		}
 		s.tracef("sub %s", pattern)
-		_, err := s.nc.ChanSubscribe(pattern, s.inCh)
+		if s.queueGroup == "" {
+			_, err = s.nc.ChanSubscribe(pattern, s.inCh)
+		} else {
+			_, err = s.nc.ChanQueueSubscribe(pattern, s.queueGroup, s.inCh)
+		}
 		if err != nil {
 			return err
 		}

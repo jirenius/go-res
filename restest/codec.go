@@ -21,6 +21,11 @@ func DefaultCallRequest() *Request {
 	return &Request{CID: "testcid"}
 }
 
+// DefaultAccessRequest returns a default access request without token.
+func DefaultAccessRequest() *Request {
+	return &Request{CID: "testcid"}
+}
+
 // DefaultAuthRequest returns a default auth request.
 func DefaultAuthRequest() *Request {
 	return &Request{

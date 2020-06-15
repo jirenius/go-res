@@ -12,7 +12,7 @@ import (
 // Test Ref IsValid method
 func TestRefIsValid(t *testing.T) {
 	tbl := []struct {
-		RID   res.Ref
+		RID   string
 		Valid bool
 	}{
 		// Valid RID
@@ -57,12 +57,20 @@ func TestRefIsValid(t *testing.T) {
 	}
 
 	for _, l := range tbl {
-		v := l.RID.IsValid()
+		v := res.Ref(l.RID).IsValid()
 		if v != l.Valid {
 			if l.Valid {
 				t.Errorf("expected Ref %#v to be valid, but it wasn't", l.RID)
 			} else {
 				t.Errorf("expected Ref %#v not to be valid, but it was", l.RID)
+			}
+		}
+		v = res.SoftRef(l.RID).IsValid()
+		if v != l.Valid {
+			if l.Valid {
+				t.Errorf("expected SoftRef %#v to be valid, but it wasn't", l.RID)
+			} else {
+				t.Errorf("expected SoftRef %#v not to be valid, but it was", l.RID)
 			}
 		}
 	}
@@ -130,6 +138,90 @@ func TestRefUnmarshalJSON(t *testing.T) {
 
 	for i, l := range tbl {
 		var ref res.Ref
+		err := ref.UnmarshalJSON(l.JSON)
+		if l.Error {
+			restest.AssertError(t, err, fmt.Sprintf("test #%d", i+1))
+		} else {
+			restest.AssertNoError(t, err, fmt.Sprintf("test #%d", i+1))
+		}
+		if ref != l.Expected {
+			t.Errorf("expected ref to be:\n%s\nbut got:\n%s", ref, l.Expected)
+		}
+	}
+}
+
+// Test SoftRef MarshalJSON method
+func TestSoftRefMarshalJSON(t *testing.T) {
+	tbl := []struct {
+		RID      res.SoftRef
+		Expected []byte
+	}{
+		// Valid RID
+		{"test", []byte(`{"rid":"test","soft":true}`)},
+		{"test.model", []byte(`{"rid":"test.model","soft":true}`)},
+		{"test.model._hej_", []byte(`{"rid":"test.model._hej_","soft":true}`)},
+		{"test.model.<strange", []byte(`{"rid":"test.model.<strange","soft":true}`)},
+		{"test.model.23", []byte(`{"rid":"test.model.23","soft":true}`)},
+		{"test.model.23?", []byte(`{"rid":"test.model.23?","soft":true}`)},
+		{"test.model.23?foo=bar", []byte(`{"rid":"test.model.23?foo=bar","soft":true}`)},
+		{"test.model.23?foo=test.bar", []byte(`{"rid":"test.model.23?foo=test.bar","soft":true}`)},
+		{"test.model.23?foo=*&?", []byte(`{"rid":"test.model.23?foo=*&?","soft":true}`)},
+	}
+
+	for _, l := range tbl {
+		out, err := l.RID.MarshalJSON()
+		restest.AssertNoError(t, err)
+		restest.AssertEqualJSON(t, "SoftRef.MarshalJSON()", json.RawMessage(out), json.RawMessage(l.Expected))
+	}
+}
+
+// Test SoftRef UnmarshalJSON method
+func TestSoftRefUnmarshalJSON(t *testing.T) {
+	tbl := []struct {
+		JSON     []byte
+		Expected res.SoftRef
+		Error    bool
+	}{
+		// Valid RID
+		{[]byte(`{"rid":"test","soft":true}`), "test", false},
+		{[]byte(`{"rid":"test.model","soft":true}`), "test.model", false},
+		{[]byte(`{"rid":"test.model._hej_","soft":true}`), "test.model._hej_", false},
+		{[]byte(`{"rid":"test.model.<strange","soft":true}`), "test.model.<strange", false},
+		{[]byte(`{"rid":"test.model.23","soft":true}`), "test.model.23", false},
+		{[]byte(`{"rid":"test.model.23?","soft":true}`), "test.model.23?", false},
+		{[]byte(`{"rid":"test.model.23?foo=bar","soft":true}`), "test.model.23?foo=bar", false},
+		{[]byte(`{"rid":"test.model.23?foo=test.bar","soft":true}`), "test.model.23?foo=test.bar", false},
+		{[]byte(`{"rid":"test.model.23?foo=*&?","soft":true}`), "test.model.23?foo=*&?", false},
+		// Valid RID without soft field
+		{[]byte(`{"rid":"test"}`), "test", false},
+		{[]byte(`{"rid":"test.model"}`), "test.model", false},
+		{[]byte(`{"rid":"test.model._hej_"}`), "test.model._hej_", false},
+		{[]byte(`{"rid":"test.model.<strange"}`), "test.model.<strange", false},
+		{[]byte(`{"rid":"test.model.23"}`), "test.model.23", false},
+		{[]byte(`{"rid":"test.model.23?"}`), "test.model.23?", false},
+		{[]byte(`{"rid":"test.model.23?foo=bar"}`), "test.model.23?foo=bar", false},
+		{[]byte(`{"rid":"test.model.23?foo=test.bar"}`), "test.model.23?foo=test.bar", false},
+		{[]byte(`{"rid":"test.model.23?foo=*&?"}`), "test.model.23?foo=*&?", false},
+		// Valid but resulting in empty
+		{[]byte(`{"rid":""}`), "", false},
+		{[]byte(`{"foo":"bar"}`), "", false},
+		{[]byte(`{}`), "", false},
+		{[]byte(`{"rid": null}`), "", false},
+		{[]byte(`null`), "", false},
+		// Invalid RID
+		{[]byte(`{"rid": 42}`), "", true},
+		{[]byte(`{"rid": true}`), "", true},
+		{[]byte(`{"rid": ["test"]}`), "", true},
+		{[]byte(`{"rid": {"foo":"bar"}}`), "", true},
+		{[]byte(`["rid","test"]`), "", true},
+		{[]byte(`"test"`), "", true},
+		{[]byte(`42`), "", true},
+		{[]byte(`true`), "", true},
+		{[]byte(`{]`), "", true},
+	}
+
+	for i, l := range tbl {
+		var ref res.SoftRef
 		err := ref.UnmarshalJSON(l.JSON)
 		if l.Error {
 			restest.AssertError(t, err, fmt.Sprintf("test #%d", i+1))
