@@ -30,7 +30,7 @@ var (
 
 // Request represents the payload of a request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#requests
 type Request struct {
 
@@ -85,7 +85,7 @@ type Request struct {
 
 // Response represents the response to a request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#response
 type Response struct {
 
@@ -245,7 +245,7 @@ func (r Response) ParseResult(v interface{}) error {
 
 // AccessResult is the result of an access request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#access-request
 type AccessResult struct {
 	Get  bool   `json:"get,omitempty"`
@@ -254,7 +254,7 @@ type AccessResult struct {
 
 // GetResult is the result of a get request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#get-request
 type GetResult struct {
 	Model      json.RawMessage `json:"model,omitempty"`
@@ -264,7 +264,7 @@ type GetResult struct {
 
 // ResetEvent is the payload of a system reset event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#system-reset-event
 type ResetEvent struct {
 	Resources []string `json:"resources,omitempty"`
@@ -273,7 +273,7 @@ type ResetEvent struct {
 
 // TokenEvent is the payload of a connection token event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#connection-token-event
 type TokenEvent struct {
 	Token interface{} `json:"token"`
@@ -281,7 +281,7 @@ type TokenEvent struct {
 
 // ChangeEvent is the payload of a model change event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#model-change-event
 type ChangeEvent struct {
 	Values map[string]interface{} `json:"values"`
@@ -289,7 +289,7 @@ type ChangeEvent struct {
 
 // AddEvent is the payload of a collection add event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#collection-add-event
 type AddEvent struct {
 	Value interface{} `json:"value"`
@@ -298,7 +298,7 @@ type AddEvent struct {
 
 // RemoveEvent is the payload of a collection remove event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#collection-remove-event
 type RemoveEvent struct {
 	Idx int `json:"idx"`
@@ -306,7 +306,7 @@ type RemoveEvent struct {
 
 // QueryEvent is the payload of a query event.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-event
 type QueryEvent struct {
 	Subject string `json:"subject"`
@@ -320,7 +320,7 @@ type EventEntry struct {
 
 // QueryResult is the result of an query request.
 //
-// Reference:
+// See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-request
 type QueryResult struct {
 	Events []EventEntry `json:"events"`
@@ -333,7 +333,7 @@ type QueryResult struct {
 //
 // if req is nil, an empty json object, {}, will be sent as payload instead.
 //
-// SendRequest handles pre-responses that may extend timeout. Reference:
+// SendRequest handles pre-responses that may extend timeout. See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#pre-response
 func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Duration) Response {
 	var r Response
@@ -418,6 +418,9 @@ func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Dura
 // 	func (t *T) UnmarshalJSON([]byte) error
 // 		return UnmarshalDataValue(data, t)
 // 	}
+//
+// See:
+// https://github.com/resgateio/resgate/blob/master/docs/res-protocol.md#data-values
 func UnmarshalDataValue(data []byte, v interface{}) error {
 	// Get first non-whitespace character
 	var c byte
@@ -470,6 +473,9 @@ func UnmarshalDataValue(data []byte, v interface{}) error {
 // 	func (t T) MarshalJSON() ([]byte, error)
 // 		return MarshalDataValue(t)
 // 	}
+//
+// See:
+// https://github.com/resgateio/resgate/blob/master/docs/res-protocol.md#data-values
 func MarshalDataValue(v interface{}) ([]byte, error) {
 	data, err := json.Marshal(v)
 	if err != nil {
