@@ -18,7 +18,15 @@ var (
 	errInvalidCollectionResponse = errors.New("invalid collection response")
 )
 
-var emptyRequest = []byte(`{}`)
+var (
+	emptyRequest = []byte(`{}`)
+)
+
+var (
+	errUnexpectedEnd     = errors.New("unexpected end of JSON input")
+	errUnexpectedBracket = errors.New("unexpected character '[' looking for beginning of primitive value or data value object")
+	errMissingDataKey    = errors.New(`object is missing "data" key string`)
+)
 
 // Request represents the payload of a request.
 //
@@ -390,4 +398,92 @@ func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Dura
 			}
 		}
 	}
+}
+
+// UnmarshalDataValue parses the JSON-encoded data and stores the result in the value pointed to by v, similar to json.Unmarshal.
+//
+// If the JSON data starts with an object, UnmarshalDataValue will use the value of the object key "data" to store in v, or will return an error if the object key "data" does not exist.
+//
+// If the JSON data start with an array, UnmarshalDataValue will return an error.
+//
+// 	UnmarshalDataValue([]byte(`42`), v)                     // sets v to 42
+// 	UnmarshalDataValue([]byte(`"foo"`), v)                  // sets v to "foo"
+// 	UnmarshalDataValue([]byte(`{"data":true}`), v)          // sets v to true
+// 	UnmarshalDataValue([]byte(`{"data":["foo","bar"]}`), v) // sets v to []string{"foo", "bar"}
+// 	UnmarshalDataValue([]byte(`{"foo":"bar"}`), v)          // returns error
+// 	UnmarshalDataValue([]byte(`[1,2,3]`), v)                // returns error
+//
+// UnmarshalDataValue can be used to implement the json.Unmarshaler interface:
+//
+// 	func (t *T) UnmarshalJSON([]byte) error
+// 		return UnmarshalDataValue(data, t)
+// 	}
+func UnmarshalDataValue(data []byte, v interface{}) error {
+	// Get first non-whitespace character
+	var c byte
+	i := 0
+	for {
+		if i == len(data) {
+			return errUnexpectedEnd
+		}
+		c = data[i]
+		if c != 0x20 && c != 0x09 && c != 0x0A && c != 0x0D {
+			break
+		}
+		i++
+	}
+
+	// Data values cannot be arrays
+	if c == '[' {
+		return errUnexpectedBracket
+	}
+
+	// Data value object start
+	if c == '{' {
+		var dv struct {
+			Data json.RawMessage `json:"data"`
+		}
+		err := json.Unmarshal(data, &dv)
+		if err != nil {
+			return err
+		}
+		if dv.Data == nil {
+			return errMissingDataKey
+		}
+		data = dv.Data
+	}
+
+	return json.Unmarshal(data, v)
+}
+
+// MarshalDataValue returns the JSON encoding of v, similar to json.Marshal.
+//
+// If v encodes into a JSON object or array, MarshalDataValue will wrap the value in a data object, where the value is stored under the key "data".
+//
+// 	MarshalDataValue(42)                        // Returns []byte(`42`)
+// 	MarshalDataValue("foo"), v)                 // Returns []byte(`"foo"`)
+// 	MarshalDataValue([]string{"foo", "bar"})    // Returns []byte(`{"data":["foo","bar"]}`)
+// 	MarshalDataValue(map[string]int{"foo": 42}) // Returns []byte(`{"data":{"foo":42}}`)
+//
+// MarshalDataValue can be used to implement the json.Marshaler interface:
+//
+// 	func (t T) MarshalJSON() ([]byte, error)
+// 		return MarshalDataValue(t)
+// 	}
+func MarshalDataValue(v interface{}) ([]byte, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	c := data[0]
+	// Wrap in data value object if the value is an object or array
+	if c == '[' || c == '{' {
+		o := make([]byte, len(data)+9) // 9 = len(`{"data":}`)
+		copy(o, `{"data":`)
+		copy(o[8:], data)
+		o[len(o)-1] = '}'
+		return o, nil
+	}
+
+	return data, nil
 }

@@ -501,3 +501,92 @@ func TestAccessResult_WithInvalidAccessResponse_ReturnsError(t *testing.T) {
 		restest.AssertTrue(t, "call is empty", call == "")
 	}
 }
+
+func TestUnmarshalDataValue_WithValidValue_ReturnsValue(t *testing.T) {
+	table := []struct {
+		Data     []byte
+		Expected interface{}
+	}{
+		// Primitives
+		{[]byte(`42`), 42},
+		{[]byte(`"foo"`), "foo"},
+		{[]byte(`true`), true},
+		{[]byte(`null`), nil},
+		// Leading whitespace
+		{[]byte(" 42"), 42},
+		{[]byte("\n42"), 42},
+		{[]byte("\r42"), 42},
+		{[]byte("\t42"), 42},
+		{[]byte(" \n\r\t42"), 42},
+		// Data object
+		{[]byte(`{"data":42}`), 42},
+		{[]byte(`{"data":"foo"}`), "foo"},
+		{[]byte(`{"data":true}`), true},
+		{[]byte(`{"data":null}`), nil},
+		{[]byte(`{"data":["foo","bar"]}`), []string{"foo", "bar"}},
+		{[]byte(`{"data":{"foo":42}}`), map[string]int{"foo": 42}},
+		{[]byte(`{"data":{"foo":42},"zoo":"baz"}`), map[string]int{"foo": 42}},
+	}
+
+	for i, l := range table {
+		l := l
+		ctx := fmt.Sprintf("test #%d", i+1)
+		var v interface{}
+		err := resprot.UnmarshalDataValue(l.Data, &v)
+		restest.AssertNoError(t, err, ctx)
+		restest.AssertEqualJSON(t, "resprot.UnmarshalDataValue", v, l.Expected)
+	}
+}
+
+func TestUnmarshalDataValue_WithInvalidValue_ReturnsError(t *testing.T) {
+	table := []struct {
+		Data []byte
+	}{
+		{nil},
+		{[]byte(``)},
+		{[]byte(` \r\n\t`)},
+		{[]byte(`a`)},
+		{[]byte(`{]`)},
+		{[]byte(`[]`)},
+		{[]byte(`{}`)},
+		{[]byte(`{"foo":"bar"}`)},
+	}
+
+	for i, l := range table {
+		l := l
+		ctx := fmt.Sprintf("test #%d", i+1)
+		var v interface{}
+		err := resprot.UnmarshalDataValue(l.Data, &v)
+		restest.AssertError(t, err, ctx)
+		restest.AssertNil(t, v, ctx)
+	}
+}
+
+func TestMarshalDataValue_WithDifferentValues_WrapsOnObjectsAndArrays(t *testing.T) {
+	table := []struct {
+		Value    interface{}
+		Expected string
+	}{
+		// Primitives
+		{42, `42`},
+		{"foo", `"foo"`},
+		{true, `true`},
+		{nil, `null`},
+		{[]string{"foo", "bar"}, `{"data":["foo","bar"]}`},
+		{map[string]int{"foo": 42}, `{"data":{"foo":42}}`},
+	}
+
+	for i, l := range table {
+		l := l
+		ctx := fmt.Sprintf("test #%d", i+1)
+		data, err := resprot.MarshalDataValue(l.Value)
+		restest.AssertNoError(t, err, ctx)
+		restest.AssertEqualJSON(t, "resprot.MarshalDataValue", json.RawMessage(data), json.RawMessage(l.Expected))
+	}
+}
+
+func TestMarshalDataValue_WithInvalidValue_ReturnsError(t *testing.T) {
+	data, err := resprot.MarshalDataValue(func() {})
+	restest.AssertError(t, err)
+	restest.AssertNil(t, data)
+}

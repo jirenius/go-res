@@ -42,13 +42,10 @@ type DataValue struct {
 	Data interface{} `json:"data"`
 }
 
-var (
-	refPrefix     = []byte(`{"rid":`)
-	softRefSuffix = []byte(`,"soft":true}`)
-)
-
 const (
-	refSuffix = '}'
+	refPrefix     = `{"rid":`
+	softRefSuffix = `,"soft":true}`
+	refSuffix     = '}'
 )
 
 // ResourceType enum
