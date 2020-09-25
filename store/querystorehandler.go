@@ -125,7 +125,7 @@ func (qh QueryHandler) SetOption(h *res.Handler) {
 func (o *queryHandler) onRegister(s *res.Service, p res.Pattern, h res.Handler) {
 	if res.Pattern(p).IndexWildcard() >= 0 {
 		if o.ar == nil {
-			panic("QueryHandler requires an AffectedResources callback when handling resources with tags or wildcards: " + p)
+			panic("QueryHandler requires an AffectedResources callback when handling resources with tags or wildcards: " + string(p))
 		}
 	} else {
 		o.ar = nil

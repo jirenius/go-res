@@ -335,7 +335,7 @@ type QueryResult struct {
 //
 // SendRequest handles pre-responses that may extend timeout. See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#pre-response
-func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Duration) Response {
+func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Duration, onTimeoutExtend ...func(time.Duration)) Response {
 	var r Response
 
 	// Marshal the request
@@ -393,7 +393,11 @@ func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Dura
 				if ms, err := strconv.Atoi(v); err == nil {
 					// Stop previous timer and make a new one.
 					timer.Stop()
-					timer = time.NewTimer(time.Duration(ms) * time.Millisecond)
+					d := time.Duration(ms) * time.Millisecond
+					timer = time.NewTimer(d)
+					for _, f := range onTimeoutExtend {
+						f(d)
+					}
 				}
 			}
 		}
