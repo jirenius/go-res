@@ -4,6 +4,7 @@ go:
 - 1.13.x
 - 1.12.x
 install:
+- if [[ "$TRAVIS_GO_VERSION" =~ ^1\.12\. ]]; then export GO111MODULE="on"; fi
 - go get -t ./...
 - if [[ "$TRAVIS_GO_VERSION" =~ ^1\.14\. ]]; then ./scripts/install-checks.sh; fi
 before_script:

@@ -15,14 +15,21 @@ type ValueType byte
 const (
 	ValueTypeNone ValueType = iota
 	ValueTypePrimitive
-	ValueTypeResource
+	ValueTypeReference
+	ValueTypeSoftReference
+	ValueTypeData
 	ValueTypeDelete
+
+	// Deprecated and replaced with ValueTypeReference.
+	ValueTypeResource = ValueTypeReference
 )
 
 // valueObject represents a resource reference or an action
 type valueObject struct {
-	RID    *string `json:"rid"`
-	Action *string `json:"action"`
+	RID    *string         `json:"rid"`
+	Soft   bool            `json:"soft"`
+	Action *string         `json:"action"`
+	Data   json.RawMessage `json:"data"`
 }
 
 // DeleteValue is a predeclared delete action value
@@ -35,8 +42,9 @@ var DeleteValue = Value{
 // https://github.com/resgateio/resgate/blob/master/docs/res-protocol.md#values
 type Value struct {
 	json.RawMessage
-	Type ValueType
-	RID  string
+	Type  ValueType
+	RID   string
+	Inner json.RawMessage
 }
 
 var errInvalidValue = errors.New("invalid value")
@@ -71,22 +79,42 @@ func (v *Value) UnmarshalJSON(data []byte) error {
 			return err
 		}
 
-		if mvo.RID != nil {
-			// Invalid to have both RID and Action set, or if RID is empty
-			if mvo.Action != nil || *mvo.RID == "" {
+		switch {
+		case mvo.RID != nil:
+			// Invalid to have both RID and Action or Data set, or if RID is empty
+			if mvo.Action != nil || mvo.Data != nil || *mvo.RID == "" {
 				return errInvalidValue
 			}
-			v.Type = ValueTypeResource
 			v.RID = *mvo.RID
 			if !res.Ref(v.RID).IsValid() {
 				return errInvalidValue
 			}
-		} else {
-			// Must be an action of type actionDelete
-			if mvo.Action == nil || *mvo.Action != actionDelete {
+			if mvo.Soft {
+				v.Type = ValueTypeSoftReference
+			} else {
+				v.Type = ValueTypeReference
+			}
+
+		case mvo.Action != nil:
+			// Invalid to have both Action and Data set, or if action is not actionDelete
+			if mvo.Data != nil || *mvo.Action != actionDelete {
 				return errInvalidValue
 			}
 			v.Type = ValueTypeDelete
+
+		case mvo.Data != nil:
+			v.Inner = mvo.Data
+			dc := mvo.Data[0]
+			// Is data containing a primitive?
+			if dc == '{' || dc == '[' {
+				v.Type = ValueTypeData
+			} else {
+				v.RawMessage = mvo.Data
+				v.Type = ValueTypePrimitive
+			}
+
+		default:
+			return errInvalidValue
 		}
 	case '[':
 		return errInvalidValue
@@ -112,9 +140,13 @@ func (v Value) Equal(w Value) bool {
 	}
 
 	switch v.Type {
+	case ValueTypeData:
+		return bytes.Equal(v.Inner, w.Inner)
 	case ValueTypePrimitive:
 		return bytes.Equal(v.RawMessage, w.RawMessage)
-	case ValueTypeResource:
+	case ValueTypeReference:
+		fallthrough
+	case ValueTypeSoftReference:
 		return v.RID == w.RID
 	}
 
