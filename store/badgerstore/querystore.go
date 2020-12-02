@@ -119,9 +119,11 @@ func (qs *QueryStore) RebuildIndexes() error {
 			// Loop through indexes and generate a new entry per index
 			for _, idx := range qs.idxs {
 				rname := item.KeyCopy(nil)[len(prefix):]
-				k := idx.getKey(rname, idx.Key(v.Elem().Interface()))
-				if err := txn.Set(k, nil); err != nil {
-					return err
+				iv := idx.Key(v.Elem().Interface())
+				if iv != nil {
+					if err := txn.Set(idx.getKey(rname, iv), nil); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -187,19 +189,19 @@ func (qs *QueryStore) updateIndex(id string, before, after interface{}) error {
 			}
 
 			// Do nothing if key hasn't change; before and after is equal
-			if bytes.Equal(beforeKey, afterKey) {
+			if (beforeKey != nil && afterKey != nil && bytes.Equal(beforeKey, afterKey)) || (beforeKey == nil && afterKey == nil) {
 				continue
 			}
 
 			// Delete old index entry
-			if len(beforeKey) > 0 {
+			if beforeKey != nil {
 				k := idx.getKey(rname, beforeKey)
 				if err := txn.Delete(k); err != nil {
 					errmsg += "\n\terror deleting index key " + string(k) + ": " + err.Error()
 				}
 			}
 			// Set new index entry
-			if len(afterKey) > 0 {
+			if afterKey != nil {
 				k := idx.getKey(rname, afterKey)
 				if err := txn.Set(k, nil); err != nil {
 					errmsg += "\n\terror setting index key " + string(k) + ": " + err.Error()
@@ -267,7 +269,7 @@ func (qc queryChange) affectsQuery(q url.Values) (bool, error) {
 		afterKey = iq.Index.Key(qc.after)
 	}
 	// Not affected if no change to the index
-	if bytes.Equal(beforeKey, afterKey) {
+	if (beforeKey != nil && afterKey != nil && bytes.Equal(beforeKey, afterKey)) || (beforeKey == nil && afterKey == nil) {
 		return false, nil
 	}
 	wasMatch := qc.before != nil && bytes.HasPrefix(beforeKey, iq.KeyPrefix)
