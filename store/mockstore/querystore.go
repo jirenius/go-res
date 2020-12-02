@@ -20,6 +20,9 @@ type QueryStore struct {
 // Assert *QueryStore implements the store.QueryStore interface.
 var _ store.QueryStore = &QueryStore{}
 
+// Assert *QueryChange implements the store.QueryChange interface.
+var _ store.QueryChange = &QueryChange{}
+
 // QueryChange mocks a change in a resource that affects the query.
 //
 // It implements the store.QueryChange interface.

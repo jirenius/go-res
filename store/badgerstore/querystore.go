@@ -27,7 +27,11 @@ type QueryStore struct {
 	iq            func(qs *QueryStore, q url.Values) (*IndexQuery, error)
 }
 
+// Assert *QueryStore implements the store.QueryChange interface.
 var _ store.QueryStore = &QueryStore{}
+
+// Assert *queryChange implements the store.QueryChange interface.
+var _ store.QueryChange = &queryChange{}
 
 type queryChange struct {
 	qs     *QueryStore

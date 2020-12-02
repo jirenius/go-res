@@ -127,8 +127,6 @@ func (o *queryHandler) onRegister(s *res.Service, p res.Pattern, h res.Handler) 
 		if o.ar == nil {
 			panic("QueryHandler requires an AffectedResources callback when handling resources with tags or wildcards: " + string(p))
 		}
-	} else {
-		o.ar = nil
 	}
 	if h.Type == res.TypeUnset {
 		panic("no Type is set")
