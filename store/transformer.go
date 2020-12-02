@@ -159,5 +159,8 @@ func (t IDToRIDModelTransformer) TransformEvents(evs []ResultEvent) ([]ResultEve
 			ch[id] = res.DeleteAction
 		}
 	}
-	return evs, nil
+	return []ResultEvent{{
+		Name:    "change",
+		Changed: ch,
+	}}, nil
 }
