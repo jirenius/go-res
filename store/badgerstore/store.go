@@ -92,6 +92,23 @@ func (st *Store) Type() interface{} {
 	return st.typ
 }
 
+// Get reads the value from the store without locking.
+func (st *Store) Get(id string) (interface{}, error) {
+	var v interface{}
+	err := st.DB.View(func(txn *badger.Txn) error {
+		var err error
+		v, err = st.getValue(txn, []byte(st.prefix+id))
+		return err
+	})
+	if err != nil {
+		if err == badger.ErrKeyNotFound {
+			return nil, res.ErrNotFound
+		}
+		return nil, err
+	}
+	return v, nil
+}
+
 // Read makes a read-lock for the resource that lasts until Close is called.
 func (st *Store) Read(id string) store.ReadTxn {
 	st.kl.RLock(id)
