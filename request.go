@@ -552,6 +552,9 @@ func (r *Request) executeHandler() {
 		var h CallHandler
 		if hs.Call != nil {
 			h = hs.Call[r.method]
+			if h == nil {
+				h = hs.Call["*"]
+			}
 		}
 		if h == nil {
 			r.reply(responseMethodNotFound)
@@ -562,6 +565,9 @@ func (r *Request) executeHandler() {
 		var h AuthHandler
 		if hs.Auth != nil {
 			h = hs.Auth[r.method]
+			if h == nil {
+				h = hs.Auth["*"]
+			}
 		}
 		if h == nil {
 			r.reply(responseMethodNotFound)

@@ -425,6 +425,41 @@ func TestAuthRequest_UnknownMethod_ErrorMethodNotFound(t *testing.T) {
 	})
 }
 
+// Test auth request with wildcard method returns result
+func TestAuthRequest_WildcardMethod_CallsHandler(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.Auth("*", func(r res.AuthRequest) {
+			r.OK(mock.Result)
+		}))
+	}, func(s *restest.Session) {
+		s.Auth("test.model", "unset", nil).
+			Response().
+			AssertResult(mock.Result)
+	})
+}
+
+// Test auth request with wildcard method returns result
+func TestAuthRequest_NonWildcardMethod_CallsHandler(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model",
+			res.Auth("method", func(r res.AuthRequest) {
+				r.OK(mock.Result)
+			}),
+			res.Auth("*", func(r res.AuthRequest) {
+				r.Error(mock.CustomError)
+			}),
+		)
+	}, func(s *restest.Session) {
+		s.Auth("test.model", "method", nil).
+			Response().
+			AssertResult(mock.Result)
+
+		s.Auth("test.model", "unset", nil).
+			Response().
+			AssertError(mock.CustomError)
+	})
+}
+
 // Test that multiple responses to auth request causes panic
 func TestAuth_WithMultipleResponses_CausesPanic(t *testing.T) {
 	runTest(t, func(s *res.Service) {

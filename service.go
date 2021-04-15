@@ -364,7 +364,7 @@ func GetResource(h GetHandler) Option {
 //
 // For pre-defined set call methods, the handler Set should be used instead.
 func Call(method string, h CallHandler) Option {
-	if !isValidPart(method) {
+	if method != "*" && !isValidPart(method) {
 		panic("res: invalid method name: " + method)
 	}
 	return OptionFunc(func(hs *Handler) {
@@ -400,7 +400,7 @@ func New(h NewHandler) Option {
 
 // Auth sets a handler for resource auth requests.
 func Auth(method string, h AuthHandler) Option {
-	if !isValidPart(method) {
+	if method != "*" && !isValidPart(method) {
 		panic("res: invalid method name: " + method)
 	}
 	return OptionFunc(func(hs *Handler) {

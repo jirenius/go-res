@@ -406,6 +406,41 @@ func TestCallRequest_UnknownMethod_ErrorMethodNotFound(t *testing.T) {
 	})
 }
 
+// Test call request with wildcard method returns result
+func TestCallRequest_WildcardMethod_CallsHandler(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model",
+			res.Call("method", func(r res.CallRequest) {
+				r.OK(mock.Result)
+			}),
+			res.Call("*", func(r res.CallRequest) {
+				r.Error(mock.CustomError)
+			}),
+		)
+	}, func(s *restest.Session) {
+		s.Call("test.model", "method", nil).
+			Response().
+			AssertResult(mock.Result)
+
+		s.Call("test.model", "unset", nil).
+			Response().
+			AssertError(mock.CustomError)
+	})
+}
+
+// Test call request with wildcard method returns result
+func TestCallRequest_NonWildcardMethod_CallsHandler(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.Call("*", func(r res.CallRequest) {
+			r.OK(mock.Result)
+		}))
+	}, func(s *restest.Session) {
+		s.Call("test.model", "unset", nil).
+			Response().
+			AssertResult(mock.Result)
+	})
+}
+
 // Test that multiple responses to call request causes panic
 func TestCall_WithMultipleResponses_CausesPanic(t *testing.T) {
 	runTest(t, func(s *res.Service) {
