@@ -112,17 +112,17 @@ func (st *Store) Get(id string) (interface{}, error) {
 // Read makes a read-lock for the resource that lasts until Close is called.
 func (st *Store) Read(id string) store.ReadTxn {
 	st.kl.RLock(id)
-	return readTxn{st: st, id: id, rname: []byte(st.prefix + id)}
+	return &readTxn{st: st, id: id, rname: []byte(st.prefix + id)}
 }
 
 // Write makes a write-lock for the resource that lasts until Close is called.
 func (st *Store) Write(id string) store.WriteTxn {
 	st.kl.Lock(id)
-	return writeTxn{readTxn{st: st, id: id, rname: []byte(st.prefix + id)}}
+	return &writeTxn{readTxn{st: st, id: id, rname: []byte(st.prefix + id)}}
 }
 
 // Close closes the read transaction.
-func (rt readTxn) Close() error {
+func (rt *readTxn) Close() error {
 	if rt.closed {
 		return errors.New("already closed")
 	}
@@ -132,7 +132,7 @@ func (rt readTxn) Close() error {
 }
 
 // Close closes the write transaction.
-func (wt writeTxn) Close() error {
+func (wt *writeTxn) Close() error {
 	if wt.closed {
 		return errors.New("already closed")
 	}
