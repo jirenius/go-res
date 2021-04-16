@@ -129,7 +129,7 @@ func (m *Mux) FullPath() string {
 	if m.parent == nil {
 		return m.path
 	}
-	return mergePattern(mergePattern(m.parent.path, m.mountp), m.path)
+	return mergePattern(mergePattern(m.parent.FullPath(), m.mountp), m.path)
 }
 
 // Register registers the mux to a service.
@@ -165,7 +165,7 @@ func (m *Mux) callOnRegister() {
 	}
 	fp := m.FullPath()
 	traverse(m.root, make([]string, 0, 32), 0, func(n *node, path []string, mountIdx int) {
-		if n.hs.OnRegister != nil {
+		if n.hs != nil && n.hs.OnRegister != nil {
 			n.hs.OnRegister(s, Pattern(mergePattern(fp, pathSliceToString(n, path, mountIdx))), n.hs.Handler)
 		}
 	})
@@ -550,9 +550,9 @@ func traverse(n *node, path []string, mountIdx int, cb func(*node, []string, int
 	if n == nil {
 		return
 	}
-	if n.hs != nil {
-		cb(n, path, mountIdx)
-	}
+
+	cb(n, path, mountIdx)
+
 	if n.mounted {
 		mountIdx = len(path)
 	}
