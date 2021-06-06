@@ -12,6 +12,7 @@ import (
 type Handler struct {
 	Store       Store
 	Transformer Transformer
+	Default     interface{}
 }
 
 var _ res.Option = Handler{}
@@ -21,6 +22,7 @@ type storeHandler struct {
 	p     res.Pattern
 	st    Store
 	typ   res.ResourceType
+	def   json.RawMessage
 	trans Transformer
 }
 
@@ -38,6 +40,13 @@ func (sh Handler) WithTransformer(transformer Transformer) Handler {
 	return sh
 }
 
+// WithDefault returns a new Handler value with Default value set to default.
+// The default value should be pre-transformed.
+func (sh Handler) WithDefault(def interface{}) Handler {
+	sh.Default = def
+	return sh
+}
+
 // SetOption is to implement the res.Option interface
 func (sh Handler) SetOption(h *res.Handler) {
 	if sh.Store == nil {
@@ -47,6 +56,14 @@ func (sh Handler) SetOption(h *res.Handler) {
 		st:    sh.Store,
 		trans: sh.Transformer,
 	}
+	if sh.Default != nil {
+		raw, err := json.Marshal(sh.Default)
+		if err != nil {
+			panic("error marshaling default handler value: " + err.Error())
+		}
+
+		o.def = raw
+	}
 	h.Option(
 		res.GetResource(o.getResource),
 		res.OnRegister(o.onRegister),
@@ -55,10 +72,18 @@ func (sh Handler) SetOption(h *res.Handler) {
 }
 
 func (o *storeHandler) onRegister(s *res.Service, p res.Pattern, h res.Handler) {
-	if h.Type == res.TypeUnset {
+	switch h.Type {
+	case res.TypeModel:
+		if len(o.def) > 0 && o.def[0] != '{' {
+			panic("Default value for TypeModel must be a json object.")
+		}
+	case res.TypeCollection:
+		if len(o.def) > 0 && o.def[0] != '[' {
+			panic("Default value for TypeModel must be a json object.")
+		}
+	case res.TypeUnset:
 		panic("no Type is set")
-	}
-	if h.Type != res.TypeModel && h.Type != res.TypeCollection {
+	default:
 		panic("Type must be set to TypeModel or TypeCollection")
 	}
 	o.s = s
@@ -81,14 +106,19 @@ func (o *storeHandler) getResource(r res.GetRequest) {
 
 	v, err := txn.Value()
 	if err != nil {
-		r.Error(res.ToError(err))
-		return
-	}
-	if o.trans != nil {
-		v, err = o.trans.Transform(id, v)
-		if err != nil {
-			r.Error(res.ToError(err))
+		if errors.Is(err, ErrNotFound) && o.def != nil {
+			v = o.def
+		} else {
+			r.Error(err)
 			return
+		}
+	} else {
+		if o.trans != nil {
+			v, err = o.trans.Transform(id, v)
+			if err != nil {
+				r.Error(err)
+				return
+			}
 		}
 	}
 	switch o.typ {
@@ -110,12 +140,16 @@ func (o *storeHandler) changeHandler(id string, before, after interface{}) {
 			if err != nil {
 				before = nil
 			}
+		} else if o.def != nil {
+			before = o.def
 		}
 		if after != nil {
 			after, err = o.trans.Transform(id, after)
 			if err != nil {
 				after = nil
 			}
+		} else if o.def != nil {
+			after = o.def
 		}
 		if after != nil {
 			rid = o.trans.IDToRID(id, after, o.p)
