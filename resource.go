@@ -411,9 +411,6 @@ func isValidPart(p string) bool {
 		return false
 	}
 	for _, r := range p {
-		if r == '?' {
-			return false
-		}
 		if r < 33 || r > 126 || r == '?' || r == '*' || r == '>' || r == '.' {
 			return false
 		}
