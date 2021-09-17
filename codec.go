@@ -47,6 +47,12 @@ type resetEvent struct {
 
 type tokenEvent struct {
 	Token interface{} `json:"token"`
+	TID   string      `json:"tid,omitempty"`
+}
+
+type tokenResetEvent struct {
+	TIDs    []string `json:"tids"`
+	Subject string   `json:"subject"`
 }
 
 type changeEvent struct {
