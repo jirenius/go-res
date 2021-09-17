@@ -36,7 +36,7 @@ func TestService(t *testing.T) {
 // Test that the service returns the correct protocol version
 func TestServiceProtocolVersion(t *testing.T) {
 	s := res.NewService("test")
-	restest.AssertEqualJSON(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.1")
+	restest.AssertEqualJSON(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.2")
 }
 
 // Test that the service can be served without error
@@ -108,6 +108,37 @@ func TestServiceTokenEvent_WithNilToken_SendsNilToken(t *testing.T) {
 	}, func(s *restest.Session) {
 		s.Service().TokenEvent(mock.CID, nil)
 		s.GetMsg().AssertTokenEvent(mock.CID, nil)
+	})
+}
+
+// Test that TokenEvent with an invalid cid causes panic.
+func TestServiceTokenEventWithID_WithInvalidCID_CausesPanic(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *restest.Session) {
+		restest.AssertPanic(t, func() {
+			s.Service().TokenEventWithID("invalid.*.cid", "foo", nil)
+		})
+	})
+}
+
+// Test that TokenEvent sends a connection token event.
+func TestServiceTokenEventWithID_WithObjectToken_SendsToken(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *restest.Session) {
+		s.Service().TokenEventWithID(mock.CID, "foo", mock.Token)
+		s.GetMsg().AssertTokenEventWithID(mock.CID, "foo", mock.Token)
+	})
+}
+
+// Test that TokenEvent with nil sends a connection token event with a nil token.
+func TestServiceTokenEventWithID_WithNilToken_SendsNilToken(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *restest.Session) {
+		s.Service().TokenEventWithID(mock.CID, "foo", nil)
+		s.GetMsg().AssertTokenEventWithID(mock.CID, "foo", nil)
 	})
 }
 
@@ -265,4 +296,38 @@ func TestConn_AfterServe_ReturnsConn(t *testing.T) {
 		restest.AssertTrue(t, "conn is not nil", conn != nil)
 		restest.AssertTrue(t, "conn is of type *MockConn", ok)
 	})
+}
+
+// Test that TokenReset sends a system.tokenReset event.
+func TestServiceTokenReset(t *testing.T) {
+	tbl := []struct {
+		Subject  string
+		TIDs     []string
+		Expected interface{}
+	}{
+		{"auth", nil, nil},
+		{"auth", []string{}, nil},
+		{"auth", []string{}, nil},
+		{"auth", []string{"foo"}, json.RawMessage(`{"tids":["foo"],"subject":"auth"}`)},
+		{"auth", []string{"foo", "bar"}, json.RawMessage(`{"tids":["foo","bar"],"subject":"auth"}`)},
+		{"auth.test.method", []string{"foo", "bar"}, json.RawMessage(`{"tids":["foo","bar"],"subject":"auth.test.method"}`)},
+	}
+
+	for _, l := range tbl {
+		runTest(t, func(s *res.Service) {
+			s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+		}, func(s *restest.Session) {
+			s.Service().TokenReset(l.Subject, l.TIDs...)
+			// Send token event to flush any system.tokenReset event
+			s.Service().TokenEvent(mock.CID, nil)
+
+			if l.Expected != nil {
+				s.GetMsg().
+					AssertSubject("system.tokenReset").
+					AssertPayload(l.Expected)
+			}
+
+			s.GetMsg().AssertTokenEvent(mock.CID, nil)
+		})
+	}
 }

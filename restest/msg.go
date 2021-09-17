@@ -319,6 +319,17 @@ func (m *Msg) AssertTokenEvent(cid string, token interface{}) *Msg {
 	return m
 }
 
+// AssertTokenEventWithID asserts that the message is a connection token event for the given
+// connection ID (cid) and token ID (tid), with matching token.
+func (m *Msg) AssertTokenEventWithID(cid string, tid string, token interface{}) *Msg {
+	m.AssertSubject("conn." + cid + ".token")
+	m.AssertPayload(struct {
+		Token interface{} `json:"token"`
+		TID   string      `json:"tid"`
+	}{token, tid})
+	return m
+}
+
 // AssertSystemReset asserts that the message is a system reset event, matching
 // the resources and access.
 func (m *Msg) AssertSystemReset(resources []string, access []string) *Msg {

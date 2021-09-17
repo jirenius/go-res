@@ -15,7 +15,7 @@ import (
 )
 
 // Supported RES protocol version.
-const protocolVersion = "1.2.1"
+const protocolVersion = "1.2.2"
 
 // The size of the in channel receiving messages from NATS Server.
 const inChannelSize = 256
@@ -736,6 +736,46 @@ func (s *Service) TokenEvent(cid string, token interface{}) {
 		panic(`res: invalid connection ID`)
 	}
 	s.event("conn."+cid+".token", tokenEvent{Token: token})
+}
+
+// TokenEventWithID sends a connection token event in the same way as
+// TokenEvent, but includes a token ID (tid).
+//
+// The token ID is a string that identifies the token, used when calling
+// TokenReset to update or clear a token.
+func (s *Service) TokenEventWithID(cid string, tokenID string, token interface{}) {
+	if atomic.LoadInt32(&s.state) != stateStarted {
+		s.errorf("Failed to send token event: service not started")
+		return
+	}
+
+	if !isValidPart(cid) {
+		panic(`res: invalid connection ID`)
+	}
+	s.event("conn."+cid+".token", tokenEvent{Token: token, TID: tokenID})
+}
+
+// TokenReset sends a token reset event for the provided token IDs.
+//
+// The subject string is a message subject that will receive auth requests for
+// any connections with a token matching any of the token IDs.
+func (s *Service) TokenReset(subject string, tokenID ...string) {
+	if atomic.LoadInt32(&s.state) != stateStarted {
+		s.errorf("Failed to send token reset event: service not started")
+		return
+	}
+
+	if subject == "" || !isValidPath(subject) {
+		panic(`res: invalid token reset subject`)
+	}
+	// Don't send events without token ID
+	if len(tokenID) == 0 {
+		return
+	}
+	s.event("system.tokenReset", tokenResetEvent{
+		TIDs:    tokenID,
+		Subject: subject,
+	})
 }
 
 func (s *Service) setDefaultOwnership() {
