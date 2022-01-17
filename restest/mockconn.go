@@ -180,7 +180,7 @@ func (c *MockConn) ChanQueueSubscribe(subj, queue string, ch chan *nats.Msg) (*n
 		return c.nc.ChanSubscribe(subj, ch)
 	}
 
-	sub := &nats.Subscription{}
+	sub := &nats.Subscription{Subject: subj}
 	msub := newMockSubscription(c, subj, ch)
 	c.subs[sub] = msub
 
@@ -238,20 +238,25 @@ func (c *MockConn) RequestRaw(subj string, data []byte) string {
 	}
 
 	inbox := nats.NewInbox()
-	msg := nats.Msg{
-		Subject: subj,
-		Reply:   inbox,
-		Data:    data,
-	}
+	c.SendMessage(subj, inbox, data)
+	return inbox
+}
 
+// SendMessage sends a raw message from nats to the the subscribing client.
+func (c *MockConn) SendMessage(subj string, reply string, data []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, msub := range c.subs {
+	for sub, msub := range c.subs {
 		if msub.matches(subj) {
+			msg := nats.Msg{
+				Subject: subj,
+				Reply:   reply,
+				Data:    data,
+				Sub:     sub,
+			}
 			msub.ch <- &msg
 		}
 	}
-	return inbox
 }
 
 // QueryRequest mocks a query request from NATS and returns a NATSRequest.
@@ -347,6 +352,17 @@ func (c *MockConn) GetParallelMsgs(n int) ParallelMsgs {
 		msgs[i] = c.GetMsg()
 	}
 	return ParallelMsgs{c: c, msgs: msgs}
+}
+
+// AssertNoMsg asserts that there are no more messages to get.
+func (c *MockConn) AssertNoMsg(delay time.Duration) {
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+	count := len(c.rch)
+	if count > 0 {
+		c.t.Fatalf("expected no messages but found %d", count)
+	}
 }
 
 func newMockSubscription(c *MockConn, subject string, ch chan *nats.Msg) *mockSubscription {

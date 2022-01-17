@@ -318,7 +318,15 @@ type EventEntry struct {
 	Data  interface{} `json:"data"`
 }
 
-// QueryResult is the result of an query request.
+// QueryRequest is a query request.
+//
+// See:
+// https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-request
+type QueryRequest struct {
+	Query string `json:"query"`
+}
+
+// QueryResult is the result of a query request.
 //
 // See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#query-request
