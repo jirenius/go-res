@@ -45,7 +45,7 @@ func (m *Msg) Payload() interface{} {
 
 // AssertSubject asserts that the message has the expected subject.
 func (m *Msg) AssertSubject(subject string) *Msg {
-	AssertEqualJSON(m.c.t, "subject", subject, m.Subject)
+	AssertEqualJSON(m.c.t, "subject", m.Subject, subject)
 	return m
 }
 
