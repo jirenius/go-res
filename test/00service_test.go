@@ -307,7 +307,6 @@ func TestServiceTokenReset(t *testing.T) {
 	}{
 		{"auth", nil, nil},
 		{"auth", []string{}, nil},
-		{"auth", []string{}, nil},
 		{"auth", []string{"foo"}, json.RawMessage(`{"tids":["foo"],"subject":"auth"}`)},
 		{"auth", []string{"foo", "bar"}, json.RawMessage(`{"tids":["foo","bar"],"subject":"auth"}`)},
 		{"auth.test.method", []string{"foo", "bar"}, json.RawMessage(`{"tids":["foo","bar"],"subject":"auth.test.method"}`)},
