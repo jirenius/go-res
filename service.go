@@ -18,7 +18,7 @@ import (
 const protocolVersion = "1.2.2"
 
 // The default size of the in channel receiving messages from NATS Server.
-const defaultInChannelSize = 256
+const defaultInChannelSize = 1024
 
 // The default number of workers handling resource requests.
 const defaultWorkerCount = 32
@@ -267,7 +267,7 @@ func (s *Service) SetWorkerCount(count int) *Service {
 }
 
 // SetInChannelSize sets the size of the in channel receiving messages from NATS
-// Server. Default is 256.
+// Server. Default is 1024.
 //
 // If size is less or equal to zero, the default value is used.
 func (s *Service) SetInChannelSize(size int) *Service {
