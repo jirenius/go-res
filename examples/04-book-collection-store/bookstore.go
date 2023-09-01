@@ -13,7 +13,7 @@ import (
 // for storage, but any other database can be used. What is needed is a wrapper
 // that implements the Store and QueryStore interfaces found in package:
 //
-// 	github.com/jirenius/go-res/store
+//	github.com/jirenius/go-res/store
 type BookStore struct {
 	*badgerstore.Store
 	BooksByTitle *badgerstore.QueryStore

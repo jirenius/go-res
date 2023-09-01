@@ -4,8 +4,7 @@ services using the RES Service Protocol over NATS server.
 
 https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md
 
-
-Usage
+# Usage
 
 Make a request:
 
@@ -32,6 +31,5 @@ Call a method:
 		Sum float64 `json:"sum"`
 	}
 	err := response.ParseResult(&result)
-
 */
 package resprot

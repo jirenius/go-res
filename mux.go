@@ -176,11 +176,16 @@ func (m *Mux) callOnRegister() {
 // A pattern may contain placeholders that acts as wildcards, and will be
 // parsed and stored in the request.PathParams map.
 // A placeholder is a resource name part starting with a dollar ($) character:
-//  s.Handle("user.$id", handler) // Will match "user.10", "user.foo", etc.
+//
+//	s.Handle("user.$id", handler) // Will match "user.10", "user.foo", etc.
+//
 // An anonymous placeholder is a resource name part using an asterisk (*) character:
-//  s.Handle("user.*", handler)   // Will match "user.10", "user.foo", etc.
+//
+//	s.Handle("user.*", handler)   // Will match "user.10", "user.foo", etc.
+//
 // A full wildcard can be used as last part using a greather than (>) character:
-//  s.Handle("data.>", handler)   // Will match "data.foo", "data.foo.bar", etc.
+//
+//	s.Handle("data.>", handler)   // Will match "data.foo", "data.foo.bar", etc.
 //
 // If the pattern is already registered, or if there are conflicts among
 // the handlers, Handle panics.

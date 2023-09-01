@@ -51,8 +51,8 @@ func (t transformer) Transform(id string, v interface{}) (interface{}, error) {
 // IDTransformer returns a transformer where the resource ID contains a single
 // tag that is the internal ID.
 //
-//  // Assuming pattern is "library.book.$bookid"
-//  IDTransformer("bookId", nil) // transforms "library.book.42" <=> "42"
+//	// Assuming pattern is "library.book.$bookid"
+//	IDTransformer("bookId", nil) // transforms "library.book.42" <=> "42"
 func IDTransformer(tagName string, transform func(id string, v interface{}) (interface{}, error)) Transformer {
 	return TransformFuncs(
 		func(_ string, pathParams map[string]string) string {
@@ -68,11 +68,11 @@ func IDTransformer(tagName string, transform func(id string, v interface{}) (int
 // IDToRIDCollectionTransformer is a QueryTransformer that handles the common
 // case of transforming a slice of id strings:
 //
-//  []string{"1", "2"}
+//	[]string{"1", "2"}
 //
 // into slice of resource references:
 //
-//  []res.Ref{"library.book.1", "library.book.2"}
+//	[]res.Ref{"library.book.1", "library.book.2"}
 //
 // The function converts a single ID returned by a the store into an external
 // resource ID.
@@ -110,11 +110,11 @@ func (t IDToRIDCollectionTransformer) TransformEvents(evs []ResultEvent) ([]Resu
 // IDToRIDModelTransformer is a QueryTransformer that handles the common case of
 // transforming a slice of unique id strings:
 //
-//  []string{"1", "2"}
+//	[]string{"1", "2"}
 //
 // into a map of resource references with id as key:
 //
-//  map[string]res.Ref{"1": "library.book.1", "2": "library.book.2"}
+//	map[string]res.Ref{"1": "library.book.1", "2": "library.book.2"}
 //
 // The function converts a single ID returned by a the store into an external
 // resource ID.

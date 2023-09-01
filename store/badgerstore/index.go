@@ -11,7 +11,9 @@ import (
 //
 // When used on Model resource, an index entry will be added for each model entry.
 // An index entry will have no value (nil), and the key will have the following structure:
-//    <Name>:<Key>\x00<RID>
+//
+//	<Name>:<Key>\x00<RID>
+//
 // Where:
 // * <Name> is the name of the Index (so keep it rather short)
 // * <Key> is the index value as returned from the Key callback

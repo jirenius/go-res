@@ -58,8 +58,9 @@ func (o Model) WithMap(m func(interface{}) (interface{}, error)) Model {
 //
 // The resource pattern should be the full pattern, including
 // any service name. It may contain $tags, or end with a full wildcard (>).
-// 	test.model.$id
-// 	test.resource.>
+//
+//	test.model.$id
+//	test.resource.>
 func (o Model) RebuildIndexes(pattern string) error {
 	// Quick exit in case no index exists
 	if o.IndexSet == nil || len(o.IndexSet.Indexes) == 0 {

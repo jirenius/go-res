@@ -1,9 +1,10 @@
 package res
 
 // Pattern is a resource pattern that may contain wildcards and tags.
-// 	Pattern("example.resource.>") // Full wild card (>) matches anything that follows
-// 	Pattern("example.item.*")     // Wild card (*) matches a single part
-// 	Pattern("example.model.$id")  // Tag (starting with $) matches a single part
+//
+//	Pattern("example.resource.>") // Full wild card (>) matches anything that follows
+//	Pattern("example.item.*")     // Wild card (*) matches a single part
+//	Pattern("example.model.$id")  // Tag (starting with $) matches a single part
 type Pattern string
 
 // IsValid returns true if the pattern is valid, otherwise false.

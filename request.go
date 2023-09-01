@@ -332,7 +332,8 @@ func (r *Request) AccessDenied() {
 
 // AccessGranted a successful response granting full access to the resource.
 // Same as calling:
-//     Access(true, "*");
+//
+//	Access(true, "*");
 //
 // Only valid for access requests.
 func (r *Request) AccessGranted() {

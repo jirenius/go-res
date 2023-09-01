@@ -25,8 +25,7 @@ import (
 // customer is a document. What is needed is a wrapper that implements the Store
 // and QueryStore interfaces found in package:
 //
-//  github.com/jirenius/go-res/store
-//
+//	github.com/jirenius/go-res/store
 type CustomerStore struct {
 	*badgerstore.Store
 	CustomersQuery *badgerstore.QueryStore

@@ -22,7 +22,8 @@ func (nr *NATSRequest) Response() *Msg {
 // Get sends a get request to the service.
 //
 // The resource ID, rid, may contain a query part:
-// 	test.model?q=foo
+//
+//	test.model?q=foo
 func (c *MockConn) Get(rid string) *NATSRequest {
 	rname, q := parseRID(rid)
 	return c.Request("get."+rname, Request{Query: q})
@@ -33,7 +34,8 @@ func (c *MockConn) Get(rid string) *NATSRequest {
 // A nil req value sends a DefaultCallRequest.
 //
 // The resource ID, rid, may contain a query part:
-// 	test.model?q=foo
+//
+//	test.model?q=foo
 func (c *MockConn) Call(rid string, method string, req *Request) *NATSRequest {
 	if req == nil {
 		req = DefaultCallRequest()
@@ -51,7 +53,8 @@ func (c *MockConn) Call(rid string, method string, req *Request) *NATSRequest {
 // A nil req value sends a DefaultAuthRequest.
 //
 // The resource ID, rid, may contain a query part:
-// 	test.model?q=foo
+//
+//	test.model?q=foo
 func (c *MockConn) Auth(rid string, method string, req *Request) *NATSRequest {
 	if req == nil {
 		req = DefaultAuthRequest()
@@ -69,7 +72,8 @@ func (c *MockConn) Auth(rid string, method string, req *Request) *NATSRequest {
 // A nil req value sends a DefaultAccessRequest.
 //
 // The resource ID, rid, may contain a query part:
-// 	test.model?q=foo
+//
+//	test.model?q=foo
 func (c *MockConn) Access(rid string, req *Request) *NATSRequest {
 	if req == nil {
 		req = DefaultAccessRequest()

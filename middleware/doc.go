@@ -14,13 +14,12 @@ to perform tasks such as:
 Currently, only the BadgerDB middleware is created, to demonstrate
 database persistence.
 
-Usage
+# Usage
 
 Add middleware to a resource:
 
 	s.Handle("user.$id",
 		middlware.BadgerDB{DB: db},
 	)
-
 */
 package middleware
