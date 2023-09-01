@@ -5,14 +5,16 @@ import "encoding/json"
 // Ref is a resource reference to another resource ID.
 //
 // It marshals into a reference object, eg.:
-//  {"rid":"userService.user.42"}
+//
+//	{"rid":"userService.user.42"}
 type Ref string
 
 // SoftRef is a soft resource reference to another resource ID which will not
 // automatically be followed by Resgate.
 //
 // It marshals into a soft reference object, eg.:
-//  {"rid":"userService.user.42","soft":true}
+//
+//	{"rid":"userService.user.42","soft":true}
 type SoftRef string
 
 // DataValue is a wrapper for values that may marshal into any type of json
@@ -22,22 +24,25 @@ type SoftRef string
 // DataValue or similar, or else the value will be considered invalid.
 //
 // Example:
-// 	s.Handle("timezones", res.GetCollection(func(r res.CollectionRequest) {
-// 		type tz struct {
-// 			Abbr   string `json:"abbr"`
-// 			Offset int    `json:"offset"`
-// 		}
-// 		r.Collection([]res.DataValue{
-// 			res.DataValue{tz{"GMT", 0}},
-// 			res.DataValue{tz{"CET", 1}},
-// 		})
-// 	}))
+//
+//	s.Handle("timezones", res.GetCollection(func(r res.CollectionRequest) {
+//		type tz struct {
+//			Abbr   string `json:"abbr"`
+//			Offset int    `json:"offset"`
+//		}
+//		r.Collection([]res.DataValue{
+//			res.DataValue{tz{"GMT", 0}},
+//			res.DataValue{tz{"CET", 1}},
+//		})
+//	}))
 //
 // For objects and arrays, it marshals into a data value object, eg.:
-//  json.Marshal(res.DataValue{[]int{1, 2, 3}}) // Result: {"data":[1,2,3]}
+//
+//	json.Marshal(res.DataValue{[]int{1, 2, 3}}) // Result: {"data":[1,2,3]}
 //
 // For strings, numbers, booleans, and null values, it marshals into a primitive value, eg.:
-//  json.Marshal(res.DataValue{nil}) // Result: null
+//
+//	json.Marshal(res.DataValue{nil}) // Result: null
 type DataValue struct {
 	Data interface{} `json:"data"`
 }

@@ -418,18 +418,18 @@ func SendRequest(nc res.Conn, subject string, req interface{}, timeout time.Dura
 //
 // If the JSON data start with an array, UnmarshalDataValue will return an error.
 //
-// 	UnmarshalDataValue([]byte(`42`), v)                     // sets v to 42
-// 	UnmarshalDataValue([]byte(`"foo"`), v)                  // sets v to "foo"
-// 	UnmarshalDataValue([]byte(`{"data":true}`), v)          // sets v to true
-// 	UnmarshalDataValue([]byte(`{"data":["foo","bar"]}`), v) // sets v to []string{"foo", "bar"}
-// 	UnmarshalDataValue([]byte(`{"foo":"bar"}`), v)          // returns error
-// 	UnmarshalDataValue([]byte(`[1,2,3]`), v)                // returns error
+//	UnmarshalDataValue([]byte(`42`), v)                     // sets v to 42
+//	UnmarshalDataValue([]byte(`"foo"`), v)                  // sets v to "foo"
+//	UnmarshalDataValue([]byte(`{"data":true}`), v)          // sets v to true
+//	UnmarshalDataValue([]byte(`{"data":["foo","bar"]}`), v) // sets v to []string{"foo", "bar"}
+//	UnmarshalDataValue([]byte(`{"foo":"bar"}`), v)          // returns error
+//	UnmarshalDataValue([]byte(`[1,2,3]`), v)                // returns error
 //
 // UnmarshalDataValue can be used to implement the json.Unmarshaler interface:
 //
-// 	func (t *T) UnmarshalJSON([]byte) error
-// 		return UnmarshalDataValue(data, t)
-// 	}
+//	func (t *T) UnmarshalJSON([]byte) error
+//		return UnmarshalDataValue(data, t)
+//	}
 //
 // See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-protocol.md#data-values
@@ -475,16 +475,16 @@ func UnmarshalDataValue(data []byte, v interface{}) error {
 //
 // If v encodes into a JSON object or array, MarshalDataValue will wrap the value in a data object, where the value is stored under the key "data".
 //
-// 	MarshalDataValue(42)                        // Returns []byte(`42`)
-// 	MarshalDataValue("foo"), v)                 // Returns []byte(`"foo"`)
-// 	MarshalDataValue([]string{"foo", "bar"})    // Returns []byte(`{"data":["foo","bar"]}`)
-// 	MarshalDataValue(map[string]int{"foo": 42}) // Returns []byte(`{"data":{"foo":42}}`)
+//	MarshalDataValue(42)                        // Returns []byte(`42`)
+//	MarshalDataValue("foo"), v)                 // Returns []byte(`"foo"`)
+//	MarshalDataValue([]string{"foo", "bar"})    // Returns []byte(`{"data":["foo","bar"]}`)
+//	MarshalDataValue(map[string]int{"foo": 42}) // Returns []byte(`{"data":{"foo":42}}`)
 //
 // MarshalDataValue can be used to implement the json.Marshaler interface:
 //
-// 	func (t T) MarshalJSON() ([]byte, error)
-// 		return MarshalDataValue(t)
-// 	}
+//	func (t T) MarshalJSON() ([]byte, error)
+//		return MarshalDataValue(t)
+//	}
 //
 // See:
 // https://github.com/resgateio/resgate/blob/master/docs/res-protocol.md#data-values

@@ -7,14 +7,14 @@ https://github.com/resgateio/resgate
 The implementation provides structs and methods for creating services that
 listen to requests and send events over NATS server.
 
-Concurrency
+# Concurrency
 
 Requests are handled concurrently for multiple resources, but the package
 guarantees that only one goroutine is executing handlers for any unique resource
 at any one time. This allows handlers to modify models and collections without
 additional synchronization such as mutexes.
 
-Usage
+# Usage
 
 Create a new service:
 

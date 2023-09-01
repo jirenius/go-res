@@ -39,12 +39,14 @@ type SessionConfig struct {
 //
 // A service logger will by default be set to a new MemLogger. To set any other
 // logger, add the option:
-//  WithLogger(logger)
+//
+//	WithLogger(logger)
 //
 // If the tests sends any query event, a real NATS instance is required, which
 // is slower than using the default mock connection. To use a real NATS
 // instance, add the option:
-//  WithGnatsd
+//
+//	WithGnatsd
 func NewSession(t *testing.T, service *res.Service, opts ...func(*SessionConfig)) *Session {
 	cfg := &SessionConfig{
 		MockConnConfig: MockConnConfig{TimeoutDuration: DefaultTimeoutDuration},

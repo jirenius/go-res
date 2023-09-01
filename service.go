@@ -17,13 +17,20 @@ import (
 // Supported RES protocol version.
 const protocolVersion = "1.2.2"
 
-// The size of the in channel receiving messages from NATS Server.
-const inChannelSize = 256
+// The default size of the in channel receiving messages from NATS Server.
+const defaultInChannelSize = 1024
 
-// The number of default workers handling resource requests.
-const workerCount = 32
+// The default number of workers handling resource requests.
+const defaultWorkerCount = 32
 
+// The default duration for which the service will listen for query requests
+// sent on a query event
 const defaultQueryEventDuration = time.Second * 3
+
+// Common panic messages
+const (
+	serviceAlreadyStarted = "res: service already started"
+)
 
 var (
 	errNotStopped = errors.New("res: service is not stopped")
@@ -198,6 +205,8 @@ type Service struct {
 	resetAccess    []string               // List of resource name patterns used system.reset for access. Defaults to serviceName+">"
 	queryTQ        *timerqueue.Queue      // Timer queue for query events duration
 	queryDuration  time.Duration          // Duration to listen for query requests on a query event
+	workerCount    int                    // Number of workers handling resource requests
+	inChannelSize  int                    // Size of the in channel receiving messages from NATS Server
 	onServe        func(*Service)         // Handler called after the starting to serve prior to calling system.reset
 	onDisconnect   func(*Service)         // Handler called after the service has been disconnected from NATS server.
 	onReconnect    func(*Service)         // Handler called after the service has reconnected to NATS server and sent a system reset event.
@@ -216,6 +225,8 @@ func NewService(name string) *Service {
 		queueGroup:    name,
 		logger:        logger.NewStdLogger(),
 		queryDuration: defaultQueryEventDuration,
+		workerCount:   defaultWorkerCount,
+		inChannelSize: defaultInChannelSize,
 	}
 	s.Mux.Register(s)
 	return s
@@ -224,7 +235,7 @@ func NewService(name string) *Service {
 // SetLogger sets the logger. Panics if service is already started.
 func (s *Service) SetLogger(l logger.Logger) *Service {
 	if s.nc != nil {
-		panic("res: service already started")
+		panic(serviceAlreadyStarted)
 	}
 	s.logger = l
 	return s
@@ -234,9 +245,39 @@ func (s *Service) SetLogger(l logger.Logger) *Service {
 // query requests sent on a query event. Default is 3 seconds
 func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
 	if s.nc != nil {
-		panic("res: service already started")
+		panic(serviceAlreadyStarted)
 	}
 	s.queryDuration = d
+	return s
+}
+
+// SetWorkerCount sets the number of workers handling incoming requests. Default
+// is 32 workers.
+//
+// If count is less or equal to zero, the default value is used.
+func (s *Service) SetWorkerCount(count int) *Service {
+	if s.nc != nil {
+		panic(serviceAlreadyStarted)
+	}
+	if count <= 0 {
+		count = defaultWorkerCount
+	}
+	s.workerCount = count
+	return s
+}
+
+// SetInChannelSize sets the size of the in channel receiving messages from NATS
+// Server. Default is 1024.
+//
+// If size is less or equal to zero, the default value is used.
+func (s *Service) SetInChannelSize(size int) *Service {
+	if s.nc != nil {
+		panic(serviceAlreadyStarted)
+	}
+	if size <= 0 {
+		size = defaultInChannelSize
+	}
+	s.inChannelSize = size
 	return s
 }
 
@@ -290,7 +331,8 @@ func (s *Service) ProtocolVersion() string {
 //
 // If the service was started using ListenAndServe, the connection will be of
 // type *nats.Conn:
-// 	nc := service.Conn().(*nats.Conn)
+//
+//	nc := service.Conn().(*nats.Conn)
 func (s *Service) Conn() Conn {
 	return s.nc
 }
@@ -506,12 +548,12 @@ func (s *Service) SetReset(resources, access []string) *Service {
 // requests. The access slice patterns will be listened to for access requests.
 // These patterns will be used when a ResetAll is made.
 //
-//  // Handle all requests for resources prefixed "library."
-//  service.SetOwnedResources([]string{"library.>"}, []string{"library.>"})
-//  // Handle access requests for any resource
-//  service.SetOwnedResources([]string{}, []string{">"})
-//  // Handle non-access requests for a subset of resources
-//  service.SetOwnedResources([]string{"library.book", "library.books.*"}, []string{})
+//	// Handle all requests for resources prefixed "library."
+//	service.SetOwnedResources([]string{"library.>"}, []string{"library.>"})
+//	// Handle access requests for any resource
+//	service.SetOwnedResources([]string{}, []string{">"})
+//	// Handle non-access requests for a subset of resources
+//	service.SetOwnedResources([]string{"library.book", "library.books.*"}, []string{})
 //
 // If set to nil (default), the service will default to set ownership of all
 // resources prefixed with its own path if one was provided when creating the
@@ -602,7 +644,7 @@ func (s *Service) serve(nc Conn) error {
 	}
 
 	// Initialize fields
-	inCh := make(chan *nats.Msg, inChannelSize)
+	inCh := make(chan *nats.Msg, s.inChannelSize)
 	workCh := make(chan *work, 1)
 	s.nc = nc
 	s.inCh = inCh
@@ -611,8 +653,8 @@ func (s *Service) serve(nc Conn) error {
 	s.queryTQ = timerqueue.New(s.queryEventExpire, s.queryDuration)
 
 	// Start workers
-	s.wg.Add(workerCount)
-	for i := 0; i < workerCount; i++ {
+	s.wg.Add(s.workerCount)
+	for i := 0; i < s.workerCount; i++ {
 		go s.startWorker(s.workCh)
 	}
 
