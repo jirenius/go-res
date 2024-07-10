@@ -43,9 +43,12 @@ type SoftRef string
 // For strings, numbers, booleans, and null values, it marshals into a primitive value, eg.:
 //
 //	json.Marshal(res.DataValue{nil}) // Result: null
-type DataValue struct {
-	Data interface{} `json:"data"`
+type DataValue[T any] struct {
+	Data T `json:"data"`
 }
+
+// NewDataValue creates a new DataValue with the given data.
+func NewDataValue[T any](data T) DataValue[T] { return DataValue[T]{Data: data} }
 
 const (
 	refPrefix     = `{"rid":`

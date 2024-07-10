@@ -266,7 +266,7 @@ func (m *Mux) ValidateListeners() (err error) {
 			errs = append(errs, "no handler registered for pattern: "+mergePattern(m.FullPath(), pathSliceToString(n, path, mountIdx)))
 		}
 	})
-	if err != nil {
+	if errs != nil {
 		return errors.New(strings.Join(errs, "\n"))
 	}
 	return nil

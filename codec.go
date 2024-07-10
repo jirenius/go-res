@@ -11,23 +11,33 @@ type resRequest struct {
 	RemoteAddr string              `json:"remoteAddr"`
 	URI        string              `json:"uri"`
 	Query      string              `json:"query"`
+	IsHTTP     bool                `json:"isHttp"`
+}
+
+type metaObject struct {
+	Status int                 `json:"status,omitempty"`
+	Header map[string][]string `json:"header,omitempty"`
 }
 
 type successResponse struct {
 	Result interface{} `json:"result"`
+	Meta   *metaObject `json:"meta,omitempty"`
 }
 
 type resourceResponse struct {
-	Resource Ref `json:"resource"`
+	Resource Ref         `json:"resource"`
+	Meta     *metaObject `json:"meta,omitempty"`
 }
 
 type errorResponse struct {
-	Error *Error `json:"error"`
+	Error *Error      `json:"error"`
+	Meta  *metaObject `json:"meta,omitempty"`
 }
 
 type accessResponse struct {
-	Get  bool   `json:"get,omitempty"`
-	Call string `json:"call,omitempty"`
+	Get  bool        `json:"get,omitempty"`
+	Call string      `json:"call,omitempty"`
+	Meta *metaObject `json:"meta,omitempty"`
 }
 
 type modelResponse struct {
