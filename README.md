@@ -1,9 +1,9 @@
 <p align="center"><a href="https://resgate.io" target="_blank" rel="noopener noreferrer"><img width="100" src="https://resgate.io/img/resgate-logo.png" alt="Resgate logo"></a></p>
 <h2 align="center"><b>RES Service for Go</b><br/>Synchronize Your Clients</h2>
 <p align="center">
-<a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
 <a href="http://goreportcard.com/report/jirenius/go-res"><img src="http://goreportcard.com/badge/github.com/jirenius/go-res" alt="Report Card"></a>
-<a href="https://travis-ci.com/jirenius/go-res"><img src="https://travis-ci.com/jirenius/go-res.svg?branch=master" alt="Build Status"></a>
+<a href="https://github.com/jirenius/go-res/actions/workflows/build.yml?query=branch%3Amaster"><img src="https://img.shields.io/github/actions/workflow/status/jirenius/go-res/build.yml?branch=master" alt="Build Status"></a>
 <a href="https://coveralls.io/github/jirenius/go-res?branch=master"><img src="https://coveralls.io/repos/github/jirenius/go-res/badge.svg?branch=master" alt="Coverage"></a>
 <a href="https://pkg.go.dev/github.com/jirenius/go-res"><img src="https://img.shields.io/static/v1?label=reference&message=go.dev&color=5673ae" alt="Reference"></a>
 </p>
