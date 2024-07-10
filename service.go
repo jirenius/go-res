@@ -15,7 +15,7 @@ import (
 )
 
 // Supported RES protocol version.
-const protocolVersion = "1.2.2"
+const protocolVersion = "1.2.3"
 
 // The default size of the in channel receiving messages from NATS Server.
 const defaultInChannelSize = 1024
@@ -1116,7 +1116,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *M
 		if err != nil {
 			r = &Request{resource: resource{s: s}, msg: m}
 			s.errorf("Error unmarshaling incoming request: %s", err)
-			r.error(ToError(err))
+			r.error(ToError(err), nil)
 			return
 		}
 	}
@@ -1141,6 +1141,7 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *M
 		host:       rc.Host,
 		remoteAddr: rc.RemoteAddr,
 		uri:        rc.URI,
+		isHTTP:     rc.IsHTTP,
 	}
 
 	r.executeHandler()

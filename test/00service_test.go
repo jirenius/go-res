@@ -36,7 +36,7 @@ func TestService(t *testing.T) {
 // Test that the service returns the correct protocol version
 func TestServiceProtocolVersion(t *testing.T) {
 	s := res.NewService("test")
-	restest.AssertEqualJSON(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.2")
+	restest.AssertEqualJSON(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.3")
 }
 
 // Test that the service can be served without error
