@@ -81,6 +81,10 @@ func NewSession(t *testing.T, service *res.Service, opts ...func(*SessionConfig)
 
 	if !s.cfg.NoReset {
 		msg := s.GetMsg()
+		if msg == nil {
+			// The channel is closed
+			t.Fatal("expected a system.reset, but got no message")
+		}
 		if s.cfg.ValidateReset {
 			msg.AssertSystemReset(cfg.ResetResources, cfg.ResetAccess)
 		} else {

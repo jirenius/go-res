@@ -330,3 +330,53 @@ func TestServiceTokenReset(t *testing.T) {
 		})
 	}
 }
+
+// Test ServiceSetWorkerCount panics when called after starting service
+func TestServiceSetWorkerCount_AfterStart_Panics(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.Access(res.AccessGranted))
+	}, func(s *restest.Session) {
+		restest.AssertPanic(t, func() {
+			s.Service().SetWorkerCount(5)
+		})
+	})
+}
+
+// Test ServiceSetWorkerCount does not panic when zero
+func TestServiceSetWorkerCount_ZeroWorkerCount_DoesNotPanic(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.SetWorkerCount(0) // Default worker count should be used
+	}, nil, restest.WithoutReset)
+}
+
+// Test ServiceSetWorkerCount does not panic when greater than zero
+func TestServiceSetWorkerCount_GreaterThanZero_DoesNotPanic(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.SetWorkerCount(5)
+	}, nil, restest.WithoutReset)
+}
+
+// Test ServiceSetInChannelSize panics when called after starting service
+func TestServiceSetInChannelSize_AfterStart_Panics(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.Access(res.AccessGranted))
+	}, func(s *restest.Session) {
+		restest.AssertPanic(t, func() {
+			s.Service().SetInChannelSize(10)
+		})
+	})
+}
+
+// Test ServiceSetInChannelSize does not panic when zero
+func TestServiceSetInChannelSize_ZeroWorkerCount_DoesNotPanic(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.SetInChannelSize(0) // Default in channel size should be used
+	}, nil, restest.WithoutReset)
+}
+
+// Test ServiceSetInChannelSize does not panic when greater than zero
+func TestServiceSetInChannelSize_GreaterThanZero_DoesNotPanic(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.SetInChannelSize(10)
+	}, nil, restest.WithoutReset)
+}

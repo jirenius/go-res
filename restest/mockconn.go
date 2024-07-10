@@ -322,6 +322,10 @@ func (c *MockConn) AssertNoSubscription(subj string) {
 func (c *MockConn) GetMsg() *Msg {
 	select {
 	case r := <-c.rch:
+		// Channel is closed
+		if r == nil {
+			return nil
+		}
 		return &Msg{
 			Msg: r,
 			c:   c,
