@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"runtime/debug"
 	"strconv"
 	"time"
@@ -26,6 +27,8 @@ type Request struct {
 	method  string
 	msg     *nats.Msg
 	replied bool // Flag telling if a reply has been made
+	rheader http.Header
+	status  int
 
 	// Fields from the request data
 	cid        string
@@ -35,6 +38,7 @@ type Request struct {
 	host       string
 	remoteAddr string
 	uri        string
+	isHTTP     bool
 }
 
 // AccessRequest has methods for responding to access requests.
@@ -43,6 +47,9 @@ type AccessRequest interface {
 	CID() string
 	RawToken() json.RawMessage
 	ParseToken(interface{})
+	IsHTTP() bool
+	SetResponseStatus(code int)
+	ResponseHeader() http.Header
 	Access(get bool, call string)
 	AccessDenied()
 	AccessGranted()
@@ -99,6 +106,9 @@ type CallRequest interface {
 	RawToken() json.RawMessage
 	ParseParams(interface{})
 	ParseToken(interface{})
+	IsHTTP() bool
+	SetResponseStatus(code int)
+	ResponseHeader() http.Header
 	OK(result interface{})
 	Resource(rid string)
 	NotFound()
@@ -139,6 +149,9 @@ type AuthRequest interface {
 	Host() string
 	RemoteAddr() string
 	URI() string
+	IsHTTP() bool
+	SetResponseStatus(code int)
+	ResponseHeader() http.Header
 	OK(result interface{})
 	Resource(rid string)
 	NotFound()
@@ -239,15 +252,59 @@ func (r *Request) URI() string {
 	return r.uri
 }
 
+// IsHTTP returns true if the request originates from a client HTTP or WebSocket
+// connection that has yet to be responded to by the gateway.
+//
+// Only valid for auth, access, and call requests.
+func (r *Request) IsHTTP() bool {
+	return r.isHTTP
+}
+
+// SetResponseStatus sets the HTTP response status code for the client
+// connection. If IsHTTP is not true, the call will panic. A zero (0) value
+// means no/default status code.
+//
+// See: https://resgate.io/docs/specification/res-service-protocol/#status-codes
+//
+// Only valid for auth, access, and call requests.
+
+func (r *Request) SetResponseStatus(code int) {
+	if !r.isHTTP {
+		panic("call to SetResponseStatus when IsHTTP is false")
+	}
+	if r.replied {
+		panic("call to SetResponseStatus after reply")
+	}
+	r.status = code
+}
+
+// ResponseHeader returns the header map to use in the response for the client
+// connection. If IsHTTP is not true, the call will panic.
+//
+// Only valid for auth, access, and call requests.
+func (r *Request) ResponseHeader() http.Header {
+	if !r.isHTTP {
+		panic("call to ResponseHeader when IsHTTP is false")
+	}
+	if r.replied {
+		panic("call to ResponseHeader after reply")
+	}
+	if r.rheader == nil {
+		r.rheader = make(http.Header)
+	}
+	return r.rheader
+}
+
 // OK sends a successful result response to a request.
 // The result may be nil.
 //
 // Only valid for call and auth requests.
 func (r *Request) OK(result interface{}) {
-	if result == nil {
+	m := r.meta()
+	if result == nil && m == nil {
 		r.reply(responseSuccess)
 	} else {
-		r.success(result)
+		r.success(result, m)
 	}
 }
 
@@ -260,9 +317,9 @@ func (r *Request) Resource(rid string) {
 	if !ref.IsValid() {
 		panic("res: invalid resource ID: " + rid)
 	}
-	data, err := json.Marshal(resourceResponse{Resource: ref})
+	data, err := json.Marshal(resourceResponse{Resource: ref, Meta: r.meta()})
 	if err != nil {
-		r.error(ToError(err))
+		r.error(ToError(err), nil)
 		return
 	}
 	r.reply(data)
@@ -270,19 +327,29 @@ func (r *Request) Resource(rid string) {
 
 // Error sends a custom error response for the request.
 func (r *Request) Error(err error) {
-	r.error(ToError(err))
+	r.error(ToError(err), r.meta())
 }
 
 // NotFound sends a system.notFound response for the request.
 func (r *Request) NotFound() {
-	r.reply(responseNotFound)
+	m := r.meta()
+	if m == nil {
+		r.reply(responseNotFound)
+	} else {
+		r.error(ErrNotFound, m)
+	}
 }
 
 // MethodNotFound sends a system.methodNotFound response for the request.
 //
 // Only valid for call and auth requests.
 func (r *Request) MethodNotFound() {
-	r.reply(responseMethodNotFound)
+	m := r.meta()
+	if m == nil {
+		r.reply(responseMethodNotFound)
+	} else {
+		r.error(ErrMethodNotFound, m)
+	}
 }
 
 // InvalidParams sends a system.invalidParams response.
@@ -290,21 +357,35 @@ func (r *Request) MethodNotFound() {
 //
 // Only valid for call and auth requests.
 func (r *Request) InvalidParams(message string) {
+	m := r.meta()
+	var err *Error
 	if message == "" {
-		r.reply(responseInvalidParams)
+		if m == nil {
+			r.reply(responseInvalidParams)
+			return
+		}
+		err = ErrInvalidParams
 	} else {
-		r.error(&Error{Code: CodeInvalidParams, Message: message})
+		err = &Error{Code: CodeInvalidParams, Message: message}
 	}
+	r.error(err, m)
 }
 
 // InvalidQuery sends a system.invalidQuery response.
 // An empty message will default to "Invalid query".
 func (r *Request) InvalidQuery(message string) {
+	m := r.meta()
+	var err *Error
 	if message == "" {
-		r.reply(responseInvalidQuery)
+		if m == nil {
+			r.reply(responseInvalidQuery)
+			return
+		}
+		err = ErrInvalidQuery
 	} else {
-		r.error(&Error{Code: CodeInvalidQuery, Message: message})
+		err = &Error{Code: CodeInvalidQuery, Message: message}
 	}
+	r.error(err, m)
 }
 
 // Access sends a successful response.
@@ -317,17 +398,22 @@ func (r *Request) InvalidQuery(message string) {
 // Only valid for access requests.
 func (r *Request) Access(get bool, call string) {
 	if !get && call == "" {
-		r.reply(responseAccessDenied)
-	} else {
-		r.success(accessResponse{Get: get, Call: call})
+		r.AccessDenied()
+		return
 	}
+	r.success(accessResponse{Get: get, Call: call}, r.meta())
 }
 
 // AccessDenied sends a system.accessDenied response.
 //
 // Only valid for access requests.
 func (r *Request) AccessDenied() {
-	r.reply(responseAccessDenied)
+	m := r.meta()
+	if m == nil {
+		r.reply(responseAccessDenied)
+	} else {
+		r.error(ErrAccessDenied, m)
+	}
 }
 
 // AccessGranted a successful response granting full access to the resource.
@@ -337,7 +423,12 @@ func (r *Request) AccessDenied() {
 //
 // Only valid for access requests.
 func (r *Request) AccessGranted() {
-	r.reply(responseAccessGranted)
+	m := r.meta()
+	if m == nil {
+		r.reply(responseAccessGranted)
+	} else {
+		r.success(accessResponse{Get: true, Call: "*"}, m)
+	}
 }
 
 // Model sends a successful model response for the get request.
@@ -359,7 +450,7 @@ func (r *Request) QueryModel(model interface{}, query string) {
 // model sends a successful model response for the get request.
 func (r *Request) model(model interface{}, query string) {
 	// [TODO] Marshal model to a json.RawMessage to see if it is a JSON object
-	r.success(modelResponse{Model: model, Query: query})
+	r.success(modelResponse{Model: model, Query: query}, nil)
 }
 
 // Collection sends a successful collection response for the get request.
@@ -381,7 +472,7 @@ func (r *Request) QueryCollection(collection interface{}, query string) {
 // collection sends a successful collection response for the get request.
 func (r *Request) collection(collection interface{}, query string) {
 	// [TODO] Marshal collection to a json.RawMessage to see if it is a JSON array
-	r.success(collectionResponse{Collection: collection, Query: query})
+	r.success(collectionResponse{Collection: collection, Query: query}, nil)
 }
 
 // New sends a successful response for the new call request.
@@ -394,7 +485,7 @@ func (r *Request) New(rid Ref) {
 	if !rid.IsValid() {
 		panic("res: invalid reference RID: " + rid)
 	}
-	r.success(rid)
+	r.success(rid, nil)
 }
 
 // ParseParams unmarshals the JSON encoded parameters and stores the result in p.
@@ -454,11 +545,20 @@ func (r *Request) ForValue() bool {
 	return false
 }
 
+// meta returns a metaObject if any of the meta response values are set,
+// otherwise it returns nil.
+func (r *Request) meta() *metaObject {
+	if len(r.rheader) == 0 && r.status == 0 {
+		return nil
+	}
+	return &metaObject{Header: r.rheader, Status: r.status}
+}
+
 // success sends a successful response as a reply.
-func (r *Request) success(result interface{}) {
-	data, err := json.Marshal(successResponse{Result: result})
+func (r *Request) success(result interface{}, m *metaObject) {
+	data, err := json.Marshal(successResponse{Result: result, Meta: m})
 	if err != nil {
-		r.error(ToError(err))
+		r.error(ToError(err), nil)
 		return
 	}
 
@@ -466,8 +566,8 @@ func (r *Request) success(result interface{}) {
 }
 
 // error sends an error response as a reply.
-func (r *Request) error(e *Error) {
-	data, err := json.Marshal(errorResponse{Error: e})
+func (r *Request) error(e *Error, m *metaObject) {
+	data, err := json.Marshal(errorResponse{Error: e, Meta: m})
 	if err != nil {
 		data = responseInternalError
 	}
@@ -502,7 +602,7 @@ func (r *Request) executeHandler() {
 		switch e := v.(type) {
 		case *Error:
 			if !r.replied {
-				r.error(e)
+				r.error(e, r.meta())
 				// Return without logging as panicing with a *Error is considered
 				// a valid way of sending an error response.
 				return
@@ -511,17 +611,17 @@ func (r *Request) executeHandler() {
 		case error:
 			str = e.Error()
 			if !r.replied {
-				r.error(ToError(e))
+				r.error(ToError(e), r.meta())
 			}
 		case string:
 			str = e
 			if !r.replied {
-				r.error(ToError(errors.New(e)))
+				r.error(ToError(errors.New(e)), r.meta())
 			}
 		default:
 			str = fmt.Sprintf("%v", e)
 			if !r.replied {
-				r.error(ToError(errors.New(str)))
+				r.error(ToError(errors.New(str)), r.meta())
 			}
 		}
 

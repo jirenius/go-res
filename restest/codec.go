@@ -14,6 +14,7 @@ type Request struct {
 	RemoteAddr string              `json:"remoteAddr,omitempty"`
 	URI        string              `json:"uri,omitempty"`
 	Query      string              `json:"query,omitempty"`
+	IsHTTP     bool                `json:"isHttp,omitempty"`
 }
 
 // DefaultCallRequest returns a default call request.
