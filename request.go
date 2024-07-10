@@ -267,7 +267,6 @@ func (r *Request) IsHTTP() bool {
 // See: https://resgate.io/docs/specification/res-service-protocol/#status-codes
 //
 // Only valid for auth, access, and call requests.
-
 func (r *Request) SetResponseStatus(code int) {
 	if !r.isHTTP {
 		panic("call to SetResponseStatus when IsHTTP is false")
