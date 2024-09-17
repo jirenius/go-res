@@ -1,10 +1,22 @@
 package res
 
+import "encoding/json"
+
 // Error represents an RES error
 type Error struct {
-	Code    string      `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
+}
+
+// DecodeData into the given value.
+func (e *Error) DecodeData(value any) error {
+	rawData, err := json.Marshal(e.Data)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(rawData, value)
 }
 
 func (e *Error) Error() string {
