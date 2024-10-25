@@ -203,7 +203,7 @@ type Service struct {
 	rwork          map[string]*work       // map of resource work
 	workqueue      []*work                // Resource work queue.
 	workbuf        []*work                // Underlying buffer of the workqueue
-	workcond       sync.Cond              // Cond waited on by workers and signalled when work is added to workqueue
+	workcond       sync.Cond              // Cond waited on by workers and signaled when work is added to workqueue
 	wg             sync.WaitGroup         // WaitGroup for all workers
 	mu             sync.Mutex             // Mutex to protect rwork map
 	logger         logger.Logger          // Logger
