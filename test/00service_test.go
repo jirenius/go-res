@@ -203,9 +203,7 @@ func TestServiceSetOnServe_ValidCallback_IsCalledOnServe(t *testing.T) {
 		select {
 		case <-ch:
 		case <-time.After(timeoutDuration):
-			if t == nil {
-				t.Fatal("expected OnServe callback to be called, but it wasn't")
-			}
+			t.Fatal("expected OnServe callback to be called, but it wasn't")
 		}
 	})
 }
@@ -257,9 +255,7 @@ func TestServiceWithResource_WithMatchingResource_CallsCallback(t *testing.T) {
 		select {
 		case <-ch:
 		case <-time.After(timeoutDuration):
-			if t == nil {
-				t.Fatal("expected WithResource callback to be called, but it wasn't")
-			}
+			t.Fatal("expected WithResource callback to be called, but it wasn't")
 		}
 	})
 }
@@ -276,9 +272,7 @@ func TestServiceWithGroup_WithMatchingResource_CallsCallback(t *testing.T) {
 		select {
 		case <-ch:
 		case <-time.After(timeoutDuration):
-			if t == nil {
-				t.Fatal("expected WithGroup callback to be called, but it wasn't")
-			}
+			t.Fatal("expected WithGroup callback to be called, but it wasn't")
 		}
 	})
 }
@@ -379,4 +373,42 @@ func TestServiceSetInChannelSize_GreaterThanZero_DoesNotPanic(t *testing.T) {
 	runTest(t, func(s *res.Service) {
 		s.SetInChannelSize(10)
 	}, nil, restest.WithoutReset)
+}
+
+func TestServiceWithParallel_WithMultipleCallsOnSameResource_CallsCallbacksInParallel(t *testing.T) {
+	ch := make(chan bool)
+	done := make(chan bool)
+	runTest(t, func(s *res.Service) {
+		s.Handle("model",
+			res.Parallel(true),
+			res.GetResource(func(r res.GetRequest) {
+				ch <- true
+				<-done
+				r.NotFound()
+			}),
+		)
+	}, func(s *restest.Session) {
+		// Test getting the same model twice
+		reqs := restest.NATSRequests{
+			s.Get("test.model"),
+			s.Get("test.model"),
+			s.Get("test.model"),
+		}
+
+		for i := 0; i < len(reqs); i++ {
+			select {
+			case <-ch:
+			case <-time.After(timeoutDuration):
+				t.Fatal("expected get handler to be called twice in parallel, but it wasn't")
+			}
+		}
+
+		close(done)
+
+		for i := len(reqs); i > 0; i-- {
+			reqs.
+				Response(s.MockConn).
+				AssertError(res.ErrNotFound)
+		}
+	})
 }

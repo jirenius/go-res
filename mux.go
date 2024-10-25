@@ -200,9 +200,15 @@ func (m *Mux) Handle(pattern string, hf ...Option) {
 // AddHandler register a handler for the given resource pattern.
 // The pattern used is the same as described for Handle.
 func (m *Mux) AddHandler(pattern string, hs Handler) {
+	var g group
+	if hs.Parallel {
+		g = []gpart{}
+	} else {
+		g = parseGroup(hs.Group, pattern)
+	}
 	h := regHandler{
 		Handler: hs,
-		group:   parseGroup(hs.Group, pattern),
+		group:   g,
 	}
 
 	m.add(pattern, &h)
