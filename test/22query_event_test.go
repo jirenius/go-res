@@ -580,9 +580,7 @@ func TestInvalidQueryResponse(t *testing.T) {
 			select {
 			case <-ch:
 			case <-time.After(timeoutDuration):
-				if t == nil {
-					t.Fatal("expected query request to get a query response, but it timed out")
-				}
+				t.Fatal("expected query request to get a query response, but it timed out")
 			}
 			if t.Failed() {
 				t.Logf("failed on test idx %d", i)

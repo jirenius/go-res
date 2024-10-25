@@ -8,6 +8,10 @@ type NATSRequest struct {
 	inb string
 }
 
+// NATSRequests represents a slice of requests sent over NATS to the service,
+// but that may get responses in undetermined order.
+type NATSRequests []*NATSRequest
+
 // Response gets the next pending message that is published to NATS by the
 // service.
 //
@@ -17,6 +21,26 @@ func (nr *NATSRequest) Response() *Msg {
 	m := nr.c.GetMsg()
 	m.AssertSubject(nr.inb)
 	return m
+}
+
+// Response gets the next pending message that is published to NATS by the
+// service, and matches it to one of the requests.
+//
+// If no message is received within a set amount of time, or if the message is
+// not a response to one of the requests, it will log it as a fatal error.
+//
+// The matching request will be set to nil.
+func (nrs NATSRequests) Response(c *MockConn) *Msg {
+	m := c.GetMsg()
+	for i := 0; i < len(nrs); i++ {
+		nr := nrs[i]
+		if nr != nil && nr.inb == m.Subject {
+			nrs[i] = nil
+			return m
+		}
+	}
+	c.t.Fatalf("expected to find request matching response %s, but found none", m.Subject)
+	return nil
 }
 
 // Get sends a get request to the service.

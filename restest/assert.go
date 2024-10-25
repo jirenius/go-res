@@ -12,8 +12,8 @@ import (
 // AssertEqualJSON expects that a and b json marshals into equal values, and
 // returns true if they do, otherwise logs a fatal error and returns false.
 func AssertEqualJSON(t *testing.T, name string, result, expected interface{}, ctx ...interface{}) bool {
-	aa, aj := jsonMap(t, result)
-	bb, bj := jsonMap(t, expected)
+	aa, aj := jsonMap(result)
+	bb, bj := jsonMap(expected)
 
 	if !reflect.DeepEqual(aa, bb) {
 		t.Fatalf("expected %s to be:\n\t%s\nbut got:\n\t%s%s", name, bj, aj, ctxString(ctx))
@@ -117,7 +117,7 @@ func ctxString(ctx []interface{}) string {
 	return "\nin " + fmt.Sprint(ctx...)
 }
 
-func jsonMap(t *testing.T, v interface{}) (interface{}, []byte) {
+func jsonMap(v interface{}) (interface{}, []byte) {
 	var err error
 	j, err := json.Marshal(v)
 	if err != nil {

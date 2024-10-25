@@ -86,9 +86,12 @@ UnexpectedEnd:
 }
 
 func (g group) toString(rname string, tokens []string) string {
+	if g == nil {
+		return rname
+	}
 	l := len(g)
 	if l == 0 {
-		return rname
+		return ""
 	}
 	if l == 1 && g[0].str != "" {
 		return g[0].str
