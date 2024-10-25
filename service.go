@@ -137,6 +137,11 @@ type Handler struct {
 	// resource name will be used as identifier.
 	Group string
 
+	// Parallel is a flag telling that all requests to the handler may be
+	// handled in parallel on different goroutines. If set to true, any value in
+	// Group will be ignored.
+	Parallel bool
+
 	// OnRegister is callback that is to be call when the handler has been
 	// registered to a service.
 	//
@@ -196,7 +201,9 @@ type Service struct {
 	nc             Conn                   // NATS Server connection
 	inCh           chan *nats.Msg         // Channel for incoming nats messages
 	rwork          map[string]*work       // map of resource work
-	workCh         chan *work             // Resource work channel, listened to by the workers
+	workqueue      []*work                // Resource work queue.
+	workbuf        []*work                // Underlying buffer of the workqueue
+	workcond       sync.Cond              // Cond waited on by workers and signaled when work is added to workqueue
 	wg             sync.WaitGroup         // WaitGroup for all workers
 	mu             sync.Mutex             // Mutex to protect rwork map
 	logger         logger.Logger          // Logger
@@ -517,6 +524,16 @@ func Group(group string) Option {
 	})
 }
 
+// Parallel sets the parallel flag. All requests for the handler may be handled
+// in parallel on different worker goroutines.
+//
+//	If set to true, any value in Group will be ignored.
+func Parallel(parallel bool) Option {
+	return OptionFunc(func(hs *Handler) {
+		hs.Parallel = parallel
+	})
+}
+
 // OnRegister sets a callback to be called when the handler is registered to a
 // service.
 //
@@ -648,14 +665,16 @@ func (s *Service) serve(nc Conn) error {
 	workCh := make(chan *work, 1)
 	s.nc = nc
 	s.inCh = inCh
-	s.workCh = workCh
-	s.rwork = make(map[string]*work)
+	s.workcond = sync.Cond{L: &s.mu}
+	s.workbuf = make([]*work, s.inChannelSize)
+	s.workqueue = s.workbuf[:0]
+	s.rwork = make(map[string]*work, s.inChannelSize)
 	s.queryTQ = timerqueue.New(s.queryEventExpire, s.queryDuration)
 
 	// Start workers
 	s.wg.Add(s.workerCount)
 	for i := 0; i < s.workerCount; i++ {
-		go s.startWorker(s.workCh)
+		go s.startWorker()
 	}
 
 	atomic.StoreInt32(&s.state, stateStarted)
@@ -699,7 +718,6 @@ func (s *Service) Shutdown() error {
 
 	s.inCh = nil
 	s.nc = nil
-	s.workCh = nil
 
 	atomic.StoreInt32(&s.state, stateStopped)
 
@@ -709,6 +727,11 @@ func (s *Service) Shutdown() error {
 
 // close calls Close on the NATS connection, and closes the incoming channel
 func (s *Service) close() {
+	s.mu.Lock()
+	s.workqueue = nil
+	s.mu.Unlock()
+	s.workcond.Broadcast()
+
 	s.nc.Close()
 	close(s.inCh)
 }
@@ -956,17 +979,25 @@ func (s *Service) runWith(wid string, cb func()) {
 
 	s.mu.Lock()
 	// Get current work queue for the resource
-	w, ok := s.rwork[wid]
+	var w *work
+	var ok bool
+	if wid != "" {
+		w, ok = s.rwork[wid]
+	}
 	if !ok {
 		// Create a new work queue and pass it to a worker
 		w = &work{
-			s:     s,
-			wid:   wid,
-			queue: []func(){cb},
+			s:      s,
+			wid:    wid,
+			single: [1]func(){cb},
 		}
-		s.rwork[wid] = w
+		w.queue = w.single[:1]
+		if wid != "" {
+			s.rwork[wid] = w
+		}
+		s.workqueue = append(s.workqueue, w)
 		s.mu.Unlock()
-		s.workCh <- w
+		s.workcond.Signal()
 	} else {
 		// Append callback to existing work queue
 		w.queue = append(w.queue, cb)
