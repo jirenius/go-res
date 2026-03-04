@@ -8,7 +8,7 @@ require (
 	github.com/jirenius/taskqueue v1.1.0
 	github.com/jirenius/timerqueue v1.0.0
 	github.com/nats-io/nats-server/v2 v2.1.8
-	github.com/nats-io/nats.go v1.10.0
+	github.com/nats-io/nats.go v1.13.0
 	github.com/rs/xid v1.2.1
 )
 
@@ -19,12 +19,12 @@ require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/golang/protobuf v1.4.0 // indirect
 	github.com/nats-io/jwt v0.3.2 // indirect
-	github.com/nats-io/nkeys v0.1.4 // indirect
+	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/stretchr/testify v1.6.1 // indirect
-	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59 // indirect
-	golang.org/x/net v0.0.0-20190620200207-3b0461eec859 // indirect
-	golang.org/x/sys v0.0.0-20190726091711-fc99dfbffb4e // indirect
+	golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b // indirect
+	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
+	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 // indirect
 	google.golang.org/protobuf v1.22.0 // indirect
 )
