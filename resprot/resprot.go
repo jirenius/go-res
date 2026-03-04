@@ -81,6 +81,10 @@ type Request struct {
 	// Valid for access, get, call, auth, and query requests. May be omitted,
 	// except for on query requests.
 	Query string `json:"query,omitempty"`
+
+	// IsHTTP is a flag telling if the response's meta object may contain status
+	// and header members.
+	IsHTTP bool `json:"isHttp,omitempty"`
 }
 
 // Response represents the response to a request.
@@ -99,6 +103,21 @@ type Response struct {
 
 	// Error is the request error.
 	Error *res.Error `json:"error"`
+
+	// Meta data about the response.
+	Meta *Meta `json:"meta"`
+}
+
+// Meta represents the meta data of a response.
+//
+// See: https://github.com/resgateio/resgate/blob/master/docs/res-service-protocol.md#meta-object
+type Meta struct {
+
+	// Status is the HTTP status code.
+	Status int `json:"status"`
+
+	// Header is HTTP headers to set on a HTTP response.
+	Header map[string][]string `json:"header"`
 }
 
 // ParseResponse unmarshals a JSON encoded RES response.
