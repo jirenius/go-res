@@ -200,6 +200,11 @@ type Service struct {
 	state          int32
 	nc             Conn                   // NATS Server connection
 	inCh           chan *nats.Msg         // Channel for incoming nats messages
+	pending        []*nats.Msg            // Pending incoming messages
+	pendingBuf     []*nats.Msg            // Original pending buffer
+	pendingMu      sync.Mutex             // Mutex for pending queue
+	pendingCond    sync.Cond              // Cond signaled on pending queue updates
+	pendingClosed  bool                   // Flag set when inCh is closed and drained into pending
 	rwork          map[string]*work       // map of resource work
 	workqueue      []*work                // Resource work queue.
 	workbuf        []*work                // Underlying buffer of the workqueue
@@ -665,6 +670,10 @@ func (s *Service) serve(nc Conn) error {
 	workCh := make(chan *work, 1)
 	s.nc = nc
 	s.inCh = inCh
+	s.pending = make([]*nats.Msg, 0, s.inChannelSize)
+	s.pendingBuf = s.pending
+	s.pendingCond = sync.Cond{L: &s.pendingMu}
+	s.pendingClosed = false
 	s.workcond = sync.Cond{L: &s.mu}
 	s.workbuf = make([]*work, s.inChannelSize)
 	s.workqueue = s.workbuf[:0]
@@ -692,7 +701,8 @@ func (s *Service) serve(nc Conn) error {
 		}
 
 		s.infof("Listening for requests")
-		s.startListener(inCh)
+		go s.startIngress(inCh)
+		s.startListener()
 	}
 
 	// Stop all workers by closing worker channel
@@ -918,11 +928,50 @@ next:
 	return nil
 }
 
-// startListener listens for nats messages and passes them on to a worker.
-func (s *Service) startListener(ch chan *nats.Msg) {
+// startIngress drains the NATS channel into the pending queue.
+func (s *Service) startIngress(ch chan *nats.Msg) {
 	for m := range ch {
+		s.pendingMu.Lock()
+		s.pending = append(s.pending, m)
+		s.pendingMu.Unlock()
+		s.pendingCond.Signal()
+	}
+
+	s.pendingMu.Lock()
+	s.pendingClosed = true
+	s.pendingMu.Unlock()
+	s.pendingCond.Broadcast()
+}
+
+// startListener dequeues pending nats messages and passes them on to a worker.
+func (s *Service) startListener() {
+	for {
+		m, ok := s.dequeuePending()
+		if !ok {
+			return
+		}
 		s.handleRequest(m)
 	}
+}
+
+func (s *Service) dequeuePending() (*nats.Msg, bool) {
+	s.pendingMu.Lock()
+	defer s.pendingMu.Unlock()
+
+	for len(s.pending) == 0 && !s.pendingClosed {
+		s.pendingCond.Wait()
+	}
+	if len(s.pending) == 0 {
+		return nil, false
+	}
+
+	m := s.pending[0]
+	s.pending[0] = nil
+	s.pending = s.pending[1:]
+	if len(s.pending) == 0 {
+		s.pending = s.pendingBuf
+	}
+	return m, true
 }
 
 // handleRequest is called by the nats listener on incoming messages.
@@ -965,14 +1014,20 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		group = mh.Group
 	}
 
-	s.runWith(group, func() {
-		s.processRequest(m, rtype, rname, method, mh)
+	s.runWith(group, workItem{
+		request: requestWork{
+			msg:    m,
+			rtype:  rtype,
+			rname:  rname,
+			method: method,
+			mh:     mh,
+		},
 	})
 }
 
-// runWith enqueues the callback, cb, to be called by the worker goroutine
+// runWith enqueues the item to be called by the worker goroutine
 // defined by the worker ID (wid).
-func (s *Service) runWith(wid string, cb func()) {
+func (s *Service) runWith(wid string, item workItem) {
 	if atomic.LoadInt32(&s.state) != stateStarted {
 		return
 	}
@@ -989,7 +1044,7 @@ func (s *Service) runWith(wid string, cb func()) {
 		w = &work{
 			s:      s,
 			wid:    wid,
-			single: [1]func(){cb},
+			single: [1]workItem{item},
 		}
 		w.queue = w.single[:1]
 		if wid != "" {
@@ -1000,7 +1055,7 @@ func (s *Service) runWith(wid string, cb func()) {
 		s.workcond.Signal()
 	} else {
 		// Append callback to existing work queue
-		w.queue = append(w.queue, cb)
+		w.queue = append(w.queue, item)
 		s.mu.Unlock()
 	}
 }
@@ -1017,9 +1072,7 @@ func (s *Service) With(rid string, cb func(r Resource)) error {
 		return err
 	}
 
-	s.runWith(r.Group(), func() {
-		cb(r)
-	})
+	s.runWith(r.Group(), workItem{cb: func() { cb(r) }})
 
 	return nil
 }
@@ -1028,12 +1081,12 @@ func (s *Service) With(rid string, cb func(r Resource)) error {
 // goroutine. If the resource belongs to a group, it will be called on the
 // group's worker goroutine.
 func (s *Service) WithResource(r Resource, cb func()) {
-	s.runWith(r.Group(), cb)
+	s.runWith(r.Group(), workItem{cb: cb})
 }
 
 // WithGroup calls the callback, cb, on the group's worker goroutine.
 func (s *Service) WithGroup(group string, cb func(s *Service)) {
-	s.runWith(group, func() { cb(s) })
+	s.runWith(group, workItem{cb: func() { cb(s) }})
 }
 
 // Resource matches the resource ID, rid, with the registered Handlers and
@@ -1133,7 +1186,13 @@ func parseRID(rid string) (rname string, q string) {
 }
 
 // processRequest is executed by the worker to process an incoming request.
-func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *Match) {
+func (s *Service) processRequest(rw requestWork) {
+	m := rw.msg
+	rtype := rw.rtype
+	rname := rw.rname
+	method := rw.method
+	mh := rw.mh
+
 	var r *Request
 	if mh == nil {
 		r = &Request{resource: resource{s: s}, msg: m}
@@ -1181,7 +1240,5 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *M
 func (s *Service) queryEventExpire(v interface{}) {
 	qe := v.(*queryEvent)
 	qe.sub.Drain()
-	s.runWith(qe.r.Group(), func() {
-		qe.cb(nil)
-	})
+	s.runWith(qe.r.Group(), workItem{cb: func() { qe.cb(nil) }})
 }

@@ -1,10 +1,25 @@
 package res
 
+import nats "github.com/nats-io/nats.go"
+
+type requestWork struct {
+	msg    *nats.Msg
+	rtype  string
+	rname  string
+	method string
+	mh     *Match
+}
+
+type workItem struct {
+	cb      func()
+	request requestWork
+}
+
 type work struct {
 	s      *Service
 	wid    string // Worker ID for the work queue
-	single [1]func()
-	queue  []func() // Callback queue
+	single [1]workItem
+	queue  []workItem // Work queue
 }
 
 // startWorker starts a new resource worker that will listen for resources to
@@ -32,14 +47,18 @@ func (s *Service) startWorker() {
 }
 
 func (w *work) processQueue() {
-	var f func()
+	var wi workItem
 	idx := 0
 
 	for len(w.queue) > idx {
-		f = w.queue[idx]
+		wi = w.queue[idx]
 		w.s.mu.Unlock()
 		idx++
-		f()
+		if wi.cb != nil {
+			wi.cb()
+		} else {
+			w.s.processRequest(wi.request)
+		}
 		w.s.mu.Lock()
 	}
 	// Work complete. Delete if it has a work ID.

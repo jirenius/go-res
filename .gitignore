@@ -13,3 +13,4 @@ debug
 *.out
 
 .vscode
+.gocache
