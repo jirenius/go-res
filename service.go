@@ -200,6 +200,11 @@ type Service struct {
 	state          int32
 	nc             Conn                   // NATS Server connection
 	inCh           chan *nats.Msg         // Channel for incoming nats messages
+	pending        []*nats.Msg            // Pending incoming messages
+	pendingBuf     []*nats.Msg            // Original pending buffer
+	pendingMu      sync.Mutex             // Mutex for pending queue
+	pendingCond    sync.Cond              // Cond signaled on pending queue updates
+	pendingClosed  bool                   // Flag set when inCh is closed and drained into pending
 	rwork          map[string]*work       // map of resource work
 	workqueue      []*work                // Resource work queue.
 	workbuf        []*work                // Underlying buffer of the workqueue
@@ -665,6 +670,10 @@ func (s *Service) serve(nc Conn) error {
 	workCh := make(chan *work, 1)
 	s.nc = nc
 	s.inCh = inCh
+	s.pending = make([]*nats.Msg, 0, s.inChannelSize)
+	s.pendingBuf = s.pending
+	s.pendingCond = sync.Cond{L: &s.pendingMu}
+	s.pendingClosed = false
 	s.workcond = sync.Cond{L: &s.mu}
 	s.workbuf = make([]*work, s.inChannelSize)
 	s.workqueue = s.workbuf[:0]
@@ -692,7 +701,8 @@ func (s *Service) serve(nc Conn) error {
 		}
 
 		s.infof("Listening for requests")
-		s.startListener(inCh)
+		go s.startIngress(inCh)
+		s.startListener()
 	}
 
 	// Stop all workers by closing worker channel
@@ -918,11 +928,50 @@ next:
 	return nil
 }
 
-// startListener listens for nats messages and passes them on to a worker.
-func (s *Service) startListener(ch chan *nats.Msg) {
+// startIngress drains the NATS channel into the pending queue.
+func (s *Service) startIngress(ch chan *nats.Msg) {
 	for m := range ch {
+		s.pendingMu.Lock()
+		s.pending = append(s.pending, m)
+		s.pendingMu.Unlock()
+		s.pendingCond.Signal()
+	}
+
+	s.pendingMu.Lock()
+	s.pendingClosed = true
+	s.pendingMu.Unlock()
+	s.pendingCond.Broadcast()
+}
+
+// startListener dequeues pending nats messages and passes them on to a worker.
+func (s *Service) startListener() {
+	for {
+		m, ok := s.dequeuePending()
+		if !ok {
+			return
+		}
 		s.handleRequest(m)
 	}
+}
+
+func (s *Service) dequeuePending() (*nats.Msg, bool) {
+	s.pendingMu.Lock()
+	defer s.pendingMu.Unlock()
+
+	for len(s.pending) == 0 && !s.pendingClosed {
+		s.pendingCond.Wait()
+	}
+	if len(s.pending) == 0 {
+		return nil, false
+	}
+
+	m := s.pending[0]
+	s.pending[0] = nil
+	s.pending = s.pending[1:]
+	if len(s.pending) == 0 {
+		s.pending = s.pendingBuf
+	}
+	return m, true
 }
 
 // handleRequest is called by the nats listener on incoming messages.
