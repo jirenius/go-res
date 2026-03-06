@@ -132,9 +132,9 @@ func (qr *queryRequest) Timeout(d time.Duration) {
 func (qe *queryEvent) startQueryListener() {
 	for m := range qe.ch {
 		m := m
-		qe.r.s.runWith(qe.r.Group(), func() {
+		qe.r.s.runWith(qe.r.Group(), workItem{cb: func() {
 			qe.handleQueryRequest(m)
-		})
+		}})
 	}
 }
 

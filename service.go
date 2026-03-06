@@ -965,14 +965,20 @@ func (s *Service) handleRequest(m *nats.Msg) {
 		group = mh.Group
 	}
 
-	s.runWith(group, func() {
-		s.processRequest(m, rtype, rname, method, mh)
+	s.runWith(group, workItem{
+		request: requestWork{
+			msg:    m,
+			rtype:  rtype,
+			rname:  rname,
+			method: method,
+			mh:     mh,
+		},
 	})
 }
 
-// runWith enqueues the callback, cb, to be called by the worker goroutine
+// runWith enqueues the item to be called by the worker goroutine
 // defined by the worker ID (wid).
-func (s *Service) runWith(wid string, cb func()) {
+func (s *Service) runWith(wid string, item workItem) {
 	if atomic.LoadInt32(&s.state) != stateStarted {
 		return
 	}
@@ -989,7 +995,7 @@ func (s *Service) runWith(wid string, cb func()) {
 		w = &work{
 			s:      s,
 			wid:    wid,
-			single: [1]func(){cb},
+			single: [1]workItem{item},
 		}
 		w.queue = w.single[:1]
 		if wid != "" {
@@ -1000,7 +1006,7 @@ func (s *Service) runWith(wid string, cb func()) {
 		s.workcond.Signal()
 	} else {
 		// Append callback to existing work queue
-		w.queue = append(w.queue, cb)
+		w.queue = append(w.queue, item)
 		s.mu.Unlock()
 	}
 }
@@ -1017,9 +1023,7 @@ func (s *Service) With(rid string, cb func(r Resource)) error {
 		return err
 	}
 
-	s.runWith(r.Group(), func() {
-		cb(r)
-	})
+	s.runWith(r.Group(), workItem{cb: func() { cb(r) }})
 
 	return nil
 }
@@ -1028,12 +1032,12 @@ func (s *Service) With(rid string, cb func(r Resource)) error {
 // goroutine. If the resource belongs to a group, it will be called on the
 // group's worker goroutine.
 func (s *Service) WithResource(r Resource, cb func()) {
-	s.runWith(r.Group(), cb)
+	s.runWith(r.Group(), workItem{cb: cb})
 }
 
 // WithGroup calls the callback, cb, on the group's worker goroutine.
 func (s *Service) WithGroup(group string, cb func(s *Service)) {
-	s.runWith(group, func() { cb(s) })
+	s.runWith(group, workItem{cb: func() { cb(s) }})
 }
 
 // Resource matches the resource ID, rid, with the registered Handlers and
@@ -1133,7 +1137,13 @@ func parseRID(rid string) (rname string, q string) {
 }
 
 // processRequest is executed by the worker to process an incoming request.
-func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *Match) {
+func (s *Service) processRequest(rw requestWork) {
+	m := rw.msg
+	rtype := rw.rtype
+	rname := rw.rname
+	method := rw.method
+	mh := rw.mh
+
 	var r *Request
 	if mh == nil {
 		r = &Request{resource: resource{s: s}, msg: m}
@@ -1181,7 +1191,5 @@ func (s *Service) processRequest(m *nats.Msg, rtype, rname, method string, mh *M
 func (s *Service) queryEventExpire(v interface{}) {
 	qe := v.(*queryEvent)
 	qe.sub.Drain()
-	s.runWith(qe.r.Group(), func() {
-		qe.cb(nil)
-	})
+	s.runWith(qe.r.Group(), workItem{cb: func() { qe.cb(nil) }})
 }
