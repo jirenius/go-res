@@ -200,6 +200,7 @@ type Service struct {
 	state          int32
 	nc             Conn                   // NATS Server connection
 	inCh           chan *nats.Msg         // Channel for incoming nats messages
+	subs           []*nats.Subscription   // NATS subscriptions used for incoming requests
 	pending        []*nats.Msg            // Pending incoming messages
 	pendingBuf     []*nats.Msg            // Original pending buffer
 	pendingMu      sync.Mutex             // Mutex for pending queue
@@ -668,8 +669,11 @@ func (s *Service) serve(nc Conn) error {
 	// Initialize fields
 	inCh := make(chan *nats.Msg, s.inChannelSize)
 	workCh := make(chan *work, 1)
+	s.mu.Lock()
 	s.nc = nc
 	s.inCh = inCh
+	s.subs = nil
+	s.mu.Unlock()
 	s.pending = make([]*nats.Msg, 0, s.inChannelSize)
 	s.pendingBuf = s.pending
 	s.pendingCond = sync.Cond{L: &s.pendingMu}
@@ -726,9 +730,6 @@ func (s *Service) Shutdown() error {
 	// Wait for all workers to be done
 	s.wg.Wait()
 
-	s.inCh = nil
-	s.nc = nil
-
 	atomic.StoreInt32(&s.state, stateStopped)
 
 	s.infof("Stopped")
@@ -739,11 +740,20 @@ func (s *Service) Shutdown() error {
 func (s *Service) close() {
 	s.mu.Lock()
 	s.workqueue = nil
+	nc := s.nc
+	inCh := s.inCh
+	s.nc = nil
+	s.inCh = nil
+	s.subs = nil
 	s.mu.Unlock()
 	s.workcond.Broadcast()
 
-	s.nc.Close()
-	close(s.inCh)
+	if nc != nil {
+		nc.Close()
+	}
+	if inCh != nil {
+		close(inCh)
+	}
 }
 
 // Reset sends a system reset for the provided resource patterns.
@@ -898,9 +908,9 @@ func (s *Service) subscribe() error {
 		pattern := "access." + p
 		s.tracef("sub %s", pattern)
 		if s.queueGroup == "" {
-			_, err = s.nc.ChanSubscribe(pattern, s.inCh)
+			err = s.addSubscription(pattern, "")
 		} else {
-			_, err = s.nc.ChanQueueSubscribe(pattern, s.queueGroup, s.inCh)
+			err = s.addSubscription(pattern, s.queueGroup)
 		}
 		if err != nil {
 			return err
@@ -917,14 +927,42 @@ next:
 		}
 		s.tracef("sub %s", pattern)
 		if s.queueGroup == "" {
-			_, err = s.nc.ChanSubscribe(pattern, s.inCh)
+			err = s.addSubscription(pattern, "")
 		} else {
-			_, err = s.nc.ChanQueueSubscribe(pattern, s.queueGroup, s.inCh)
+			err = s.addSubscription(pattern, s.queueGroup)
 		}
 		if err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *Service) addSubscription(pattern, queue string) error {
+	var (
+		sub *nats.Subscription
+		err error
+	)
+	s.mu.Lock()
+	nc := s.nc
+	inCh := s.inCh
+	s.mu.Unlock()
+	if nc == nil || inCh == nil {
+		return errNotStarted
+	}
+
+	if queue == "" {
+		sub, err = nc.ChanSubscribe(pattern, inCh)
+	} else {
+		sub, err = nc.ChanQueueSubscribe(pattern, queue, inCh)
+	}
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.subs = append(s.subs, sub)
+	s.mu.Unlock()
 	return nil
 }
 

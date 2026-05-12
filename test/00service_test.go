@@ -39,11 +39,81 @@ func TestServiceProtocolVersion(t *testing.T) {
 	restest.AssertEqualJSON(t, "ProtocolVersion()", s.ProtocolVersion(), "1.2.3")
 }
 
+func TestServiceDebugStats_BeforeServe_ReturnsStoppedSnapshot(t *testing.T) {
+	s := res.NewService("test")
+	st := s.DebugStats()
+	restest.AssertEqualJSON(t, "Started", st.Started, false)
+	restest.AssertEqualJSON(t, "InChannelLen", st.InChannelLen, 0)
+	restest.AssertEqualJSON(t, "InChannelCap", st.InChannelCap, 0)
+	restest.AssertEqualJSON(t, "PendingLen", st.PendingLen, 0)
+	restest.AssertEqualJSON(t, "WorkQueueLen", st.WorkQueueLen, 0)
+}
+
 // Test that the service can be served without error
 func TestServiceStart(t *testing.T) {
 	runTest(t, func(s *res.Service) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 	}, nil)
+}
+
+func TestServiceDebugStats_AfterServe_ReturnsChannelAndSubscriptionStats(t *testing.T) {
+	runTest(t, func(s *res.Service) {
+		s.SetInChannelSize(10)
+		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
+	}, func(s *restest.Session) {
+		st := s.Service().DebugStats()
+		restest.AssertEqualJSON(t, "Started", st.Started, true)
+		restest.AssertEqualJSON(t, "InChannelCap", st.InChannelCap, 10)
+		restest.AssertTrue(t, "expected subscriptions", len(st.Subscriptions) > 0)
+	})
+}
+
+func TestServiceDebugStats_WithBlockedHandler_ReturnsQueuePressure(t *testing.T) {
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+
+	runTest(t, func(s *res.Service) {
+		s.Handle("model", res.GetResource(func(r res.GetRequest) {
+			select {
+			case started <- struct{}{}:
+			default:
+			}
+			<-release
+			r.NotFound()
+		}))
+	}, func(s *restest.Session) {
+		reqs := restest.NATSRequests{s.Get("test.model")}
+		select {
+		case <-started:
+		case <-time.After(timeoutDuration):
+			t.Fatal("expected get handler to start")
+		}
+
+		reqs = append(reqs,
+			s.Get("test.model"),
+			s.Get("test.model"),
+			s.Get("test.model"),
+		)
+
+		var st res.ServiceDebugStats
+		deadline := time.After(timeoutDuration)
+		for {
+			st = s.Service().DebugStats()
+			if st.InChannelLen+st.PendingLen+st.ResourceWorkItems > 1 {
+				break
+			}
+			select {
+			case <-deadline:
+				t.Fatalf("expected queue pressure, got %+v", st)
+			case <-time.After(time.Millisecond):
+			}
+		}
+
+		close(release)
+		for range reqs {
+			reqs.Response(s.MockConn).AssertError(res.ErrNotFound)
+		}
+	})
 }
 
 // Test that service can be served without logger

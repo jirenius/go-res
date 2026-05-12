@@ -180,7 +180,7 @@ func (c *MockConn) ChanQueueSubscribe(subj, queue string, ch chan *nats.Msg) (*n
 		return c.nc.ChanSubscribe(subj, ch)
 	}
 
-	sub := &nats.Subscription{Subject: subj}
+	sub := &nats.Subscription{Subject: subj, Queue: queue}
 	msub := newMockSubscription(c, subj, ch)
 	c.subs[sub] = msub
 
