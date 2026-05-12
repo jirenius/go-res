@@ -245,9 +245,13 @@ func NewService(name string) *Service {
 	return s
 }
 
+func (s *Service) isStarted() bool {
+	return atomic.LoadInt32(&s.state) != stateStopped
+}
+
 // SetLogger sets the logger. Panics if service is already started.
 func (s *Service) SetLogger(l logger.Logger) *Service {
-	if s.nc != nil {
+	if s.isStarted() {
 		panic(serviceAlreadyStarted)
 	}
 	s.logger = l
@@ -257,7 +261,7 @@ func (s *Service) SetLogger(l logger.Logger) *Service {
 // SetQueryEventDuration sets the duration for which the service will listen for
 // query requests sent on a query event. Default is 3 seconds
 func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
-	if s.nc != nil {
+	if s.isStarted() {
 		panic(serviceAlreadyStarted)
 	}
 	s.queryDuration = d
@@ -269,7 +273,7 @@ func (s *Service) SetQueryEventDuration(d time.Duration) *Service {
 //
 // If count is less or equal to zero, the default value is used.
 func (s *Service) SetWorkerCount(count int) *Service {
-	if s.nc != nil {
+	if s.isStarted() {
 		panic(serviceAlreadyStarted)
 	}
 	if count <= 0 {
@@ -284,7 +288,7 @@ func (s *Service) SetWorkerCount(count int) *Service {
 //
 // If size is less or equal to zero, the default value is used.
 func (s *Service) SetInChannelSize(size int) *Service {
-	if s.nc != nil {
+	if s.isStarted() {
 		panic(serviceAlreadyStarted)
 	}
 	if size <= 0 {

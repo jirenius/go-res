@@ -279,14 +279,17 @@ func TestServiceSetOnServe_ValidCallback_IsCalledOnServe(t *testing.T) {
 }
 
 func TestServiceSetOnError_ValidCallback_IsCalledOnError(t *testing.T) {
-	var done func()
+	doneCh := make(chan struct{}, 1)
 	runTestAsync(t, func(s *res.Service) {
 		s.Handle("model", res.GetResource(func(r res.GetRequest) { r.NotFound() }))
 		s.SetOnError(func(s *res.Service, msg string) {
-			done()
+			doneCh <- struct{}{}
 		})
 	}, func(s *restest.Session, d func()) {
-		done = d
+		go func() {
+			<-doneCh
+			d()
+		}()
 	}, restest.WithFailSubscription, restest.WithoutReset)
 }
 
